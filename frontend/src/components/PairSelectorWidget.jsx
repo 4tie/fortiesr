@@ -33,6 +33,7 @@ export default function PairSelectorWidget({ onSelectionChange }) {
   const [error,      setError]      = useState(null);
   const searchRef = useRef(null);
   const maxTimer  = useRef(null);
+  const lastSelectedRef = useRef("");
 
   const load = useCallback(async () => {
     try {
@@ -50,7 +51,13 @@ export default function PairSelectorWidget({ onSelectionChange }) {
   useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
-    if (onSelectionChange) onSelectionChange([...ps.selected]);
+    if (onSelectionChange) {
+      const selectedStr = JSON.stringify(ps.selected);
+      if (selectedStr !== lastSelectedRef.current) {
+        lastSelectedRef.current = selectedStr;
+        onSelectionChange([...ps.selected]);
+      }
+    }
   }, [ps.selected, onSelectionChange]);
 
   const mutate = useCallback(async (key, fn) => {

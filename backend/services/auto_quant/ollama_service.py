@@ -19,6 +19,9 @@ from typing import Any, Callable
 
 import aiohttp
 
+from ..ai.ollama_client import OllamaClient as SharedOllamaClient
+from ..ai.ollama_config import config_from_user_data_dir
+
 logger = logging.getLogger(__name__)
 
 
@@ -476,6 +479,11 @@ class OllamaClient:
             logger.warning(f"Failed to log ollama interaction: {e}")
 
 
+# Compatibility export: callers importing this module's OllamaClient now receive
+# the shared transport implementation in backend.services.ai.ollama_client.
+OllamaClient = SharedOllamaClient
+
+
 def clean_json_response(response: str) -> str:
     """Strip conversational text and markdown blocks from AI response.
     
@@ -846,43 +854,23 @@ def create_ollama_client_from_settings(
         OllamaClient instance or None if settings cannot be read
     """
     try:
-        settings_file = Path(user_data_dir) / "strategy_lab_settings.json"
-        if not settings_file.exists():
-            logger.warning(f"Settings file not found: {settings_file}")
-            return None
-        
-        import json as json_module
-        with open(settings_file, "r", encoding="utf-8") as f:
-            settings = json_module.load(f)
-        
-        base_url = settings.get("ollama_api_url", "http://localhost:11434")
-        model = settings.get("ollama_model", "")
-        api_key = settings.get("ollama_api_key", "")
-        provider = settings.get("ollama_provider", "local")
-        
-        # Use timeout from settings if not provided
-        if timeout is None:
-            timeout = settings.get("ollama_timeout", 30)
-        
-        if not model:
-            logger.warning("Ollama model not configured in settings")
-            return None
-        
-        # Set up log directory if not provided
-        if log_dir is None:
-            log_dir = str(Path(user_data_dir) / "data" / "ai")
-        
-        use_api_key = api_key if provider == "ollama_cloud" else None
-        logger.info(f"Creating OllamaClient from settings: base_url={base_url}, model={model}, timeout={timeout}, provider={provider}")
-        return OllamaClient(
-            base_url=base_url,
-            model=model,
+        config = config_from_user_data_dir(
+            user_data_dir,
             timeout=timeout,
             health_timeout=health_timeout,
             strict_json=strict_json,
             log_dir=log_dir,
-            api_key=use_api_key,
         )
+        if config is None:
+            return None
+        logger.info(
+            "Creating shared OllamaClient from settings: base_url=%s, model=%s, timeout=%s, provider=%s",
+            config.base_url,
+            config.model,
+            config.timeout,
+            config.provider,
+        )
+        return OllamaClient(config=config)
     except Exception as e:
         logger.warning(f"Failed to create OllamaClient from settings: {e}")
         return None

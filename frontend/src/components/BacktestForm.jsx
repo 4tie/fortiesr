@@ -123,11 +123,6 @@ const PRESETS = [
   { label: "2 Years", days: 730 },
 ];
 
-const DEFAULT_PAIRS = [
-  "BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT", "XRP/USDT",
-  "DOGE/USDT", "ADA/USDT", "MATIC/USDT", "LINK/USDT", "DOT/USDT",
-];
-
 function fmtDate(d) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -199,19 +194,20 @@ export default function BacktestForm({
     if (sharedLoading || !sharedState || hydrated.current) return;
     hydrated.current = true;
 
-    if (sharedState.strategy_name)       setStrategy(sharedState.strategy_name);
-    if (sharedState.timeframe)           setTimeframe(sharedState.timeframe);
-    if (sharedState.dry_run_wallet != null) setWallet(String(sharedState.dry_run_wallet));
-    if (sharedState.max_open_trades != null) setMaxTrades(String(sharedState.max_open_trades));
-    if (sharedState.pairs?.length)       setPairs(sharedState.pairs);
+    if (sharedState.strategy_name && strategy !== sharedState.strategy_name) setStrategy(sharedState.strategy_name);
+    if (sharedState.timeframe && timeframe !== sharedState.timeframe) setTimeframe(sharedState.timeframe);
+    if (sharedState.dry_run_wallet != null && wallet !== String(sharedState.dry_run_wallet)) setWallet(String(sharedState.dry_run_wallet));
+    if (sharedState.max_open_trades != null && maxTrades !== String(sharedState.max_open_trades)) setMaxTrades(String(sharedState.max_open_trades));
+    if (sharedState.pairs?.length && JSON.stringify(pairs) !== JSON.stringify(sharedState.pairs)) setPairs(sharedState.pairs);
 
     const savedStart = sharedState.start_date || "";
     const savedEnd   = sharedState.end_date   || "";
 
     if (savedStart && savedEnd) {
-      setStartDate(savedStart);
-      setEndDate(savedEnd);
-      setTimerange(dateToTimerange(savedStart, savedEnd));
+      if (startDate !== savedStart) setStartDate(savedStart);
+      if (endDate !== savedEnd) setEndDate(savedEnd);
+      const newTimerange = dateToTimerange(savedStart, savedEnd);
+      if (timerange !== newTimerange) setTimerange(newTimerange);
     } else if (sharedState.timerange) {
       setTimerange(sharedState.timerange);
       const { start, end } = timerangeToDates(sharedState.timerange);
