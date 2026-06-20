@@ -88,10 +88,12 @@ const useRealTimeUpdates = (run, enabled = true, interval = 5000) => {
       };
     } catch (err) {
       console.error("Error creating WebSocket:", err);
-      setError("Failed to establish WebSocket connection");
+      setTimeout(() => setError("Failed to establish WebSocket connection"), 0);
       
       // Start polling immediately if WebSocket fails
-      pollIntervalRef.current = setInterval(fetchRunData, interval);
+      setTimeout(() => {
+        pollIntervalRef.current = setInterval(fetchRunData, interval);
+      }, 0);
     }
 
     // Cleanup

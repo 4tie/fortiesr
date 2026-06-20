@@ -53,10 +53,12 @@ const ComparisonTab = ({ run }) => {
   // Initialize selected runs with the normalized current run if not already set
   React.useEffect(() => {
     if (!run) return;
-    setSelectedRuns((prev) => {
-      const previousComparisons = prev.filter((r) => !r.isCurrent);
-      return [currentRun, ...previousComparisons];
-    });
+    setTimeout(() => {
+      setSelectedRuns((prev) => {
+        const previousComparisons = prev.filter((r) => !r.isCurrent);
+        return [currentRun, ...previousComparisons];
+      });
+    }, 0);
   }, [currentRun, run]);
 
   // Handle case where run is not available yet
