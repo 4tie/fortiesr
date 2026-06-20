@@ -43,7 +43,7 @@ function parseTimerange(tr) {
   const startDate = fmt8(s);
   const endDate = fmt8(e);
   let days = null;
-  try { days = Math.round((new Date(endDate) - new Date(startDate)) / 86400000); } catch {}
+  try { days = Math.round((new Date(endDate) - new Date(startDate)) / 86400000); } catch { /* ignore */ }
   return { start: startDate, end: endDate, days };
 }
 
@@ -109,30 +109,20 @@ function TradesTable({ trades }) {
     else { setSortKey(key); setSortDir(-1); }
   };
 
-  const SortBtn = ({ k, label }) => (
-    <button
-      className="flex items-center gap-1 hover:text-primary transition-colors"
-      onClick={() => toggleSort(k)}
-    >
-      {label}
-      <span className="opacity-40">{sortKey === k ? (sortDir === 1 ? "▲" : "▼") : "↕"}</span>
-    </button>
-  );
-
   return (
     <div>
       <div className="overflow-x-auto rounded-box border border-base-300">
         <table className="table table-xs table-zebra w-full">
           <thead>
             <tr className="text-xs text-base-content/50 bg-base-300/40">
-              <th><SortBtn k="pair" label="Pair" /></th>
-              <th><SortBtn k="open_date" label="Open" /></th>
-              <th><SortBtn k="close_date" label="Close" /></th>
-              <th><SortBtn k="trade_duration" label="Dur." /></th>
-              <th><SortBtn k="profit_ratio" label="Profit %" /></th>
-              <th><SortBtn k="profit_abs" label="Profit $" /></th>
-              <th><SortBtn k="exit_reason" label="Exit" /></th>
-              <th className="text-right"><SortBtn k="stake_amount" label="Stake" /></th>
+              <th><SortBtn k="pair" label="Pair" sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort} /></th>
+              <th><SortBtn k="open_date" label="Open" sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort} /></th>
+              <th><SortBtn k="close_date" label="Close" sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort} /></th>
+              <th><SortBtn k="trade_duration" label="Dur." sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort} /></th>
+              <th><SortBtn k="profit_ratio" label="Profit %" sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort} /></th>
+              <th><SortBtn k="profit_abs" label="Profit $" sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort} /></th>
+              <th><SortBtn k="exit_reason" label="Exit" sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort} /></th>
+              <th className="text-right"><SortBtn k="stake_amount" label="Stake" sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort} /></th>
             </tr>
           </thead>
           <tbody>
