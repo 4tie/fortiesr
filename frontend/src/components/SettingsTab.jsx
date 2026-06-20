@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { api } from "../services/api.js";
 import { useToast } from "./Toast.jsx";
 
 export function InputRow({ label, sub, value, onChange, disabled, placeholder, readOnly, type = "text", min, max }) {
@@ -62,22 +63,13 @@ export default function SettingsTab() {
     if (!settings) return;
     setSaving(true); setError(null); setSaved(false);
     try {
-      const r = await fetch("/api/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(settings),
-      });
-      const d = await r.json();
-      if (!r.ok) {
-        setError(d.detail || "Save failed.");
-      } else {
-        setSettings(d.settings);
-        setSaved(true);
-        setDirty(false);
-        pushToast("Settings saved.", "success", 3000);
-      }
-    } catch {
-      setError("Network error while saving settings.");
+      const d = await api.settings.save(settings);
+      setSettings(d.settings);
+      setSaved(true);
+      setDirty(false);
+      pushToast("Settings saved.", "success", 3000);
+    } catch (e) {
+      setError(e.message || "Network error while saving settings.");
     } finally {
       setSaving(false);
     }
@@ -116,9 +108,7 @@ export default function SettingsTab() {
     setModelsLoading(true);
     setModelsError(null);
     try {
-      const r = await fetch("/api/ai/models");
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.detail || "Failed to fetch models");
+      const d = await api.ai.getModels();
       if (!d.reachable) {
         const provider = settings?.ollama_provider || "local";
         const netMode = settings?.network_mode || "local";

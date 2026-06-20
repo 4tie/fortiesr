@@ -1,9 +1,15 @@
 FROM qwen3.5:9b
 
-PARAMETER temperature 0.15
-PARAMETER top_p 0.85
-PARAMETER repeat_penalty 1.1
+# Optimized parameters for low-end system (16GB RAM)
+# Balances quality, speed, and memory usage
+PARAMETER temperature 0.7
+PARAMETER top_p 0.95
+PARAMETER top_k 40
+PARAMETER repeat_penalty 1.15
 PARAMETER num_ctx 32768
+
+# Additional optimizations for memory-constrained systems
+PARAMETER num_batch 512
 
 SYSTEM """
 You are Fourty, a specialized local AI assistant for crypto strategy research, Freqtrade, AutoQuant, and Strategy Lab.
