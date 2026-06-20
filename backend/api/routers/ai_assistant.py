@@ -24,6 +24,8 @@ from pydantic import BaseModel, Field
 
 from ...core.errors import BackendError
 from ...services.agent_context import AgentContextService
+from ...services.ai.ollama_client import OllamaClient, build_headers
+from ...services.ai.ollama_config import config_from_settings
 from ...services.assistant_service import AssistantService
 
 router = APIRouter(prefix="/api/ai", tags=["AI Assistant"])
@@ -41,17 +43,7 @@ def _build_headers(base_url: str, *, include_content_type: bool = False, api_key
     * ``Content-Type`` — ``application/json`` for POST bodies (optional for GETs).
     * ``Authorization`` — Bearer token when accessing Ollama Cloud API.
     """
-    parsed = urlparse(base_url)
-    host = parsed.netloc or parsed.path  # handles bare "hostname:port" strings too
-    headers: dict[str, str] = {
-        "Host":   host,
-        "Accept": "application/json",
-    }
-    if include_content_type:
-        headers["Content-Type"] = "application/json"
-    if api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
-    return headers
+    return build_headers(base_url, include_content_type=include_content_type, api_key=api_key)
 
 SYSTEM_PROMPT = (
     "You are a friendly trading mentor. "
@@ -116,67 +108,26 @@ def _ollama_error(exc: Exception) -> HTTPException:
     ),
 )
 async def health_check(request: Request) -> dict:
-    import time
     services = request.app.state.services
     cfg = services.settings_store.load()
-    base_url = cfg.ollama_api_url.rstrip("/")
-    
-    api_key = cfg.ollama_api_key if cfg.ollama_provider == "ollama_cloud" else None
-    headers = _build_headers(base_url, api_key=api_key)
     timeout = float(cfg.ollama_timeout if cfg.ollama_timeout else DEFAULT_TIMEOUT_TAGS)
-    
-    start_time = time.time()
+    config = config_from_settings(cfg, health_timeout=timeout, require_model=False)
+    if config is None:
+        return {
+            "status": "unhealthy",
+            "reachable": False,
+            "latency_ms": 0,
+            "error": "Ollama API URL not configured",
+            "ollama_api_url": "",
+            "provider": cfg.ollama_provider,
+        }
+    client = OllamaClient(config=config)
     try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            # Try a simple tags request to check connectivity
-            resp = await client.get(f"{base_url}/api/tags", headers=headers)
-            resp.raise_for_status()
-            latency_ms = round((time.time() - start_time) * 1000, 2)
-            
-            try:
-                data = resp.json()
-                model_count = len(data.get("models", [])) if isinstance(data, dict) else 0
-            except json.JSONDecodeError:
-                model_count = 0
-                
-            return {
-                "status": "healthy",
-                "reachable": True,
-                "latency_ms": latency_ms,
-                "model_count": model_count,
-                "ollama_api_url": base_url,
-                "provider": cfg.ollama_provider,
-            }
-    except httpx.ConnectError:
-        latency_ms = round((time.time() - start_time) * 1000, 2)
-        return {
-            "status": "unhealthy",
-            "reachable": False,
-            "latency_ms": latency_ms,
-            "error": "Connection refused - Ollama may not be running",
-            "ollama_api_url": base_url,
-            "provider": cfg.ollama_provider,
-        }
-    except httpx.TimeoutException:
-        latency_ms = round((time.time() - start_time) * 1000, 2)
-        return {
-            "status": "unhealthy",
-            "reachable": False,
-            "latency_ms": latency_ms,
-            "error": f"Timeout after {timeout}s - Ollama may be overloaded",
-            "ollama_api_url": base_url,
-            "provider": cfg.ollama_provider,
-        }
-    except Exception as exc:
-        latency_ms = round((time.time() - start_time) * 1000, 2)
-        return {
-            "status": "unhealthy",
-            "reachable": False,
-            "latency_ms": latency_ms,
-            "error": str(exc),
-            "ollama_api_url": base_url,
-            "provider": cfg.ollama_provider,
-        }
+        result = await client.health()
+        result["provider"] = cfg.ollama_provider
+        return result
+    finally:
+        await client.close()
 
 
 @router.get(
@@ -190,53 +141,20 @@ async def health_check(request: Request) -> dict:
 async def list_models(request: Request) -> dict:
     services = request.app.state.services
     cfg = services.settings_store.load()
-    base_url = cfg.ollama_api_url.rstrip("/")
-    tags_url = f"{base_url}/api/tags"
-
-    api_key = cfg.ollama_api_key if cfg.ollama_provider == "ollama_cloud" else None
-    headers = _build_headers(base_url, api_key=api_key)
     timeout = float(cfg.ollama_timeout if cfg.ollama_timeout else DEFAULT_TIMEOUT_TAGS)
-    
+    config = config_from_settings(cfg, health_timeout=timeout, require_model=False)
+    if config is None:
+        return {
+            "models": [],
+            "reachable": False,
+            "ollama_api_url": "",
+            "error": "Ollama API URL not configured",
+        }
+    client = OllamaClient(config=config)
     try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            resp = await client.get(tags_url, headers=headers)
-            resp.raise_for_status()
-            try:
-                data = resp.json()
-            except json.JSONDecodeError:
-                return {
-                    "models": [],
-                    "reachable": False,
-                    "ollama_api_url": base_url,
-                    "error": f"Ollama returned non-JSON — check the URL is correct.",
-                }
-    except httpx.ConnectError:
-        return {
-            "models": [],
-            "reachable": False,
-            "ollama_api_url": base_url,
-            "error": "Could not connect to Ollama. Make sure it is running and the URL is correct.",
-        }
-    except httpx.TimeoutException:
-        return {
-            "models": [],
-            "reachable": False,
-            "ollama_api_url": base_url,
-            "error": f"Ollama did not respond within {timeout} seconds. It may be busy or unreachable. Try increasing the timeout in Settings.",
-        }
-    except Exception as exc:
-        return {
-            "models": [],
-            "reachable": False,
-            "ollama_api_url": base_url,
-            "error": str(exc),
-        }
-
-    raw_models = data.get("models", [])
-    names = sorted(
-        m.get("name", "") for m in raw_models if isinstance(m, dict) and m.get("name")
-    )
-    return {"models": names, "reachable": True, "ollama_api_url": base_url}
+        return await client.list_models()
+    finally:
+        await client.close()
 
 
 class ChatRequest(BaseModel):
@@ -395,46 +313,34 @@ async def explain_strategy(body: ExplainRequest, request: Request) -> dict:
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
 
-    ollama_url = settings.ollama_api_url
     ollama_model = body.model or settings.ollama_model
-    ollama_provider = settings.ollama_provider
-    ollama_api_key = settings.ollama_api_key if ollama_provider == "ollama_cloud" else None
     timeout = float(settings.ollama_timeout if settings.ollama_timeout else DEFAULT_TIMEOUT_GENERATE)
 
-    if not ollama_url:
+    if not settings.ollama_api_url:
         raise HTTPException(
             status_code=400,
             detail="Ollama API URL not configured in Settings",
         )
-
-    try:
-        response = await asyncio.wait_for(
-            httpx.AsyncClient(timeout=timeout).post(
-                f"{ollama_url}/api/generate",
-                headers=_build_headers(ollama_url, include_content_type=True, api_key=ollama_api_key),
-                json={
-                    "model": ollama_model,
-                    "prompt": f"{SYSTEM_PROMPT}\n\nStrategy code:\n{strategy_source}",
-                    "stream": False,
-                },
-            ),
-            timeout=timeout,
-        )
-    except httpx.ConnectError as exc:
-        raise _ollama_error(exc)
-    except httpx.TimeoutException as exc:
-        raise _ollama_error(exc)
-    except httpx.HTTPStatusError as exc:
-        raise _ollama_error(exc)
-
-    if response.status_code != 200:
+    if not ollama_model:
         raise HTTPException(
-            status_code=response.status_code,
-            detail=f"Ollama returned HTTP {response.status_code}",
+            status_code=422,
+            detail="Ollama model not configured in Settings",
         )
 
-    data = response.json()
-    explanation = data.get("response", "")
+    config = config_from_settings(settings, model_override=ollama_model, timeout=timeout, require_model=True)
+    client = OllamaClient(config=config)
+    try:
+        explanation = await client.generate(
+            f"Strategy code:\n{strategy_source}",
+            system_prompt=SYSTEM_PROMPT,
+            model=ollama_model,
+            feature="explain_strategy",
+        )
+    finally:
+        await client.close()
+
+    if explanation is None:
+        raise HTTPException(status_code=502, detail="Ollama returned an empty or invalid response.")
 
     return {
         "strategy_name": body.strategy_name,
@@ -491,11 +397,7 @@ async def autoquant_chat(body: AutoQuantRequest, request: Request) -> dict:
         # Extract tool calls if any
         tool_calls = []
         if hasattr(response, 'tool_calls') and response.tool_calls:
-            for tool_call in response.tool_calls:
-                tool_calls.append({
-                    "name": tool_call.function.name,
-                    "arguments": tool_call.function.arguments
-                })
+            tool_calls = list(response.tool_calls)
         
         return {
             "response": response.content if hasattr(response, 'content') else str(response),

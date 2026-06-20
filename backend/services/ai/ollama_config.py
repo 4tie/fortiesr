@@ -21,6 +21,7 @@ def _get(settings: Any, key: str, default: Any = None) -> Any:
 def config_from_settings(
     settings: Any,
     *,
+    model_override: str | None = None,
     timeout: int | float | None = None,
     health_timeout: int | float = 5,
     strict_json: bool = False,
@@ -32,7 +33,7 @@ def config_from_settings(
         return None
 
     base_url = str(_get(settings, "ollama_api_url", "http://localhost:11434") or "").strip()
-    model = str(_get(settings, "ollama_model", "") or "").strip()
+    model = str(model_override if model_override is not None else (_get(settings, "ollama_model", "") or "")).strip()
     provider = str(_get(settings, "ollama_provider", "local") or "local").strip()
     raw_api_key = str(_get(settings, "ollama_api_key", "") or "").strip()
     resolved_timeout = timeout if timeout is not None else _get(settings, "ollama_timeout", 30)
@@ -72,6 +73,7 @@ def load_settings_dict(user_data_dir: str | Path) -> dict[str, Any] | None:
 def config_from_user_data_dir(
     user_data_dir: str | Path,
     *,
+    model_override: str | None = None,
     timeout: int | float | None = None,
     health_timeout: int | float = 5,
     strict_json: bool = False,
@@ -86,6 +88,7 @@ def config_from_user_data_dir(
         log_dir = str(Path(user_data_dir) / "data" / "ai")
     return config_from_settings(
         settings,
+        model_override=model_override,
         timeout=timeout,
         health_timeout=health_timeout,
         strict_json=strict_json,
@@ -102,4 +105,3 @@ def resolve_user_data_dir(value: Any) -> str:
     if path:
         return str(path)
     raise TypeError("Expected user_data directory path or settings with user_data_directory_path")
-

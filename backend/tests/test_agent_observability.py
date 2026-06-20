@@ -1,15 +1,24 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
+from urllib.parse import parse_qs, urlparse
 from unittest.mock import MagicMock, patch
 
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
+from fastapi import HTTPException
 
 import backend.services.auto_quant.pipeline as pl
-from backend.api.routers.agent import router
+from backend.api.routers.agent import (
+    AgentUiStatePayload,
+    get_agent_auto_quant_run,
+    get_agent_backtest_run,
+    get_agent_context,
+    get_agent_optimizer_run,
+    get_agent_strategy_files,
+    update_agent_ui_state,
+)
 from backend.models import (
     OptimizerScoreMetric,
     OptimizerSession,
@@ -32,9 +41,70 @@ class DummyLogBroadcaster:
         self.history = ["backend ready", "trial complete"]
 
 
+class RouteResponse:
+    def __init__(self, payload: dict, status_code: int = 200) -> None:
+        self.payload = payload
+        self.status_code = status_code
+
+    def json(self) -> dict:
+        return self.payload
+
+
+class DirectAgentClient:
+    def __init__(self, request) -> None:
+        self.request = request
+
+    def post(self, path: str, json: dict) -> RouteResponse:
+        async def _run() -> dict:
+            if path == "/api/agent/ui-state":
+                return await update_agent_ui_state(AgentUiStatePayload(**json), self.request)
+            raise AssertionError(f"Unhandled POST path: {path}")
+
+        return _response_from_async(_run)
+
+    def get(self, path: str) -> RouteResponse:
+        async def _run() -> dict:
+            parsed = urlparse(path)
+            query = parse_qs(parsed.query)
+            clean_path = parsed.path
+            if clean_path == "/api/agent/context":
+                return await get_agent_context(
+                    self.request,
+                    active_tab=None,
+                    active_panel=None,
+                    strategy_name=None,
+                    auto_quant_run_id=None,
+                    optimizer_session_id=None,
+                    optimizer_trial_number=None,
+                    backtest_run_id=None,
+                    api_session_id=None,
+                )
+            if clean_path.startswith("/api/agent/runs/auto-quant/"):
+                return await get_agent_auto_quant_run(clean_path.rsplit("/", 1)[-1], self.request)
+            if clean_path.startswith("/api/agent/runs/optimizer/"):
+                trial = query.get("optimizer_trial_number", [None])[0]
+                return await get_agent_optimizer_run(
+                    clean_path.rsplit("/", 1)[-1],
+                    self.request,
+                    optimizer_trial_number=int(trial) if trial is not None else None,
+                )
+            if clean_path.startswith("/api/agent/runs/backtest/"):
+                return await get_agent_backtest_run(clean_path.rsplit("/", 1)[-1], self.request)
+            if clean_path.startswith("/api/agent/files/strategy/"):
+                return await get_agent_strategy_files(clean_path.rsplit("/", 1)[-1], self.request)
+            raise AssertionError(f"Unhandled GET path: {path}")
+
+        return _response_from_async(_run)
+
+
+def _response_from_async(func) -> RouteResponse:
+    try:
+        return RouteResponse(asyncio.run(func()))
+    except HTTPException as exc:
+        return RouteResponse({"detail": exc.detail}, status_code=exc.status_code)
+
+
 def _client(tmp_path: Path):
-    app = FastAPI()
-    app.include_router(router)
 
     strategies_dir = tmp_path / "strategies"
     user_data_dir = tmp_path / "user_data"
@@ -56,11 +126,13 @@ def _client(tmp_path: Path):
     services.strategy_optimizer.get_active_session_id.return_value = None
     services.backtest_runner.get_current_run_id.return_value = None
 
-    app.state.services = services
-    app.state.log_broadcaster = DummyLogBroadcaster()
-    app.state.session_store = MagicMock()
-    app.state.session_store.get.return_value = None
-    return TestClient(app), services, settings
+    state = SimpleNamespace()
+    state.services = services
+    state.log_broadcaster = DummyLogBroadcaster()
+    state.session_store = MagicMock()
+    state.session_store.get.return_value = None
+    request = SimpleNamespace(app=SimpleNamespace(state=state))
+    return DirectAgentClient(request), services, settings
 
 
 def test_ui_state_persists_and_context_handles_no_active_run(tmp_path):
@@ -247,17 +319,22 @@ def test_context_includes_strategy_version_metadata(tmp_path):
     client, services, settings = _client(tmp_path)
     strategy_path = Path(settings.strategies_directory_path) / "DemoStrategy.py"
     strategy_path.write_text("class DemoStrategy:\n    pass\n", encoding="utf-8")
+
+    class VersionRecord(SimpleNamespace):
+        def to_dict(self):
+            return dict(self.__dict__)
+
     services.version_manager = SimpleNamespace(
-        get_current_pointer=lambda name: {
-            "strategy_name": name,
-            "accepted_version_id": "v001",
-            "accepted_at": "2026-06-15T00:00:00Z",
-        },
-        load_params=lambda name, version_id: {
-            "strategy_name": name,
-            "version_id": version_id,
-            "buy_params": {"buy_window": 14},
-        },
+        get_current_pointer=lambda name: VersionRecord(
+            strategy_name=name,
+            accepted_version_id="v001",
+            accepted_at="2026-06-15T00:00:00Z",
+        ),
+        load_params=lambda name, version_id: VersionRecord(
+            strategy_name=name,
+            version_id=version_id,
+            buy_params={"buy_window": 14},
+        ),
         list_versions=lambda name: [
             {"strategy_name": name, "version_id": "v001", "acceptance_status": "accepted"},
             {"strategy_name": name, "version_id": "v002", "acceptance_status": "candidate"},

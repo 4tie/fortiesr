@@ -8,6 +8,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
+import { useMemo } from "react";
 
 const DrawdownChart = ({ run }) => {
   const report = run.report || {};
@@ -15,32 +16,46 @@ const DrawdownChart = ({ run }) => {
   const maxDD = risk.max_drawdown_pct || 0;
 
   // Generate realistic drawdown data
-  const generateData = () => {
+  const data = useMemo(() => {
     const data = [];
     const points = 50;
     let currentDD = 0;
     
+    // Seeded random for deterministic rendering
+    const seededRandom = (seed) => {
+      const newSeed = (seed * 9301 + 49297) % 233280;
+      return { value: newSeed / 233280, nextSeed: newSeed };
+    };
+    
+    let seed = maxDD;
     for (let i = 0; i < points; i++) {
+      const rand1 = seededRandom(seed);
+      seed = rand1.nextSeed;
+      
       // Simulate drawdown periods
-      if (Math.random() > 0.7) {
-        currentDD = Math.min(maxDD * 1.2, currentDD + Math.random() * 0.05);
+      if (rand1.value > 0.7) {
+        const rand2 = seededRandom(seed);
+        seed = rand2.nextSeed;
+        currentDD = Math.min(maxDD * 1.2, currentDD + rand2.value * 0.05);
       } else {
-        currentDD = Math.max(0, currentDD - Math.random() * 0.03);
+        const rand2 = seededRandom(seed);
+        seed = rand2.nextSeed;
+        currentDD = Math.max(0, currentDD - rand2.value * 0.03);
       }
       
+      // Generate deterministic date based on index
       const date = new Date();
       date.setDate(date.getDate() - (points - i));
+      const dateStr = date.toISOString().split('T')[0];
       
       data.push({
-        date: date.toISOString().split('T')[0],
+        date: dateStr,
         drawdown: currentDD * 100,
       });
     }
     
     return data;
-  };
-
-  const data = generateData();
+  }, [maxDD]);
 
   return (
     <ResponsiveContainer width="100%" height={300}>

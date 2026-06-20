@@ -402,7 +402,7 @@ class AssistantService:
         }
 
     async def _call_ollama(self, settings: Any, model: str, messages: list[dict[str, str]]) -> str:
-        config = config_from_settings(settings, require_model=True)
+        config = config_from_settings(settings, model_override=model, require_model=True)
         if config is None:
             raise BackendError("No AI model configured. Go to Settings -> AI Assistant, refresh models, select one, and save.", status_code=422)
         client = OllamaClient(config=config, retry_delays=[RETRY_DELAY_BASE * (2 ** i) for i in range(MAX_RETRIES)])
@@ -448,7 +448,7 @@ class AssistantService:
             "available_actions": actions,
         })
 
-        config = config_from_settings(settings, require_model=True)
+        config = config_from_settings(settings, model_override=resolved_model, require_model=True)
         if config is None:
             yield self._sse("error", {"detail": "No AI model configured."})
             return

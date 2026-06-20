@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -559,6 +559,7 @@ export default function PerformanceTab({ strategies = [], strategiesLoading = fa
   const [inspecting, setInspecting]             = useState(null);
   const [applying, setApplying]                 = useState(false);
   const [showExplain, setShowExplain]           = useState(false);
+  const lastStrategyRef = useRef("");
 
   useEffect(() => {
     if (!onAgentContextChange) return;

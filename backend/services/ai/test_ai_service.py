@@ -55,8 +55,8 @@ async def test_ai_service_client_context(temp_user_data_dir: Path):
     
     service = await get_ai_service(str(temp_user_data_dir))
     
-    # Mock the Ollama client creation
-    with patch('backend.services.ai.create_ollama_client_from_settings') as mock_create:
+    # Mock the shared Ollama client creation
+    with patch('backend.services.ai.ai_service.OllamaClient') as mock_create:
         mock_client = AsyncMock()
         mock_create.return_value = mock_client
         
@@ -76,7 +76,7 @@ async def test_ai_service_health_check(temp_user_data_dir: Path):
     
     service = await get_ai_service(str(temp_user_data_dir))
     
-    with patch('backend.services.ai.create_ollama_client_from_settings') as mock_create:
+    with patch('backend.services.ai.ai_service.OllamaClient') as mock_create:
         mock_client = AsyncMock()
         mock_client.check_health = AsyncMock(return_value=True)
         mock_create.return_value = mock_client
@@ -95,7 +95,7 @@ async def test_ai_service_generate(temp_user_data_dir: Path):
     
     service = await get_ai_service(str(temp_user_data_dir))
     
-    with patch('backend.services.ai.create_ollama_client_from_settings') as mock_create:
+    with patch('backend.services.ai.ai_service.OllamaClient') as mock_create:
         mock_client = AsyncMock()
         mock_client.generate = AsyncMock(return_value="Test response")
         mock_create.return_value = mock_client
@@ -114,7 +114,7 @@ async def test_ai_service_generate_with_error(temp_user_data_dir: Path):
     
     service = await get_ai_service(str(temp_user_data_dir))
     
-    with patch('backend.services.ai.create_ollama_client_from_settings') as mock_create:
+    with patch('backend.services.ai.ai_service.OllamaClient') as mock_create:
         mock_client = AsyncMock()
         mock_client.generate = AsyncMock(side_effect=Exception("API error"))
         mock_create.return_value = mock_client
@@ -132,7 +132,7 @@ async def test_ai_service_cleanup(temp_user_data_dir: Path):
     
     service = await get_ai_service(str(temp_user_data_dir))
     
-    with patch('backend.services.ai.create_ollama_client_from_settings') as mock_create:
+    with patch('backend.services.ai.ai_service.OllamaClient') as mock_create:
         mock_client = AsyncMock()
         mock_client.close = AsyncMock()
         mock_create.return_value = mock_client
@@ -155,7 +155,7 @@ async def test_ai_service_concurrent_access(temp_user_data_dir: Path):
     
     service = await get_ai_service(str(temp_user_data_dir))
     
-    with patch('backend.services.ai.create_ollama_client_from_settings') as mock_create:
+    with patch('backend.services.ai.ai_service.OllamaClient') as mock_create:
         mock_client = AsyncMock()
         mock_client.generate = AsyncMock(return_value="Response")
         mock_create.return_value = mock_client

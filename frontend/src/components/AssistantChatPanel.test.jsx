@@ -1,5 +1,5 @@
 /* global jest, global, describe, beforeEach, afterEach, test, expect */
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import AssistantChatPanel from './AssistantChatPanel.jsx';
 
 // Mock the clipboard API
@@ -7,15 +7,69 @@ global.navigator.clipboard = {
   writeText: jest.fn().mockResolvedValue(undefined),
 };
 
+global.TextDecoder = global.TextDecoder || class {
+  decode(value) {
+    return Array.from(value || []).map(code => String.fromCharCode(code)).join('');
+  }
+};
+
+function jsonResponse(payload) {
+  return {
+    ok: true,
+    json: async () => payload,
+  };
+}
+
+function emptyStreamResponse() {
+  return {
+    ok: true,
+    body: {
+      getReader: () => ({
+        read: async () => ({ done: true, value: null }),
+      }),
+    },
+  };
+}
+
+function streamResponse(text) {
+  const chunks = [Uint8Array.from(Array.from(text).map(char => char.charCodeAt(0)))];
+  return {
+    ok: true,
+    body: {
+      getReader: () => ({
+        read: async () => (
+          chunks.length
+            ? { done: false, value: chunks.shift() }
+            : { done: true, value: null }
+        ),
+      }),
+    },
+  };
+}
+
+function mockAssistantFetch({
+  health = { reachable: true, latency_ms: 12 },
+  models = ['llama3'],
+  context = { active: {}, warnings: [] },
+  stream = emptyStreamResponse,
+  streamError = null,
+} = {}) {
+  return jest.fn(async (url) => {
+    const path = String(url);
+    if (path.includes('/api/ai/health')) return jsonResponse(health);
+    if (path.includes('/api/ai/models')) return jsonResponse({ models, reachable: health.reachable !== false });
+    if (path.includes('/api/agent/context')) return jsonResponse(context);
+    if (path.includes('/api/ai/chat/stream')) {
+      if (streamError) throw streamError;
+      return typeof stream === 'function' ? stream() : stream;
+    }
+    return jsonResponse({});
+  });
+}
+
 describe('AssistantChatPanel', () => {
   beforeEach(() => {
-    global.fetch = jest.fn(async () => ({
-      ok: true,
-      json: async () => ({
-        models: ['llama3', 'mistral'],
-        reachable: true,
-      }),
-    }));
+    global.fetch = mockAssistantFetch({ models: ['llama3', 'mistral'] });
   });
 
   afterEach(() => {
@@ -52,14 +106,10 @@ describe('AssistantChatPanel', () => {
   });
 
   test('shows Ollama Offline status when model is unreachable', async () => {
-    global.fetch = jest.fn(async () => ({
-      ok: true,
-      json: async () => ({
-        models: [],
-        reachable: false,
-        error: 'Could not connect to Ollama',
-      }),
-    }));
+    global.fetch = mockAssistantFetch({
+      health: { reachable: false, error: 'Could not connect to Ollama' },
+      models: [],
+    });
 
     render(<AssistantChatPanel mode="page" />);
 
@@ -69,29 +119,14 @@ describe('AssistantChatPanel', () => {
   });
 
   test('renders empty state with context chips and quick questions', async () => {
-    global.fetch = jest.fn(async (url) => {
-      if (String(url).includes('/api/ai/models')) {
-        return {
-          ok: true,
-          json: async () => ({
-            models: ['llama3'],
-            reachable: true,
-          }),
-        };
-      }
-      if (String(url).includes('/api/agent/context')) {
-        return {
-          ok: true,
-          json: async () => ({
-            active: {
-              strategy_name: 'DemoStrategy',
-              optimizer_session_id: 'opt-1',
-            },
-            warnings: [],
-          }),
-        };
-      }
-      return { ok: true, json: async () => ({}) };
+    global.fetch = mockAssistantFetch({
+      context: {
+        active: {
+          strategy_name: 'DemoStrategy',
+          optimizer_session_id: 'opt-1',
+        },
+        warnings: [],
+      },
     });
 
     render(<AssistantChatPanel mode="page" initialContextOverrides={{ strategy_name: 'DemoStrategy' }} />);
@@ -100,31 +135,16 @@ describe('AssistantChatPanel', () => {
       expect(screen.getByText('Attached Context')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('DemoStrategy')).toBeInTheDocument();
+    expect(screen.getAllByText('DemoStrategy').length).toBeGreaterThan(0);
     expect(screen.getByText('Quick Questions')).toBeInTheDocument();
   });
 
   test('shows warning when no active context', async () => {
-    global.fetch = jest.fn(async (url) => {
-      if (String(url).includes('/api/ai/models')) {
-        return {
-          ok: true,
-          json: async () => ({
-            models: ['llama3'],
-            reachable: true,
-          }),
-        };
-      }
-      if (String(url).includes('/api/agent/context')) {
-        return {
-          ok: true,
-          json: async () => ({
-            active: {},
-            warnings: ['No active run or optimizer session is selected.'],
-          }),
-        };
-      }
-      return { ok: true, json: async () => ({}) };
+    global.fetch = mockAssistantFetch({
+      context: {
+        active: {},
+        warnings: ['No active run or optimizer session is selected.'],
+      },
     });
 
     render(<AssistantChatPanel mode="page" />);
@@ -135,27 +155,9 @@ describe('AssistantChatPanel', () => {
   });
 
   test('shows unavailable message when Ollama is offline', async () => {
-    global.fetch = jest.fn(async (url) => {
-      if (String(url).includes('/api/ai/models')) {
-        return {
-          ok: true,
-          json: async () => ({
-            models: [],
-            reachable: false,
-            error: 'Ollama not configured',
-          }),
-        };
-      }
-      if (String(url).includes('/api/agent/context')) {
-        return {
-          ok: true,
-          json: async () => ({
-            active: {},
-            warnings: [],
-          }),
-        };
-      }
-      return { ok: true, json: async () => ({}) };
+    global.fetch = mockAssistantFetch({
+      health: { reachable: false, error: 'Ollama not configured' },
+      models: [],
     });
 
     render(<AssistantChatPanel mode="page" />);
@@ -167,37 +169,7 @@ describe('AssistantChatPanel', () => {
   });
 
   test('sends message when user submits form', async () => {
-    global.fetch = jest.fn(async (url) => {
-      if (String(url).includes('/api/ai/models')) {
-        return {
-          ok: true,
-          json: async () => ({
-            models: ['llama3'],
-            reachable: true,
-          }),
-        };
-      }
-      if (String(url).includes('/api/agent/context')) {
-        return {
-          ok: true,
-          json: async () => ({
-            active: {},
-            warnings: [],
-          }),
-        };
-      }
-      if (String(url).includes('/api/ai/chat/stream')) {
-        return {
-          ok: true,
-          body: {
-            getReader: () => ({
-              read: async () => ({ done: true, value: null }),
-            }),
-          },
-        };
-      }
-      return { ok: true, json: async () => ({}) };
-    });
+    global.fetch = mockAssistantFetch();
 
     render(<AssistantChatPanel mode="page" />);
 
@@ -217,27 +189,7 @@ describe('AssistantChatPanel', () => {
   });
 
   test('does not send empty message', async () => {
-    global.fetch = jest.fn(async (url) => {
-      if (String(url).includes('/api/ai/models')) {
-        return {
-          ok: true,
-          json: async () => ({
-            models: ['llama3'],
-            reachable: true,
-          }),
-        };
-      }
-      if (String(url).includes('/api/agent/context')) {
-        return {
-          ok: true,
-          json: async () => ({
-            active: {},
-            warnings: [],
-          }),
-        };
-      }
-      return { ok: true, json: async () => ({}) };
-    });
+    global.fetch = mockAssistantFetch();
 
     render(<AssistantChatPanel mode="page" />);
 
@@ -250,37 +202,7 @@ describe('AssistantChatPanel', () => {
   });
 
   test('sends message on Enter key press', async () => {
-    global.fetch = jest.fn(async (url) => {
-      if (String(url).includes('/api/ai/models')) {
-        return {
-          ok: true,
-          json: async () => ({
-            models: ['llama3'],
-            reachable: true,
-          }),
-        };
-      }
-      if (String(url).includes('/api/agent/context')) {
-        return {
-          ok: true,
-          json: async () => ({
-            active: {},
-            warnings: [],
-          }),
-        };
-      }
-      if (String(url).includes('/api/ai/chat/stream')) {
-        return {
-          ok: true,
-          body: {
-            getReader: () => ({
-              read: async () => ({ done: true, value: null }),
-            }),
-          },
-        };
-      }
-      return { ok: true, json: async () => ({}) };
-    });
+    global.fetch = mockAssistantFetch();
 
     render(<AssistantChatPanel mode="page" />);
 
@@ -298,27 +220,7 @@ describe('AssistantChatPanel', () => {
   });
 
   test('does not send message on Shift+Enter', async () => {
-    global.fetch = jest.fn(async (url) => {
-      if (String(url).includes('/api/ai/models')) {
-        return {
-          ok: true,
-          json: async () => ({
-            models: ['llama3'],
-            reachable: true,
-          }),
-        };
-      }
-      if (String(url).includes('/api/agent/context')) {
-        return {
-          ok: true,
-          json: async () => ({
-            active: {},
-            warnings: [],
-          }),
-        };
-      }
-      return { ok: true, json: async () => ({}) };
-    });
+    global.fetch = mockAssistantFetch();
 
     render(<AssistantChatPanel mode="page" />);
 
@@ -335,47 +237,22 @@ describe('AssistantChatPanel', () => {
   });
 
   test('quick prompt buttons send expected messages', async () => {
-    global.fetch = jest.fn(async (url) => {
-      if (String(url).includes('/api/ai/models')) {
-        return {
-          ok: true,
-          json: async () => ({
-            models: ['llama3'],
-            reachable: true,
-          }),
-        };
-      }
-      if (String(url).includes('/api/agent/context')) {
-        return {
-          ok: true,
-          json: async () => ({
-            active: {
-              strategy_name: 'DemoStrategy',
-            },
-            warnings: [],
-          }),
-        };
-      }
-      if (String(url).includes('/api/ai/chat/stream')) {
-        return {
-          ok: true,
-          body: {
-            getReader: () => ({
-              read: async () => ({ done: true, value: null }),
-            }),
-          },
-        };
-      }
-      return { ok: true, json: async () => ({}) };
+    global.fetch = mockAssistantFetch({
+      context: {
+        active: {
+          strategy_name: 'DemoStrategy',
+        },
+        warnings: [],
+      },
     });
 
     render(<AssistantChatPanel mode="page" initialContextOverrides={{ strategy_name: 'DemoStrategy' }} />);
 
     await waitFor(() => {
-      expect(screen.getByText('Explain this strategy in plain language')).toBeInTheDocument();
+      expect(screen.getAllByText(/Explain this strategy in plain language/).length).toBeGreaterThan(0);
     });
 
-    const quickPromptButton = screen.getByText('Explain this strategy in plain language');
+    const quickPromptButton = screen.getAllByText(/Explain this strategy in plain language/)[0];
     fireEvent.click(quickPromptButton);
 
     await waitFor(() => {
@@ -384,34 +261,19 @@ describe('AssistantChatPanel', () => {
   });
 
   test('renders code blocks with copy button', async () => {
-    global.fetch = jest.fn(async (url) => {
-      if (String(url).includes('/api/ai/models')) {
-        return {
-          ok: true,
-          json: async () => ({
-            models: ['llama3'],
-            reachable: true,
-          }),
-        };
-      }
-      if (String(url).includes('/api/agent/context')) {
-        return {
-          ok: true,
-          json: async () => ({
-            active: {},
-            warnings: [],
-          }),
-        };
-      }
-      return { ok: true, json: async () => ({}) };
+    global.fetch = mockAssistantFetch({
+      stream: () => streamResponse('event: token\ndata: {"content":"```python\\nprint(\\"hello\\")\\n```"}\n\n'),
     });
 
-    const { container } = render(<AssistantChatPanel mode="page" />);
+    render(<AssistantChatPanel mode="page" />);
 
-    // Set a message with code block
-    act(() => {
-      container.querySelector('[data-testid="message-container"]')?.setAttribute('data-message', '```python\nprint("hello")\n```');
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText(/Ask about this strategy/)).toBeInTheDocument();
     });
+
+    const textarea = screen.getByPlaceholderText(/Ask about this strategy/);
+    fireEvent.change(textarea, { target: { value: 'Show code' } });
+    fireEvent.click(screen.getByTitle(/Send/));
 
     await waitFor(() => {
       expect(screen.getByText('Copy')).toBeInTheDocument();
@@ -419,64 +281,30 @@ describe('AssistantChatPanel', () => {
   });
 
   test('copy button copies code to clipboard', async () => {
-    global.fetch = jest.fn(async (url) => {
-      if (String(url).includes('/api/ai/models')) {
-        return {
-          ok: true,
-          json: async () => ({
-            models: ['llama3'],
-            reachable: true,
-          }),
-        };
-      }
-      if (String(url).includes('/api/agent/context')) {
-        return {
-          ok: true,
-          json: async () => ({
-            active: {},
-            warnings: [],
-          }),
-        };
-      }
-      return { ok: true, json: async () => ({}) };
+    global.fetch = mockAssistantFetch({
+      stream: () => streamResponse('event: token\ndata: {"content":"```python\\nprint(\\"hello\\")\\n```"}\n\n'),
     });
 
     render(<AssistantChatPanel mode="page" />);
 
     await waitFor(() => {
-      expect(screen.getByText('AI Assistant')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText(/Ask about this strategy/)).toBeInTheDocument();
     });
 
-    // Note: Full integration test would require setting up a message with code block
-    // This is a placeholder for the copy functionality test
-    expect(global.navigator.clipboard.writeText).toBeDefined();
+    const textarea = screen.getByPlaceholderText(/Ask about this strategy/);
+    fireEvent.change(textarea, { target: { value: 'Show code' } });
+    fireEvent.click(screen.getByTitle(/Send/));
+
+    const copyButton = await screen.findByText('Copy');
+    fireEvent.click(copyButton);
+
+    await waitFor(() => {
+      expect(global.navigator.clipboard.writeText).toHaveBeenCalledWith('print("hello")');
+    });
   });
 
   test('shows error message when backend request fails', async () => {
-    global.fetch = jest.fn(async (url) => {
-      if (String(url).includes('/api/ai/models')) {
-        return {
-          ok: true,
-          json: async () => ({
-            models: ['llama3'],
-            reachable: true,
-          }),
-        };
-      }
-      if (String(url).includes('/api/agent/context')) {
-        return {
-          ok: true,
-          json: async () => ({
-            active: {},
-            warnings: [],
-          }),
-        };
-      }
-      if (String(url).includes('/api/ai/chat/stream')) {
-        throw new Error('Network error');
-      }
-      return { ok: true, json: async () => ({}) };
-    });
+    global.fetch = mockAssistantFetch({ streamError: new Error('Network error') });
 
     render(<AssistantChatPanel mode="page" />);
 
@@ -496,27 +324,7 @@ describe('AssistantChatPanel', () => {
   });
 
   test('model selector is populated when models are available', async () => {
-    global.fetch = jest.fn(async (url) => {
-      if (String(url).includes('/api/ai/models')) {
-        return {
-          ok: true,
-          json: async () => ({
-            models: ['llama3', 'mistral', 'codellama'],
-            reachable: true,
-          }),
-        };
-      }
-      if (String(url).includes('/api/agent/context')) {
-        return {
-          ok: true,
-          json: async () => ({
-            active: {},
-            warnings: [],
-          }),
-        };
-      }
-      return { ok: true, json: async () => ({}) };
-    });
+    global.fetch = mockAssistantFetch({ models: ['llama3', 'mistral', 'codellama'] });
 
     render(<AssistantChatPanel mode="page" />);
 
@@ -528,62 +336,20 @@ describe('AssistantChatPanel', () => {
     expect(modelSelector).not.toBeDisabled();
   });
 
-  test('model selector is disabled when no models available', async () => {
-    global.fetch = jest.fn(async (url) => {
-      if (String(url).includes('/api/ai/models')) {
-        return {
-          ok: true,
-          json: async () => ({
-            models: [],
-            reachable: false,
-            error: 'No models found',
-          }),
-        };
-      }
-      if (String(url).includes('/api/agent/context')) {
-        return {
-          ok: true,
-          json: async () => ({
-            active: {},
-            warnings: [],
-          }),
-        };
-      }
-      return { ok: true, json: async () => ({}) };
-    });
+  test('model selector is hidden when no models are available', async () => {
+    global.fetch = mockAssistantFetch({ models: [] });
 
     render(<AssistantChatPanel mode="page" />);
 
     await waitFor(() => {
-      expect(screen.getByTitle('Select AI model')).toBeInTheDocument();
+      expect(screen.getByText(/0 models available/)).toBeInTheDocument();
     });
 
-    const modelSelector = screen.getByTitle('Select AI model');
-    expect(modelSelector).toBeDisabled();
+    expect(screen.queryByTitle('Select AI model')).not.toBeInTheDocument();
   });
 
   test('context refresh button calls context endpoint', async () => {
-    global.fetch = jest.fn(async (url) => {
-      if (String(url).includes('/api/ai/models')) {
-        return {
-          ok: true,
-          json: async () => ({
-            models: ['llama3'],
-            reachable: true,
-          }),
-        };
-      }
-      if (String(url).includes('/api/agent/context')) {
-        return {
-          ok: true,
-          json: async () => ({
-            active: {},
-            warnings: [],
-          }),
-        };
-      }
-      return { ok: true, json: async () => ({}) };
-    });
+    global.fetch = mockAssistantFetch();
 
     render(<AssistantChatPanel mode="page" />);
 
@@ -595,7 +361,7 @@ describe('AssistantChatPanel', () => {
     fireEvent.click(refreshButton);
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('/api/agent/context'), expect.any(Object));
+      expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('/api/agent/context'));
     });
   });
 });

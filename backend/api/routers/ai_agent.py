@@ -1785,7 +1785,7 @@ async def chat_with_ai_agent(body: ChatRequest, request: Request) -> ChatRespons
             session_id = body.session_id
         
         # Get AI service instance
-        ai_service = await get_ai_service(settings)
+        ai_service = await get_ai_service(settings.user_data_directory_path)
         
         # Prepare messages with system prompt
         messages = [
@@ -1807,24 +1807,30 @@ async def chat_with_ai_agent(body: ChatRequest, request: Request) -> ChatRespons
         tool_calls = []
         if hasattr(response, 'tool_calls') and response.tool_calls:
             for tool_call in response.tool_calls:
-                tool_calls.append({
-                    "name": tool_call.function.name,
-                    "arguments": tool_call.function.arguments
-                })
+                if isinstance(tool_call, dict):
+                    name = tool_call.get("name")
+                    arguments = tool_call.get("arguments") or {}
+                else:
+                    function = getattr(tool_call, "function", None)
+                    name = getattr(function, "name", None)
+                    arguments = getattr(function, "arguments", {}) or {}
+                if not name:
+                    continue
+                tool_calls.append({"name": name, "arguments": arguments})
                 
                 # Execute the tool call
                 tool_request = ToolExecutionRequest(
                     session_id=session_id,
-                    parameters=tool_call.function.arguments
+                    parameters=arguments
                 )
                 
                 # Find and execute the tool
-                tool_name = tool_call.function.name
+                tool_name = name
                 tool_endpoint = f"/tools/{tool_name}"
                 
                 # Execute tool (this is a simplified approach - in production you'd want more sophisticated routing)
                 # For now, we'll just log the tool call
-                _log_action(session_id, f"tool_call_{tool_name}", tool_call.function.arguments, request)
+                _log_action(session_id, f"tool_call_{tool_name}", arguments, request)
         
         # Log the chat interaction
         _log_action(session_id, "chat", {
