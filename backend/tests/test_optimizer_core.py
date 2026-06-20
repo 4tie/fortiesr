@@ -29,6 +29,7 @@ from backend.services.strategy.optimizer_auto_safe import (
     build_auto_safe_narrowing_event,
 )
 from backend.services.strategy.optimizer_trial import OptimizerTrialExecutor
+from backend.services.strategy.strategy_optimizer import StrategyOptimizerService
 from backend.services.strategy.strategy_optimizer_search import select_parameters_for_trial
 from backend.services.strategy.strategy_source import StrategySourceParser
 from backend.services.strategy.version_manager import VersionManager
@@ -361,3 +362,20 @@ def test_grid_search_uses_epoch_local_trial_index():
 
     assert select_parameters_for_trial(session, spaces, trial_number=5) == {"buy_window": 1}
     assert select_parameters_for_trial(session, spaces, trial_number=6) == {"buy_window": 2}
+
+
+def test_optimizer_selects_screened_candidates_before_search_fallback():
+    spaces = [_space("buy_a", "buy")]
+    session = _optimizer_session(spaces, search_strategy=SearchStrategy.GRID)
+    service = StrategyOptimizerService.__new__(StrategyOptimizerService)
+    screened_candidates = [{"locked_param": 99}, {"buy_a": 7, "locked_param": 99}]
+
+    selected = service._select_parameters_for_trial(
+        session,
+        spaces,
+        trial_number=1,
+        screened_candidates=screened_candidates,
+    )
+
+    assert selected == {"buy_a": 7}
+    assert screened_candidates == []

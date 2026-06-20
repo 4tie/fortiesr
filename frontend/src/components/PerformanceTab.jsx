@@ -11,7 +11,7 @@ import {
   Tooltip,
   Legend,
 } from "recharts";
-import { useToast } from "./Toast.jsx";
+import { useToast } from "../hooks/useToast.js";
 
 const C_GREEN  = "#059669";
 const C_RED    = "#ef4444";

@@ -108,6 +108,32 @@ def test_frontend_tab_http_contract_routes_are_registered():
     assert missing == []
 
 
+def test_request_object_is_not_exposed_as_query_parameter():
+    app = create_app()
+    checked = {
+        ("GET", "/api/strategy/pair-explorer"),
+        ("GET", "/api/strategy/pair-explorer/{session_id}"),
+        ("GET", "/api/optimizer/search-spaces/{strategy_name}"),
+        ("POST", "/api/candidate/runs"),
+        ("GET", "/api/strategies/content"),
+        ("POST", "/api/strategies/validate"),
+    }
+
+    seen = set()
+    for route in app.routes:
+        if not isinstance(route, APIRoute):
+            continue
+        for method in route.methods or set():
+            key = (method, route.path)
+            if key not in checked:
+                continue
+            seen.add(key)
+            query_names = {param.name for param in route.dependant.query_params}
+            assert "request" not in query_names, f"{method} {route.path} exposes request as a query param"
+
+    assert seen == checked
+
+
 def test_frontend_tab_websocket_contract_routes_are_registered():
     routes = _websocket_routes()
 

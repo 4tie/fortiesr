@@ -123,6 +123,10 @@ class OptimizerSessionConfig(StrictModel):
     max_drawdown_pct: float | None = None
     target_romad: float | None = None
     search_spaces: list[ParameterSearchSpace] = Field(default_factory=list)
+    enable_vectorbt_screening: bool = True
+    vectorbt_candidate_count: int = 1000
+    vectorbt_keep_ratio: float = 0.10
+    vectorbt_timeout_seconds: int = 120
 
 
 class OptimizerTrialMetrics(StrictModel):
@@ -136,6 +140,27 @@ class OptimizerTrialMetrics(StrictModel):
     profit_factor: float | None = None
     sharpe_ratio: float | None = None
     score: float | None = None
+
+
+class VectorBTScreeningCandidate(StrictModel):
+    """One candidate ranked by the fast VectorBT pre-screening pass."""
+    rank: int
+    parameters: dict[str, Any] = Field(default_factory=dict)
+    metrics: OptimizerTrialMetrics
+
+
+class VectorBTScreeningReport(StrictModel):
+    """Persisted summary of the optional VectorBT optimizer pre-screen."""
+    status: str
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    evaluated_count: int = 0
+    selected_count: int = 0
+    reduction_pct: float | None = None
+    duration_seconds: float | None = None
+    skipped_reason: str | None = None
+    error: str | None = None
+    top_candidates: list[VectorBTScreeningCandidate] = Field(default_factory=list)
 
 
 class OptimizerTrial(StrictModel):
@@ -182,6 +207,7 @@ class OptimizerSession(StrictModel):
     best_metrics: OptimizerTrialMetrics | None = None
     trials: list[OptimizerTrial] = Field(default_factory=list)
     auto_lock_events: list[AutoLockEvent] = Field(default_factory=list)
+    vectorbt_screening: VectorBTScreeningReport | None = None
     grid_epoch: int = 1
     grid_epoch_start_trial: int = 1
     stop_reason: str | None = None
@@ -229,6 +255,10 @@ class StartOptimizerRequest(StrictModel):
     target_romad: float | None = None
     search_spaces: list[ParameterSearchSpace] = Field(default_factory=list)
     advanced_config: AdvancedOptimizerConfig | None = None
+    enable_vectorbt_screening: bool = True
+    vectorbt_candidate_count: int = 1000
+    vectorbt_keep_ratio: float = 0.10
+    vectorbt_timeout_seconds: int = 120
 
     @field_validator("total_trials")
     @classmethod
@@ -236,6 +266,27 @@ class StartOptimizerRequest(StrictModel):
         """Validate or transform `validate_total_trials` input before the model is accepted."""
         if value < 1 or value > 500:
             raise ValueError("total_trials must be between 1 and 500.")
+        return value
+
+    @field_validator("vectorbt_candidate_count")
+    @classmethod
+    def validate_vectorbt_candidate_count(cls, value: int) -> int:
+        if value < 1 or value > 100_000:
+            raise ValueError("vectorbt_candidate_count must be between 1 and 100000.")
+        return value
+
+    @field_validator("vectorbt_keep_ratio")
+    @classmethod
+    def validate_vectorbt_keep_ratio(cls, value: float) -> float:
+        if value <= 0.0 or value > 1.0:
+            raise ValueError("vectorbt_keep_ratio must be greater than 0 and at most 1.")
+        return value
+
+    @field_validator("vectorbt_timeout_seconds")
+    @classmethod
+    def validate_vectorbt_timeout_seconds(cls, value: int) -> int:
+        if value < 1 or value > 3600:
+            raise ValueError("vectorbt_timeout_seconds must be between 1 and 3600.")
         return value
 
     @field_validator("timerange", mode="before")

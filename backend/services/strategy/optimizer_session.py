@@ -76,6 +76,10 @@ class OptimizerSessionManager:
             max_drawdown_pct=request.max_drawdown_pct,
             target_romad=request.target_romad,
             search_spaces=request.search_spaces,
+            enable_vectorbt_screening=request.enable_vectorbt_screening,
+            vectorbt_candidate_count=request.vectorbt_candidate_count,
+            vectorbt_keep_ratio=request.vectorbt_keep_ratio,
+            vectorbt_timeout_seconds=request.vectorbt_timeout_seconds,
         )
         session = OptimizerSession(
             session_id=session_id,

@@ -330,8 +330,8 @@ async def _explore_task(
 # ── routes ─────────────────────────────────────────────────────────────────────
 
 @router.get("/pair-explorer", summary="List all past pair-explorer sessions")
-async def list_pair_explorer_sessions(request: Request) -> dict:
-    settings = _load_settings(request)
+async def list_pair_explorer_sessions(services=Depends(get_services)) -> dict:
+    settings = _load_settings(services)
     if not _SESSIONS:
         _SESSIONS.update(_load_all_sessions(settings.user_data_directory_path))
     sessions = sorted(_SESSIONS.values(), key=lambda s: s.get("created_at", ""), reverse=True)
@@ -430,10 +430,10 @@ async def start_pair_explorer(
 
 
 @router.get("/pair-explorer/{session_id}", summary="Poll pair-explorer progress")
-async def get_pair_explorer_status(session_id: str, request: Request) -> dict:
+async def get_pair_explorer_status(session_id: str, services=Depends(get_services)) -> dict:
     session = _SESSIONS.get(session_id)
     if session is None:
-        settings = _load_settings(request)
+        settings = _load_settings(services)
         disk_path = _sessions_dir(settings.user_data_directory_path) / f"{session_id}.json"
         if disk_path.exists():
             try:
@@ -445,7 +445,7 @@ async def get_pair_explorer_status(session_id: str, request: Request) -> dict:
     if session is None:
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found.")
 
-    settings = _load_settings(request)
+    settings = _load_settings(services)
     _reconcile_terminal_session(session, settings.user_data_directory_path)
 
     return {

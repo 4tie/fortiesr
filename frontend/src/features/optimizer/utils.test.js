@@ -56,6 +56,10 @@ describe("optimizer utilities", () => {
       scoreMetric: "composite",
       maxOpenTrades: 3,
       wallet: 1000,
+      enableVectorbtScreening: false,
+      vectorbtCandidateCount: 250,
+      vectorbtKeepRatio: 0.25,
+      vectorbtTimeoutSeconds: 45,
       searchSpaces: [{ name: "buy_a" }],
     });
 
@@ -71,6 +75,10 @@ describe("optimizer utilities", () => {
       max_open_trades: 3,
       dry_run_wallet: 1000,
       fee_rate: 0.001,
+      enable_vectorbt_screening: false,
+      vectorbt_candidate_count: 250,
+      vectorbt_keep_ratio: 0.25,
+      vectorbt_timeout_seconds: 45,
       search_spaces: [{ name: "buy_a" }],
     });
   });

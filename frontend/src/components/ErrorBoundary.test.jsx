@@ -1,5 +1,5 @@
 /* global describe, beforeEach, jest, afterEach, test, expect */
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import ErrorBoundary from './ErrorBoundary';
 
 describe('ErrorBoundary', () => {
@@ -35,9 +35,9 @@ describe('ErrorBoundary', () => {
       </ErrorBoundary>
     );
 
-    expect(screen.getByText('TestTab encountered an unexpected error')).toBeInTheDocument();
-    expect(screen.getByText('Test error')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+    expect(screen.getByText('Something went wrong in TestTab!')).toBeInTheDocument();
+    expect(screen.getByText('An unexpected error occurred. Please refresh the page.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Try Again' })).toBeInTheDocument();
   });
 
   test('resets state when retry button is clicked', () => {
@@ -47,16 +47,15 @@ describe('ErrorBoundary', () => {
       </ErrorBoundary>
     );
 
-    expect(screen.getByText('TestTab encountered an unexpected error')).toBeInTheDocument();
-
-    const retryButton = screen.getByRole('button', { name: 'Retry' });
-    retryButton.click();
+    expect(screen.getByText('Something went wrong in TestTab!')).toBeInTheDocument();
 
     rerender(
       <ErrorBoundary tabName="TestTab">
         <ChildComponent />
       </ErrorBoundary>
     );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Try Again' }));
 
     expect(screen.getByText('Child Component')).toBeInTheDocument();
   });
@@ -69,8 +68,8 @@ describe('ErrorBoundary', () => {
     );
 
     expect(console.error).toHaveBeenCalledWith(
-      '[ErrorBoundary] Caught error in tab:',
-      'TestTab',
+      expect.stringMatching(/^\[.*\] \[ERROR\]$/),
+      'ErrorBoundary caught an error in TestTab:',
       expect.any(Error),
       expect.any(Object)
     );

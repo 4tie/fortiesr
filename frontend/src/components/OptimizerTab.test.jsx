@@ -202,6 +202,9 @@ describe('OptimizerTab', () => {
     fireEvent.change(screen.getByLabelText('Pairs'), { target: { value: 'BTC/USDT, ETH/USDT' } });
     fireEvent.change(screen.getByLabelText('Score Metric'), { target: { value: 'max_drawdown_pct' } });
     fireEvent.change(screen.getByLabelText('Search Method'), { target: { value: 'grid' } });
+    fireEvent.change(screen.getByLabelText('Candidates'), { target: { value: '250' } });
+    fireEvent.change(screen.getByLabelText('Keep Ratio'), { target: { value: '0.25' } });
+    fireEvent.change(screen.getByLabelText('Timeout Seconds'), { target: { value: '45' } });
 
     const runButtons = screen.getAllByRole('button', { name: /Run Optimizer/i });
     fireEvent.click(runButtons[runButtons.length - 1]);
@@ -216,6 +219,10 @@ describe('OptimizerTab', () => {
     expect(body.parameter_mode).toBe('auto_safe');
     expect(body.score_metric).toBe('max_drawdown_pct');
     expect(body.timeframe).toBe('1h');
+    expect(body.enable_vectorbt_screening).toBe(true);
+    expect(body.vectorbt_candidate_count).toBe(250);
+    expect(body.vectorbt_keep_ratio).toBe(0.25);
+    expect(body.vectorbt_timeout_seconds).toBe(45);
     expect(body.search_spaces).toHaveLength(1);
     expect(body.search_spaces[0].name).toBe('buy_window');
   });
@@ -339,6 +346,47 @@ describe('OptimizerTab', () => {
     expect(await screen.findByText('Before trial #4')).toBeInTheDocument();
     expect(screen.getByText('zero trade trials - Grid epoch 1->2')).toBeInTheDocument();
     expect(screen.getByText('sell_b')).toBeInTheDocument();
+  });
+
+  test('renders VectorBT screening summary and top candidates from completed session', async () => {
+    mockFetch({
+      completed: true,
+      sessionOverride: {
+        ...completedOptimizerSession(),
+        vectorbt_screening: {
+          status: 'completed',
+          started_at: '2024-01-01T00:00:00Z',
+          completed_at: '2024-01-01T00:00:01Z',
+          evaluated_count: 4,
+          selected_count: 2,
+          reduction_pct: 50,
+          duration_seconds: 1.2,
+          top_candidates: [
+            {
+              rank: 1,
+              parameters: { buy_window: 14 },
+              metrics: {
+                score: 9.5,
+                net_profit_pct: 5.2,
+                max_drawdown_pct: -1.4,
+                total_trades: 12,
+              },
+            },
+          ],
+        },
+      },
+    });
+    render(<OptimizerTab strategies={strategies} />);
+
+    fireEvent.change(screen.getByLabelText('Strategy'), { target: { value: 'DemoStrategy' } });
+    await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/optimizer/search-spaces/DemoStrategy'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'History' }));
+    fireEvent.click((await screen.findByText(/1 \/ 1 trials/)).closest('button'));
+
+    expect(await screen.findByText('Pre-screening only chooses candidate order; Freqtrade backtests remain the saved optimizer results.')).toBeInTheDocument();
+    expect(await screen.findByText('50.0%')).toBeInTheDocument();
+    expect(screen.getByText('buy_window=14')).toBeInTheDocument();
   });
 
   test('parses SSE log JSON payloads into readable log lines', async () => {

@@ -13,7 +13,7 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from ...core.errors import BackendError
@@ -161,6 +161,10 @@ async def run_optimizer(
             dry_run_wallet=body.dry_run_wallet,
             fee_rate=body.fee_rate,
             search_spaces=parsed_spaces,
+            enable_vectorbt_screening=body.enable_vectorbt_screening,
+            vectorbt_candidate_count=body.vectorbt_candidate_count,
+            vectorbt_keep_ratio=body.vectorbt_keep_ratio,
+            vectorbt_timeout_seconds=body.vectorbt_timeout_seconds,
         )
 
         optimizer_session = await services.strategy_optimizer.start_session(internal_request)
