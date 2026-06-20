@@ -18,6 +18,9 @@ if TYPE_CHECKING:
 
 from backend.core.errors import BackendError
 from backend.services.agent_context import AgentContextService
+from backend.services.ai.ollama_client import OllamaClient
+from backend.services.ai.ollama_config import config_from_settings
+from backend.services.ai.ollama_errors import friendly_ollama_error
 from backend.utils import append_text, atomic_write_json, read_json
 
 
@@ -399,28 +402,16 @@ class AssistantService:
         }
 
     async def _call_ollama(self, settings: Any, model: str, messages: list[dict[str, str]]) -> str:
-        base_url = settings.ollama_api_url.rstrip("/")
-        api_key = settings.ollama_api_key if settings.ollama_provider == "ollama_cloud" else None
-        payload = {
-            "model": model,
-            "messages": messages,
-            "stream": False,
-            "options": {"temperature": 0.25, "num_predict": 1400},
-        }
-        timeout = float(settings.ollama_timeout or 60)
-        
-        async def _do_call():
-            async with httpx.AsyncClient(timeout=timeout) as client:
-                resp = await client.post(
-                    f"{base_url}/api/chat",
-                    json=payload,
-                    headers=_headers(base_url, api_key=api_key),
-                )
-                resp.raise_for_status()
-                return resp.json()
-
+        config = config_from_settings(settings, require_model=True)
+        if config is None:
+            raise BackendError("No AI model configured. Go to Settings -> AI Assistant, refresh models, select one, and save.", status_code=422)
+        client = OllamaClient(config=config, retry_delays=[RETRY_DELAY_BASE * (2 ** i) for i in range(MAX_RETRIES)])
         try:
-            data = await _retry_with_backoff(_do_call, max_retries=MAX_RETRIES, base_delay=RETRY_DELAY_BASE)
+            response = await client.chat(
+                messages,
+                model=model,
+                options={"temperature": 0.25, "num_predict": 1400},
+            )
         except httpx.ConnectError as exc:
             raise BackendError("Ollama Offline: could not connect to the configured Ollama API URL after retries.", status_code=503) from exc
         except httpx.TimeoutException as exc:
@@ -429,11 +420,10 @@ class AssistantService:
             raise BackendError(f"Ollama returned HTTP {exc.response.status_code}.", status_code=502) from exc
         except json.JSONDecodeError as exc:
             raise BackendError("Ollama returned non-JSON for /api/chat.", status_code=502) from exc
+        finally:
+            await client.close()
 
-        content = data.get("message", {}).get("content", "") if isinstance(data, dict) else ""
-        if not content:
-            content = data.get("response", "") if isinstance(data, dict) else ""
-        return str(content).strip() or "Ollama returned an empty response."
+        return response.content.strip() or "Ollama returned an empty response."
 
     async def stream_chat(
         self,
@@ -458,44 +448,30 @@ class AssistantService:
             "available_actions": actions,
         })
 
-        base_url = settings.ollama_api_url.rstrip("/")
-        api_key = settings.ollama_api_key if settings.ollama_provider == "ollama_cloud" else None
-        payload = {
-            "model": resolved_model,
-            "messages": messages,
-            "stream": True,
-            "options": {"temperature": 0.25, "num_predict": 1400},
-        }
-        timeout = float(settings.ollama_timeout or 60)
+        config = config_from_settings(settings, require_model=True)
+        if config is None:
+            yield self._sse("error", {"detail": "No AI model configured."})
+            return
         assistant_parts: list[str] = []
-        
-        async def _do_stream():
-            async with httpx.AsyncClient(timeout=timeout) as client:
-                async with client.stream(
-                    "POST",
-                    f"{base_url}/api/chat",
-                    json=payload,
-                    headers=_headers(base_url, api_key=api_key),
-                ) as resp:
-                    resp.raise_for_status()
-                    return resp, client
-        
+        client = OllamaClient(config=config)
+
         try:
-            resp, client = await _retry_with_backoff(_do_stream, max_retries=MAX_RETRIES, base_delay=RETRY_DELAY_BASE)
-            async with client:
-                async for line in resp.aiter_lines():
-                    if not line:
-                        continue
-                    data = json.loads(line)
-                    chunk = data.get("message", {}).get("content", "")
-                    if chunk:
-                        assistant_parts.append(chunk)
-                        yield self._sse("token", {"content": chunk})
-                    if data.get("done"):
-                        break
+            async for data in client.stream_chat(
+                messages,
+                model=resolved_model,
+                options={"temperature": 0.25, "num_predict": 1400},
+            ):
+                chunk = data.get("message", {}).get("content", "")
+                if chunk:
+                    assistant_parts.append(chunk)
+                    yield self._sse("token", {"content": chunk})
+                if data.get("done"):
+                    break
         except Exception as exc:
             yield self._sse("error", {"detail": self._friendly_ollama_error(exc)})
             return
+        finally:
+            await client.close()
 
         response_text = "".join(assistant_parts).strip() or "Ollama returned an empty response."
         user_record = self._message_record("user", message)
@@ -515,13 +491,7 @@ class AssistantService:
         return f"event: {event}\ndata: {json.dumps(payload, default=str)}\n\n"
 
     def _friendly_ollama_error(self, exc: Exception) -> str:
-        if isinstance(exc, httpx.ConnectError):
-            return "Ollama Offline: could not connect to the configured Ollama API URL."
-        if isinstance(exc, httpx.TimeoutException):
-            return "Ollama timed out. Try a smaller model or increase the timeout in Settings."
-        if isinstance(exc, httpx.HTTPStatusError):
-            return f"Ollama returned HTTP {exc.response.status_code}."
-        return str(exc)
+        return friendly_ollama_error(exc)
 
     def confirm_action(
         self,

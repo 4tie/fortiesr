@@ -1,21 +1,14 @@
-"""Centralized AI service for consistent Ollama client management.
-
-This service provides a singleton pattern for managing Ollama client lifecycle,
-ensuring proper session cleanup and consistent error handling across all AI operations.
-"""
+"""Centralized AI service for consistent Ollama client management."""
 
 from __future__ import annotations
 
 import asyncio
 import logging
 from contextlib import asynccontextmanager
-from pathlib import Path
 from typing import Any, AsyncGenerator
 
-from ..auto_quant.ollama_service import (
-    OllamaClient,
-    create_ollama_client_from_settings,
-)
+from .ollama_client import OllamaClient
+from .ollama_config import config_from_user_data_dir, resolve_user_data_dir
 
 logger = logging.getLogger(__name__)
 
@@ -27,14 +20,15 @@ class AIService:
     preventing resource leaks and connection reuse issues.
     """
 
-    def __init__(self, user_data_dir: str) -> None:
+    def __init__(self, user_data_dir: Any) -> None:
         """Initialize AI service with user data directory.
         
         Args:
             user_data_dir: Path to user_data directory containing settings
         """
-        self.user_data_dir = user_data_dir
+        self.user_data_dir = resolve_user_data_dir(user_data_dir)
         self._client: OllamaClient | None = None
+        self._client_cache_key: tuple[Any, ...] | None = None
         self._lock = asyncio.Lock()
 
     async def _get_client(self) -> OllamaClient | None:
@@ -43,12 +37,20 @@ class AIService:
         Returns:
             OllamaClient instance or None if configuration is invalid
         """
+        config = config_from_user_data_dir(self.user_data_dir, strict_json=True)
+        if config is None:
+            logger.warning("Failed to create Ollama config from settings")
+            return None
+
         async with self._lock:
+            if self._client is not None and self._client_cache_key != config.cache_key:
+                await self._client.close()
+                self._client = None
+                self._client_cache_key = None
+
             if self._client is None:
-                self._client = create_ollama_client_from_settings(self.user_data_dir)
-                if self._client is None:
-                    logger.warning("Failed to create Ollama client from settings")
-                    return None
+                self._client = OllamaClient(config=config)
+                self._client_cache_key = config.cache_key
                 logger.info("Created new Ollama client instance")
             return self._client
 
@@ -58,6 +60,7 @@ class AIService:
             if self._client is not None:
                 await self._client.close()
                 self._client = None
+                self._client_cache_key = None
                 logger.info("Closed Ollama client instance")
 
     @asynccontextmanager
@@ -143,7 +146,7 @@ _ai_service: AIService | None = None
 _ai_service_lock = asyncio.Lock()
 
 
-async def get_ai_service(user_data_dir: str) -> AIService:
+async def get_ai_service(user_data_dir: Any) -> AIService:
     """Get or create the singleton AI service instance.
     
     Args:
@@ -154,10 +157,14 @@ async def get_ai_service(user_data_dir: str) -> AIService:
     """
     global _ai_service
     
+    resolved_user_data_dir = resolve_user_data_dir(user_data_dir)
+
     async with _ai_service_lock:
-        if _ai_service is None:
-            _ai_service = AIService(user_data_dir)
-            logger.info(f"Created AI service instance for {user_data_dir}")
+        if _ai_service is None or _ai_service.user_data_dir != resolved_user_data_dir:
+            if _ai_service is not None:
+                await _ai_service.close()
+            _ai_service = AIService(resolved_user_data_dir)
+            logger.info("Created AI service instance for %s", resolved_user_data_dir)
         return _ai_service
 
 

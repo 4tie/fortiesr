@@ -423,10 +423,12 @@ function InspectModal({ run, onClose, onApply, applying }) {
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
     setError(null);
     fetch(`/api/performance/runs/${run.run_id}`)
-      .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e.detail || "Failed to load run detail")))
+      .then(r => {
+        if (!cancelled) setLoading(true);
+        return r.ok ? r.json() : r.json().then(e => Promise.reject(e.detail || "Failed to load run detail"));
+      })
       .then(d => { if (!cancelled) { setDetail(d); setLoading(false); } })
       .catch(e => { if (!cancelled) { setError(String(e)); setLoading(false); } });
     return () => { cancelled = true; };
@@ -583,7 +585,10 @@ export default function PerformanceTab({ strategies = [], strategiesLoading = fa
   }, []);
 
   useEffect(() => {
-    if (selectedStrategy) loadRuns(selectedStrategy);
+    if (selectedStrategy && selectedStrategy !== lastStrategyRef.current) {
+      lastStrategyRef.current = selectedStrategy;
+      loadRuns(selectedStrategy);
+    }
   }, [selectedStrategy, loadRuns]);
 
   const handleApply = useCallback(async (run) => {

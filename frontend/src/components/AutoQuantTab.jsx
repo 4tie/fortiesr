@@ -70,7 +70,6 @@ export default function AutoQuantTab({
   } = pipelineState;
 
   const {
-    generatedStrategies,
     generateStatus,
     isGenerating,
     templateType,
@@ -85,7 +84,6 @@ export default function AutoQuantTab({
     setShowScreener,
     screenPairs,
     setScreenPairs,
-    screening: isScreening,
     screenResults,
     screenError,
     selectedPair,
@@ -103,7 +101,6 @@ export default function AutoQuantTab({
     logFilter,
     setLogFilter,
     notifEnabled,
-    setNotifEnabled,
     toggleNotif,
   } = uiState;
 
@@ -1432,9 +1429,6 @@ export default function AutoQuantTab({
 
               {/* Candidate Leaderboard */}
               {fitnessCurve.length > 0 && (() => {
-                const sorted = [...fitnessCurve]
-                  .sort((a, b) => b.profit_usdt - a.profit_usdt)
-                  .slice(0, 5);
                 return (
                   <div className="card bg-base-200 border border-base-300">
                     <div className="card-body p-4">
