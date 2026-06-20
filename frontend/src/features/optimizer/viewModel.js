@@ -16,6 +16,8 @@ export function buildOptimizerViewModel({ session, apiStatus, totalTrials }) {
     ? trials.find((trial) => trial.trial_number === bestTrialNum)
     : null;
   const autoLockEvents = session?.auto_lock_events || [];
+  const vectorbtScreening = session?.vectorbt_screening || null;
+  const topVectorbtCandidates = vectorbtScreening?.top_candidates || [];
   const visibleTrials = trials
     .filter((trial) => ["completed", "running", "failed", "pruned"].includes(trial.status))
     .sort((a, b) => b.trial_number - a.trial_number);
@@ -48,6 +50,8 @@ export function buildOptimizerViewModel({ session, apiStatus, totalTrials }) {
     bestTrial,
     topFiveTrials,
     autoLockEvents,
+    vectorbtScreening,
+    topVectorbtCandidates,
     visibleTrials,
     completedWithMetrics,
     profitData,

@@ -46,6 +46,85 @@ import {
   TrialChart,
 } from "../features/optimizer/components/OptimizerPrimitives";
 
+function VectorBTReportSummary({ report }) {
+  if (!report) {
+    return (
+      <div className="rounded-lg border border-base-300 bg-base-300/20 px-3 py-2 text-xs text-base-content/45">
+        VectorBT pre-screening runs before the first Freqtrade trial when enabled.
+      </div>
+    );
+  }
+  const reason = report.skipped_reason || report.error;
+  return (
+    <div className="rounded-lg border border-base-300 bg-base-300/20 p-3 text-xs">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <div className="text-[10px] font-bold uppercase tracking-wider text-base-content/40">VectorBT Pre-Screen</div>
+          <div className="mt-1 font-mono text-base-content/70">{report.status}</div>
+        </div>
+        {report.duration_seconds != null && (
+          <div className="font-mono text-base-content/45">{fmtElapsed(report.duration_seconds)}</div>
+        )}
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        <div>
+          <div className="text-[10px] uppercase text-base-content/35">Evaluated</div>
+          <div className="font-mono">{report.evaluated_count ?? 0}</div>
+        </div>
+        <div>
+          <div className="text-[10px] uppercase text-base-content/35">Selected</div>
+          <div className="font-mono">{report.selected_count ?? 0}</div>
+        </div>
+        <div>
+          <div className="text-[10px] uppercase text-base-content/35">Reduction</div>
+          <div className="font-mono">{report.reduction_pct != null ? fmtPct(report.reduction_pct, 1, false) : "-"}</div>
+        </div>
+      </div>
+      {reason && <div className="mt-2 text-[11px] text-warning">{reason}</div>}
+    </div>
+  );
+}
+
+function VectorBTTopCandidates({ candidates }) {
+  if (!candidates?.length) {
+    return <EmptyState>No VectorBT candidate rankings are available for this session.</EmptyState>;
+  }
+  return (
+    <div className="overflow-x-auto">
+      <table className="table table-xs w-full">
+        <thead>
+          <tr className="text-[10px] uppercase tracking-wider text-base-content/35">
+            <th>Rank</th>
+            <th className="text-right">Score</th>
+            <th className="text-right">Profit %</th>
+            <th className="text-right">Drawdown</th>
+            <th className="text-right">Trades</th>
+            <th>Parameters</th>
+          </tr>
+        </thead>
+        <tbody>
+          {candidates.map(candidate => {
+            const metrics = candidate.metrics || {};
+            const params = Object.entries(candidate.parameters || {})
+              .map(([key, value]) => `${key}=${value}`)
+              .join(", ");
+            return (
+              <tr key={candidate.rank}>
+                <td className="font-mono">#{candidate.rank}</td>
+                <td className="text-right font-mono">{fmtScore(metrics.score)}</td>
+                <td className="text-right font-mono">{fmtPct(metrics.net_profit_pct)}</td>
+                <td className="text-right font-mono text-warning">{metrics.max_drawdown_pct != null ? fmtPct(Math.abs(metrics.max_drawdown_pct), 2, false) : "-"}</td>
+                <td className="text-right font-mono">{metrics.total_trades ?? "-"}</td>
+                <td className="font-mono max-w-[520px] truncate" title={params}>{params || "-"}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export default function OptimizerTab({
   strategies = [],
   strategiesLoading = false,
@@ -77,6 +156,14 @@ export default function OptimizerTab({
     setMaxOpenTrades,
     wallet,
     setWallet,
+    enableVectorbtScreening,
+    setEnableVectorbtScreening,
+    vectorbtCandidateCount,
+    setVectorbtCandidateCount,
+    vectorbtKeepRatio,
+    setVectorbtKeepRatio,
+    vectorbtTimeoutSeconds,
+    setVectorbtTimeoutSeconds,
     pairList,
     timerange,
     validDateRange,
@@ -338,6 +425,8 @@ export default function OptimizerTab({
     bestTrial,
     topFiveTrials,
     autoLockEvents,
+    vectorbtScreening,
+    topVectorbtCandidates,
     visibleTrials,
     completedWithMetrics,
     profitData,
@@ -405,6 +494,10 @@ export default function OptimizerTab({
         maxOpenTrades,
         wallet,
         searchSpaces,
+        enableVectorbtScreening,
+        vectorbtCandidateCount,
+        vectorbtKeepRatio,
+        vectorbtTimeoutSeconds,
       }), { signal }));
       startLogs();
       setApiSessionId(data.session_id);
@@ -717,6 +810,64 @@ export default function OptimizerTab({
               </label>
             </div>
           </Panel>
+
+          <Panel title="VectorBT Pre-Screening">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+              <label className="form-control">
+                <span className="label-text text-xs text-base-content/50 mb-1">Screening</span>
+                <div className="flex h-8 items-center gap-3 rounded border border-base-300 px-3">
+                  <input
+                    type="checkbox"
+                    className="toggle toggle-xs toggle-primary"
+                    checked={enableVectorbtScreening}
+                    onChange={e => setEnableVectorbtScreening(e.target.checked)}
+                    disabled={isRunning}
+                  />
+                  <span className="text-xs font-mono">{enableVectorbtScreening ? "enabled" : "disabled"}</span>
+                </div>
+              </label>
+              <label className="form-control">
+                <span className="label-text text-xs text-base-content/50 mb-1">Candidates</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={100000}
+                  className="input input-bordered input-sm"
+                  value={vectorbtCandidateCount}
+                  onChange={e => setVectorbtCandidateCount(Math.max(1, Math.min(100000, Number(e.target.value))))}
+                  disabled={isRunning || !enableVectorbtScreening}
+                />
+              </label>
+              <label className="form-control">
+                <span className="label-text text-xs text-base-content/50 mb-1">Keep Ratio</span>
+                <input
+                  type="number"
+                  min={0.01}
+                  max={1}
+                  step={0.01}
+                  className="input input-bordered input-sm"
+                  value={vectorbtKeepRatio}
+                  onChange={e => setVectorbtKeepRatio(Math.max(0.01, Math.min(1, Number(e.target.value))))}
+                  disabled={isRunning || !enableVectorbtScreening}
+                />
+              </label>
+              <label className="form-control">
+                <span className="label-text text-xs text-base-content/50 mb-1">Timeout Seconds</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={3600}
+                  className="input input-bordered input-sm"
+                  value={vectorbtTimeoutSeconds}
+                  onChange={e => setVectorbtTimeoutSeconds(Math.max(1, Math.min(3600, Number(e.target.value))))}
+                  disabled={isRunning || !enableVectorbtScreening}
+                />
+              </label>
+            </div>
+            <div className="mt-3 rounded-lg border border-base-300 bg-base-300/20 px-3 py-2 text-xs text-base-content/45">
+              VectorBT ranks parameter candidates quickly; Freqtrade still validates every saved optimizer trial.
+            </div>
+          </Panel>
         </div>
 
         <aside className="space-y-5">
@@ -732,6 +883,7 @@ export default function OptimizerTab({
               <div className="flex justify-between gap-3"><span className="text-base-content/40">Mode</span><span className="font-mono text-right">{parameterMode === "auto_safe" ? "auto_safe" : "manual"}</span></div>
               <div className="flex justify-between gap-3"><span className="text-base-content/40">Score</span><span className="font-mono text-right">{scoreLabel}</span></div>
               <div className="flex justify-between gap-3"><span className="text-base-content/40">Optimized Params</span><span className="font-mono text-right">{enabledSpaces.length} / {searchSpaces.length}</span></div>
+              <div className="flex justify-between gap-3"><span className="text-base-content/40">VectorBT</span><span className="font-mono text-right">{enableVectorbtScreening ? `${vectorbtCandidateCount} @ ${Math.round(vectorbtKeepRatio * 100)}%` : "off"}</span></div>
               {parameterMode === "auto_safe" && autoSafeEligibleCount > AUTO_SAFE_PARAM_CAP && (
                 <div className="rounded border border-warning/30 bg-warning/10 px-3 py-2 text-warning">
                   Auto Safe capped enabled params at {AUTO_SAFE_PARAM_CAP}; {autoSafeEligibleCount - AUTO_SAFE_PARAM_CAP} safe buy/sell param{autoSafeEligibleCount - AUTO_SAFE_PARAM_CAP === 1 ? "" : "s"} remain locked.
@@ -880,6 +1032,15 @@ export default function OptimizerTab({
           <MetricTile label="ETA" value={etaSec != null && isRunning ? fmtElapsed(etaSec) : "-"} />
         </div>
 
+        <Panel title="VectorBT Screening">
+          <div className="space-y-3">
+            <VectorBTReportSummary report={vectorbtScreening} />
+            <div className="text-[11px] text-base-content/40">
+              These rankings only choose candidate order. Freqtrade backtests remain the persisted optimizer results.
+            </div>
+          </div>
+        </Panel>
+
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
           <TrialChart data={profitData} dataKey="profit" color={C_GREEN} title="Net Profit % Per Trial" />
           <TrialChart data={drawdownData} dataKey="drawdown" color={C_RED} title="Max Drawdown % Per Trial" abs />
@@ -906,6 +1067,10 @@ export default function OptimizerTab({
         ) : (
           <EmptyState>{isRunning ? "Waiting for the first completed trial." : "Run the optimizer to populate live results."}</EmptyState>
         )}
+
+        <Panel title="Top VectorBT Candidates">
+          <VectorBTTopCandidates candidates={topVectorbtCandidates} />
+        </Panel>
 
         {phase === "completed" && (
           <div className="rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-xs text-warning">
@@ -1007,6 +1172,17 @@ export default function OptimizerTab({
     <div className="h-full overflow-y-auto p-5">
       <div className="max-w-[1500px] mx-auto grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] gap-5">
         <div className="space-y-5">
+          <Panel title="VectorBT Screening">
+            <div className="space-y-3">
+              <VectorBTReportSummary report={vectorbtScreening} />
+              <div className="text-[11px] text-base-content/40">
+                Pre-screening only chooses candidate order; Freqtrade backtests remain the saved optimizer results.
+              </div>
+            </div>
+          </Panel>
+          <Panel title="Top VectorBT Candidates">
+            <VectorBTTopCandidates candidates={topVectorbtCandidates} />
+          </Panel>
           {bestTrial ? (
             <>
               <Panel title="Best Result Summary">

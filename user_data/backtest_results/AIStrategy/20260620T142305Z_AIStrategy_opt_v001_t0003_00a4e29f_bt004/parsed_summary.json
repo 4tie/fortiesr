@@ -1,0 +1,35 @@
+{
+  "run_id": "20260620T142305Z_AIStrategy_opt_v001_t0003_00a4e29f_bt004",
+  "starting_balance": 100.0,
+  "final_balance": 4.222074079999686,
+  "net_profit_currency": -95.77792592,
+  "net_profit_pct": -95.77792592,
+  "profit_per_day": -0.2624052764931507,
+  "start_date": "2025-06-20",
+  "end_date": "2026-06-20",
+  "total_days": 365,
+  "total_trades": 4778,
+  "trades_per_day": 13.09,
+  "win_rate_pct": 31.14273754709083,
+  "loss_rate_pct": 68.85726245290917,
+  "max_drawdown_pct": 95.79072929000031,
+  "max_drawdown_currency": 95.79072929000031,
+  "avg_trade_duration_minutes": 76.0,
+  "profit_factor": 0.6023391336197648,
+  "expectancy": -0.02004561028045207,
+  "sharpe_ratio": -34.92708801837048,
+  "sortino_ratio": -48.667931211426925,
+  "calmar_ratio": -5.233539618518666,
+  "exit_reason_distribution": [
+    {
+      "reason": "roi",
+      "count": 1209,
+      "total_profit": 135.18624806
+    },
+    {
+      "reason": "exit_signal",
+      "count": 3569,
+      "total_profit": -230.96417398
+    }
+  ]
+}

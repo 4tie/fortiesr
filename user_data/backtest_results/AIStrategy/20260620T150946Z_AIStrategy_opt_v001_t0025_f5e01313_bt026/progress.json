@@ -1,0 +1,14 @@
+{
+  "progress_version": 1,
+  "phase": "completed",
+  "progress_pct": 100,
+  "started_at": "2026-06-20T15:09:46.401226Z",
+  "phase_started_at": "2026-06-20T15:11:41.681093Z",
+  "updated_at": "2026-06-20T15:11:41.681093Z",
+  "elapsed_seconds": 115,
+  "eta_seconds": null,
+  "eta_state": "not_applicable",
+  "current_step_label": "Completed",
+  "last_update_source": "terminal_update",
+  "terminal": true
+}

@@ -1,6 +1,5 @@
-import { useState, useCallback, useRef, createContext } from "react";
-
-const ToastCtx = createContext(null);
+import { useState, useCallback, useRef } from "react";
+import { ToastCtx } from "./toastContext.js";
 
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
@@ -77,4 +76,3 @@ export function ToastProvider({ children }) {
     </ToastCtx.Provider>
   );
 }
-

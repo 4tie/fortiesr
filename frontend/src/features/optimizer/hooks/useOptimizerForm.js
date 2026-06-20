@@ -25,6 +25,10 @@ export function useOptimizerForm({ sharedState, sharedLoading, syncSharedState }
   const [scoreMetric, setScoreMetric] = useState("composite");
   const [maxOpenTrades, setMaxOpenTrades] = useState(3);
   const [wallet, setWallet] = useState(1000);
+  const [enableVectorbtScreening, setEnableVectorbtScreening] = useState(true);
+  const [vectorbtCandidateCount, setVectorbtCandidateCount] = useState(1000);
+  const [vectorbtKeepRatio, setVectorbtKeepRatio] = useState(0.1);
+  const [vectorbtTimeoutSeconds, setVectorbtTimeoutSeconds] = useState(120);
 
   useEffect(() => {
     if (sharedLoading || !sharedState || hydrated.current) return;
@@ -38,6 +42,10 @@ export function useOptimizerForm({ sharedState, sharedLoading, syncSharedState }
     if (sharedState.optimizer_search_strategy) setSearchStrategy(sharedState.optimizer_search_strategy);
     if (sharedState.optimizer_parameter_mode) setParameterMode(sharedState.optimizer_parameter_mode);
     if (sharedState.optimizer_score_metric) setScoreMetric(sharedState.optimizer_score_metric);
+    if (sharedState.enable_vectorbt_screening != null) setEnableVectorbtScreening(Boolean(sharedState.enable_vectorbt_screening));
+    if (sharedState.vectorbt_candidate_count != null) setVectorbtCandidateCount(sharedState.vectorbt_candidate_count);
+    if (sharedState.vectorbt_keep_ratio != null) setVectorbtKeepRatio(sharedState.vectorbt_keep_ratio);
+    if (sharedState.vectorbt_timeout_seconds != null) setVectorbtTimeoutSeconds(sharedState.vectorbt_timeout_seconds);
     const start = sharedState.start_date || "";
     const end = sharedState.end_date || "";
     if (start && end) {
@@ -68,8 +76,12 @@ export function useOptimizerForm({ sharedState, sharedLoading, syncSharedState }
     patch.optimizer_search_strategy = searchStrategy;
     patch.optimizer_parameter_mode = parameterMode;
     patch.optimizer_score_metric = scoreMetric;
+    patch.enable_vectorbt_screening = enableVectorbtScreening;
+    patch.vectorbt_candidate_count = vectorbtCandidateCount;
+    patch.vectorbt_keep_ratio = vectorbtKeepRatio;
+    patch.vectorbt_timeout_seconds = vectorbtTimeoutSeconds;
     if (Object.keys(patch).length) syncSharedState(patch);
-  }, [strategyName, timeframe, pairsText, dateStart, dateEnd, maxOpenTrades, wallet, totalTrials, searchStrategy, parameterMode, scoreMetric, syncSharedState]);
+  }, [strategyName, timeframe, pairsText, dateStart, dateEnd, maxOpenTrades, wallet, totalTrials, searchStrategy, parameterMode, scoreMetric, enableVectorbtScreening, vectorbtCandidateCount, vectorbtKeepRatio, vectorbtTimeoutSeconds, syncSharedState]);
 
   const pairList = useMemo(() => parsePairs(pairsText), [pairsText]);
   const timerange = toTimerange(dateStart, dateEnd);
@@ -98,6 +110,14 @@ export function useOptimizerForm({ sharedState, sharedLoading, syncSharedState }
     setMaxOpenTrades,
     wallet,
     setWallet,
+    enableVectorbtScreening,
+    setEnableVectorbtScreening,
+    vectorbtCandidateCount,
+    setVectorbtCandidateCount,
+    vectorbtKeepRatio,
+    setVectorbtKeepRatio,
+    vectorbtTimeoutSeconds,
+    setVectorbtTimeoutSeconds,
     pairList,
     timerange,
     validDateRange,

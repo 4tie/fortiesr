@@ -82,6 +82,10 @@ export function buildOptimizerRunPayload({
   maxOpenTrades,
   wallet,
   searchSpaces,
+  enableVectorbtScreening = true,
+  vectorbtCandidateCount = 1000,
+  vectorbtKeepRatio = 0.1,
+  vectorbtTimeoutSeconds = 120,
 }) {
   return {
     strategy_name: strategyName,
@@ -95,6 +99,10 @@ export function buildOptimizerRunPayload({
     max_open_trades: maxOpenTrades,
     dry_run_wallet: wallet,
     fee_rate: 0.001,
+    enable_vectorbt_screening: enableVectorbtScreening,
+    vectorbt_candidate_count: vectorbtCandidateCount,
+    vectorbt_keep_ratio: vectorbtKeepRatio,
+    vectorbt_timeout_seconds: vectorbtTimeoutSeconds,
     search_spaces: searchSpaces,
   };
 }

@@ -128,10 +128,10 @@ async def get_strategy_files(strategy_name: str, services=Depends(get_services))
 
 @router.get("/content", summary="Return raw file content")
 async def get_file_content(
-    request: Request,
     filename: str = Query(..., description="Filename relative to strategies directory"),
+    services=Depends(get_services),
 ) -> dict:
-    strategies_dir = _strategies_dir(request)
+    strategies_dir = _strategies_dir(services)
     path = _safe_path(strategies_dir, filename)
     if not path.exists():
         raise HTTPException(status_code=404, detail=f"File '{filename}' not found.")
@@ -183,7 +183,7 @@ class ValidateRequest(BaseModel):
 
 
 @router.post("/validate", summary="Validate strategy syntax and Freqtrade structure")
-async def validate_strategy(body: ValidateRequest, request: Request) -> dict:
+async def validate_strategy(body: ValidateRequest, services=Depends(get_services)) -> dict:
     if not body.filename.endswith(".py"):
         import json as _json
         try:
@@ -254,5 +254,4 @@ async def rollback_snapshot(body: RollbackRequest, services=Depends(get_services
         "py_content":   py_path.read_text(encoding="utf-8")   if py_path.exists()   else None,
         "json_content": json_path.read_text(encoding="utf-8") if json_path.exists() else None,
     }
-
 

@@ -26,6 +26,7 @@ from ...models import (
     ParamsSchema,
     RunRequest,
     StartOptimizerRequest,
+    VectorBTScreeningReport,
 )
 from ...utils import utc_now
 from ..execution.backtest_runner import BacktestRunner
@@ -58,6 +59,7 @@ class StrategyOptimizerService:
         settings_store: SettingsStore,
         version_manager: Any,
         source_parser: StrategySourceParser,
+        vectorbt_screener: Any | None = None,
     ) -> None:
         """Store all optimizer dependencies and in-memory task state."""
         self.optimizer_store = optimizer_store
@@ -67,6 +69,7 @@ class StrategyOptimizerService:
         self.settings_store = settings_store
         self.version_manager = version_manager
         self._source_parser = source_parser
+        self.vectorbt_screener = vectorbt_screener
         self._active_task: asyncio.Task | None = None
         self._active_session_id: str | None = None
         self._cancel_requested: bool = False
@@ -269,6 +272,8 @@ class StrategyOptimizerService:
                     "before trial selection."
                 )
 
+            screened_candidates = await self._run_vectorbt_screening(session)
+
             for trial_number in range(1, session.config.total_trials + 1):
                 if self._cancel_requested:
                     session = self.session_manager.mark_session_cancelled(session_id)
@@ -293,7 +298,12 @@ class StrategyOptimizerService:
                         status_code=400,
                     )
 
-                params = self._select_parameters_for_trial(session, enabled_spaces, trial_number)
+                params = self._select_parameters_for_trial(
+                    session,
+                    enabled_spaces,
+                    trial_number,
+                    screened_candidates,
+                )
                 trial = OptimizerTrial(
                     trial_number=trial_number,
                     status=OptimizerTrialStatus.RUNNING,
@@ -441,9 +451,97 @@ class StrategyOptimizerService:
         session: OptimizerSession,
         spaces: list[ParameterSearchSpace],
         trial_number: int,
+        screened_candidates: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """Choose the next trial parameter set from the configured search strategy."""
+        if screened_candidates:
+            enabled_names = {space.name for space in spaces if space.enabled}
+            while screened_candidates:
+                candidate = screened_candidates.pop(0)
+                filtered = {
+                    name: value
+                    for name, value in candidate.items()
+                    if name in enabled_names
+                }
+                if filtered:
+                    return filtered
         return select_parameters_for_trial(session, spaces, trial_number)
+
+    async def _run_vectorbt_screening(
+        self,
+        session: OptimizerSession,
+    ) -> list[dict[str, Any]]:
+        """Run the optional VectorBT pre-screen and persist its report."""
+        if not session.config.enable_vectorbt_screening:
+            report = VectorBTScreeningReport(
+                status="skipped",
+                started_at=utc_now(),
+                completed_at=utc_now(),
+                skipped_reason="disabled",
+            )
+            latest = session.model_copy(update={"vectorbt_screening": report})
+            self.session_manager.save_session(latest)
+            self._emit_log("[VectorBT] Skipped pre-screening: disabled")
+            return []
+
+        enabled_spaces = [s for s in session.config.search_spaces if s.enabled]
+        if not enabled_spaces:
+            report = VectorBTScreeningReport(
+                status="skipped",
+                started_at=utc_now(),
+                completed_at=utc_now(),
+                skipped_reason="no_enabled_spaces",
+            )
+            latest = session.model_copy(update={"vectorbt_screening": report})
+            self.session_manager.save_session(latest)
+            self._emit_log("[VectorBT] Skipped pre-screening: no enabled search spaces")
+            return []
+
+        if self.vectorbt_screener is None:
+            report = VectorBTScreeningReport(
+                status="skipped",
+                started_at=utc_now(),
+                completed_at=utc_now(),
+                skipped_reason="vectorbt_service_unavailable",
+            )
+            session = session.model_copy(update={"vectorbt_screening": report})
+            self.session_manager.save_session(session)
+            self._emit_log("[VectorBT] Skipped pre-screening: service unavailable")
+            return []
+
+        running_report = VectorBTScreeningReport(
+            status="running",
+            started_at=utc_now(),
+        )
+        latest = session.model_copy(update={"vectorbt_screening": running_report})
+        self.session_manager.save_session(latest)
+        self._emit_log(
+            "[VectorBT] Starting parameter pre-screening "
+            f"({session.config.vectorbt_candidate_count} candidates, "
+            f"keep ratio {session.config.vectorbt_keep_ratio:.0%})"
+        )
+        outcome = await self.vectorbt_screener.screen_parameter_spaces(
+            session=session,
+            spaces=enabled_spaces,
+            score_fn=self.trial_executor.compute_score,
+        )
+        latest = self.session_manager.load_session(session.session_id) or session
+        latest = latest.model_copy(update={"vectorbt_screening": outcome.report})
+        self.session_manager.save_session(latest)
+
+        report = outcome.report
+        if report.status in {"completed", "partial"}:
+            self._emit_log(
+                "[VectorBT] "
+                f"{report.status}: evaluated {report.evaluated_count}, "
+                f"selected {report.selected_count}, "
+                f"reduced {self._format_metric(report.reduction_pct, suffix='%')}"
+            )
+            return list(outcome.selected_parameters)
+
+        reason = report.skipped_reason or report.error or "unknown"
+        self._emit_log(f"[VectorBT] Skipped pre-screening: {reason}")
+        return []
 
     def _maybe_apply_auto_safe_narrowing(
         self,

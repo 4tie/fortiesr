@@ -255,6 +255,10 @@ class OptimizerApiRequest(BaseModel):
     max_open_trades: int = Field(default=1, ge=1)
     dry_run_wallet: float = Field(default=1000.0, gt=0)
     fee_rate: float = Field(default=0.001, ge=0)
+    enable_vectorbt_screening: bool = Field(default=True, description="Run fast VectorBT pre-screening before Freqtrade trials")
+    vectorbt_candidate_count: int = Field(default=1000, ge=1, le=100000, description="Maximum VectorBT candidates to evaluate")
+    vectorbt_keep_ratio: float = Field(default=0.10, gt=0, le=1, description="Fraction of VectorBT candidates to keep")
+    vectorbt_timeout_seconds: int = Field(default=120, ge=1, le=3600, description="Maximum VectorBT screening time")
     search_spaces: list[dict[str, Any]] = Field(
         default_factory=list,
         description="Parameter search spaces from the frontend parameters table",

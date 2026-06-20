@@ -1,0 +1,14 @@
+{
+  "profit_factor": 0.7046389834367309,
+  "expectancy": -0.02311026849117575,
+  "sharpe_ratio": -23.01327199558806,
+  "sortino_ratio": -27.876900114162293,
+  "calmar_ratio": -5.233161834981634,
+  "max_drawdown_pct": 92.99175112000002,
+  "max_drawdown_currency": 92.99175112000002,
+  "avg_trade_duration_minutes": 111.0,
+  "win_rate_pct": 42.157593835446185,
+  "loss_rate_pct": 57.842406164553815,
+  "total_trades": 4023,
+  "trades_per_day": 11.02
+}

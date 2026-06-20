@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { api } from "../services/api.js";
-import { useToast } from "./Toast.jsx";
+import { useToast } from "../hooks/useToast.js";
 
 export function InputRow({ label, sub, value, onChange, disabled, placeholder, readOnly, type = "text", min, max }) {
   return (

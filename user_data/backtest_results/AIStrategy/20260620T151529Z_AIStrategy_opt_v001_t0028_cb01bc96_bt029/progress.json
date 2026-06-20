@@ -1,0 +1,14 @@
+{
+  "progress_version": 1,
+  "phase": "cancelled",
+  "progress_pct": 50,
+  "started_at": "2026-06-20T15:15:29.528220Z",
+  "phase_started_at": "2026-06-20T15:17:16.128175Z",
+  "updated_at": "2026-06-20T15:17:16.128175Z",
+  "elapsed_seconds": 107,
+  "eta_seconds": null,
+  "eta_state": "not_applicable",
+  "current_step_label": "Cancelled",
+  "last_update_source": "terminal_update",
+  "terminal": true
+}

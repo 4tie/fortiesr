@@ -153,10 +153,17 @@ def _body(**overrides) -> OptimizerApiRequest:
 
 
 def test_run_requires_pairs():
-    request = _request()
+    services = _services()
+    store = SessionStore()
 
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(optimizer_router.run_optimizer(_body(pairs=[]), request))
+        asyncio.run(
+            optimizer_router.run_optimizer(
+                _body(pairs=[]),
+                services=services,
+                store=store,
+            )
+        )
 
     assert exc_info.value.status_code == 400
     assert exc_info.value.detail == "At least one trading pair is required."
@@ -165,10 +172,16 @@ def test_run_requires_pairs():
 def test_run_returns_conflict_when_optimizer_is_active():
     services = _services()
     services.strategy_optimizer.is_running.return_value = True
-    request = _request(services)
+    store = SessionStore()
 
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(optimizer_router.run_optimizer(_body(), request))
+        asyncio.run(
+            optimizer_router.run_optimizer(
+                _body(),
+                services=services,
+                store=store,
+            )
+        )
 
     assert exc_info.value.status_code == 409
     assert "already running" in exc_info.value.detail
@@ -177,21 +190,34 @@ def test_run_returns_conflict_when_optimizer_is_active():
 def test_run_returns_conflict_when_strategy_has_no_accepted_version():
     services = _services()
     services.version_manager.get_current_pointer.return_value = None
-    request = _request(services)
+    store = SessionStore()
 
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(optimizer_router.run_optimizer(_body(), request))
+        asyncio.run(
+            optimizer_router.run_optimizer(
+                _body(),
+                services=services,
+                store=store,
+            )
+        )
 
     assert exc_info.value.status_code == 409
     assert "has no accepted version" in exc_info.value.detail
 
 
 def test_run_maps_invalid_search_spaces_to_bad_request():
-    request = _request()
+    services = _services()
+    store = SessionStore()
     bad_space = _payload()["search_spaces"][0] | {"param_type": "unsupported"}
 
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(optimizer_router.run_optimizer(_body(search_spaces=[bad_space]), request))
+        asyncio.run(
+            optimizer_router.run_optimizer(
+                _body(search_spaces=[bad_space]),
+                services=services,
+                store=store,
+            )
+        )
 
     assert exc_info.value.status_code == 400
     assert "Invalid optimizer search spaces" in exc_info.value.detail
@@ -200,13 +226,52 @@ def test_run_maps_invalid_search_spaces_to_bad_request():
 def test_run_maps_backend_errors_to_http_exception():
     services = _services()
     services.registry.get_strategy.side_effect = BackendError("Strategy missing", status_code=404)
-    request = _request(services)
+    store = SessionStore()
 
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(optimizer_router.run_optimizer(_body(), request))
+        asyncio.run(
+            optimizer_router.run_optimizer(
+                _body(),
+                services=services,
+                store=store,
+            )
+        )
 
     assert exc_info.value.status_code == 404
     assert exc_info.value.detail == "Strategy missing"
+
+
+def test_run_passes_vectorbt_config_to_optimizer_request(monkeypatch):
+    services = _services()
+    store = SessionStore()
+
+    def close_background_task(coro):
+        coro.close()
+        return None
+
+    monkeypatch.setattr(optimizer_router.asyncio, "create_task", close_background_task)
+
+    body = _body(
+        enable_vectorbt_screening=False,
+        vectorbt_candidate_count=250,
+        vectorbt_keep_ratio=0.25,
+        vectorbt_timeout_seconds=45,
+    )
+
+    response = asyncio.run(
+        optimizer_router.run_optimizer(
+            body,
+            services=services,
+            store=store,
+        )
+    )
+
+    assert response.status == "running"
+    internal_request = services.strategy_optimizer.start_session.await_args.args[0]
+    assert internal_request.enable_vectorbt_screening is False
+    assert internal_request.vectorbt_candidate_count == 250
+    assert internal_request.vectorbt_keep_ratio == 0.25
+    assert internal_request.vectorbt_timeout_seconds == 45
 
 
 def test_session_fetch_returns_saved_session():

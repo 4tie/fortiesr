@@ -8,7 +8,7 @@ from __future__ import annotations
 import asyncio
 
 from pydantic import BaseModel
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
 
 from ...models.strategy_spec import StrategySpec, validate_spec
 from ...services.candidate.models import (
@@ -108,6 +108,7 @@ async def start_candidate_run(
     request: Request,
 ) -> CandidateRunStartResponse:
     """Start candidate evaluation in the background and return a run id."""
+    services = getattr(request.app.state, "services", None)
     _raise_invalid_spec(body.spec)
     state = candidate_run_manager.create_run(body.spec, body.config)
     state = candidate_run_manager.mark_running(state.run_id) or state
@@ -116,7 +117,7 @@ async def start_candidate_run(
             state.run_id,
             body.spec,
             body.config,
-            _candidate_evaluation_deps(request),
+            _candidate_evaluation_deps(services),
         )
     )
     return CandidateRunStartResponse(

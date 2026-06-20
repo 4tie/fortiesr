@@ -28,6 +28,7 @@ from .services.strategy.strategy_registry import StrategyRegistry
 from .services.strategy.strategy_source import StrategySourceParser
 from .services.strategy.version_manager import VersionManager
 from .services.strategy.snapshot_service import SnapshotService
+from .services.vectorbt import VectorBTParameterScreener
 from .services.pairs.pair_selector import PairSelectorService
 from .services.service_groups import StrategyServices, ExecutionServices, StorageServices
 from .services.interfaces import IStrategyRegistry, IRunRepository, ISettingsStore, IBacktestRunner
@@ -125,6 +126,10 @@ class AppServices:
         self.exported_trial_store = ExportedTrialStore(
             Path(self.settings.user_data_directory_path) / "exported_optimizer_runs.json"
         )
+        self.vectorbt_screener = VectorBTParameterScreener(
+            settings_store=self.settings_store,
+            registry=self.registry,
+        )
         self.strategy_optimizer = StrategyOptimizerService(
             optimizer_store=self.optimizer_store,
             backtest_runner=self.backtest_runner,
@@ -133,6 +138,7 @@ class AppServices:
             settings_store=self.settings_store,
             version_manager=self.version_manager,
             source_parser=self.strategy_parser,
+            vectorbt_screener=self.vectorbt_screener,
         )
         self.registry.scan()
 

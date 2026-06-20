@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import StrategyLabTab from './StrategyLabTab.jsx';
 
 const runId = "test-run-123";
+const candidateRunsUrl = "/api/candidate/runs";
 
 const mockVerdict = {
   passed: true,
@@ -74,7 +75,7 @@ function mockFetch({ startSuccess = true, runState = null } = {}) {
   globalThis.fetch = jest.fn(async (url, options = {}) => {
     const text = String(url);
 
-    if (text === 'http://localhost:8000/api/candidate/runs' && options.method === 'POST') {
+    if (text === candidateRunsUrl && options.method === 'POST') {
       if (!startSuccess) {
         return {
           ok: false,
@@ -87,7 +88,7 @@ function mockFetch({ startSuccess = true, runState = null } = {}) {
       };
     }
 
-    if (text === `http://localhost:8000/api/candidate/runs/${runId}`) {
+    if (text === `${candidateRunsUrl}/${runId}`) {
       return {
         ok: true,
         json: async () => runState || {
@@ -151,7 +152,7 @@ function previewSpec() {
 
 function startRunCallBody() {
   const call = globalThis.fetch.mock.calls.find(([url]) => (
-    String(url) === 'http://localhost:8000/api/candidate/runs'
+    String(url) === candidateRunsUrl
   ));
   return JSON.parse(call[1].body);
 }
@@ -161,7 +162,7 @@ async function startRunAndGetSocket() {
 
   await waitFor(() => {
     expect(globalThis.fetch).toHaveBeenCalledWith(
-      'http://localhost:8000/api/candidate/runs',
+      candidateRunsUrl,
       expect.objectContaining({ method: 'POST' }),
     );
   });
@@ -542,7 +543,7 @@ describe('StrategyLabTab', () => {
 
     await waitFor(() => {
       expect(globalThis.fetch.mock.calls.some(([url]) => (
-        String(url) === `http://localhost:8000/api/candidate/runs/${runId}`
+        String(url) === `${candidateRunsUrl}/${runId}`
       ))).toBe(true);
     });
   });

@@ -1,0 +1,250 @@
+[COMMAND]: freqtrade backtesting --user-data-dir /home/mohs/Desktop/fictional-octo-guide/user_data --config /home/mohs/Desktop/fictional-octo-guide/user_data/config.json --strategy-path /home/mohs/Desktop/fictional-octo-guide/user_data/backtest_results/AIStrategy/20260620T151141Z_AIStrategy_opt_v001_t0026_93ee3e5b_bt027 --strategy AIStrategy --timerange 20250620-20260620 --timeframe 5m --dry-run-wallet 100.0 --max-open-trades 3 --export trades --export-filename /home/mohs/Desktop/fictional-octo-guide/user_data/backtest_results/AIStrategy/20260620T151141Z_AIStrategy_opt_v001_t0026_93ee3e5b_bt027/raw_result.json --pairs XTZ/USDT XLM/USDT XRP/USDT SHIB/USDT TRX/USDT YFI/USDT ALGO/USDT VET/USDT BNB/USDT ADA/USDT FIL/USDT LDO/USDT IMX/USDT SAND/USDT PENDLE/USDT ICP/USDT APT/USDT EGLD/USDT GALA/USDT BLUR/USDT AXS/USDT BTC/USDT DYDX/USDT HBAR/USDT RPL/USDT GMX/USDT ARB/USDT MINA/USDT ENJ/USDT SEI/USDT STX/USDT MANA/USDT NEAR/USDT DOT/USDT STRK/USDT CRV/USDT SOL/USDT SUI/USDT AAVE/USDT AVAX/USDT ZK/USDT MKR/USDT ETH/USDT OP/USDT SNX/USDT COMP/USDT TIA/USDT DOGE/USDT INJ/USDT FTM/USDT BCH/USDT SUSHI/USDT ETC/USDT
+stdout: [auto-download] Downloading data (file missing)...
+stdout: [auto-download] Data download completed. Proceeding to backtest.
+stderr: 2026-06-20 18:11:50,483 - freqtrade - INFO - freqtrade 2026.5.1
+stderr: 2026-06-20 18:11:51,552 - freqtrade.configuration.load_config - INFO - Using config: /home/mohs/Desktop/fictional-octo-guide/user_data/config.json ...
+stderr: 2026-06-20 18:11:51,554 - freqtrade.loggers - INFO - Enabling colorized output.
+stderr: 2026-06-20 18:11:51,555 - freqtrade.loggers - INFO - Logfile configured
+stderr: 2026-06-20 18:11:51,555 - freqtrade.loggers - INFO - Verbosity set to 0
+stderr: 2026-06-20 18:11:51,555 - freqtrade.configuration.configuration - INFO - Using additional Strategy lookup path: 
+stderr: /home/mohs/Desktop/fictional-octo-guide/user_data/backtest_results/AIStrategy/20260620T151141Z_AIStrategy_opt_v001_t0026_93ee3e5b_bt027
+stderr: 2026-06-20 18:11:51,556 - freqtrade.configuration.configuration - INFO - Parameter -i/--timeframe detected ... Using timeframe: 5m ...
+stderr: 2026-06-20 18:11:51,556 - freqtrade.configuration.configuration - INFO - Parameter --max-open-trades detected, overriding max_open_trades to: 3 ...
+stderr: 2026-06-20 18:11:51,556 - freqtrade.configuration.configuration - INFO - Parameter --dry-run-wallet detected, overriding dry_run_wallet to: 100.0 ...
+stderr: 2026-06-20 18:11:51,556 - freqtrade.configuration.configuration - INFO - Parameter --timerange detected: 20250620-20260620 ...
+stderr: 2026-06-20 18:11:51,557 - freqtrade.configuration.configuration - INFO - Using user-data directory: /home/mohs/Desktop/fictional-octo-guide/user_data ...
+stderr: 2026-06-20 18:11:51,557 - freqtrade.configuration.configuration - INFO - Using data directory: /home/mohs/Desktop/fictional-octo-guide/user_data/data/binance ...
+stderr: 2026-06-20 18:11:51,557 - freqtrade.configuration.configuration - INFO - Storing backtest results to 
+stderr: /home/mohs/Desktop/fictional-octo-guide/user_data/backtest_results/AIStrategy/20260620T151141Z_AIStrategy_opt_v001_t0026_93ee3e5b_bt027/raw_result.json ...
+stderr: 2026-06-20 18:11:51,558 - freqtrade.configuration.configuration - WARNING - DEPRECATED: Using `--export-filename` has no impact when backtesting. Please use `--notes` to annotate backtest results and 
+stderr: `--backtest-directory` to specify the output directory. 
+stderr: 2026-06-20 18:11:51,558 - freqtrade.configuration.configuration - INFO - Parameter --export detected: trades ...
+stderr: 2026-06-20 18:11:51,558 - freqtrade.configuration.configuration - INFO - Parameter --cache=day detected ...
+stderr: 2026-06-20 18:11:51,559 - freqtrade.configuration.configuration - INFO - Using pairs ['XTZ/USDT', 'XLM/USDT', 'XRP/USDT', 'SHIB/USDT', 'TRX/USDT', 'YFI/USDT', 'ALGO/USDT', 'VET/USDT', 'BNB/USDT', 
+stderr: 'ADA/USDT', 'FIL/USDT', 'LDO/USDT', 'IMX/USDT', 'SAND/USDT', 'PENDLE/USDT', 'ICP/USDT', 'APT/USDT', 'EGLD/USDT', 'GALA/USDT', 'BLUR/USDT', 'AXS/USDT', 'BTC/USDT', 'DYDX/USDT', 'HBAR/USDT', 'RPL/USDT',
+stderr: 'GMX/USDT', 'ARB/USDT', 'MINA/USDT', 'ENJ/USDT', 'SEI/USDT', 'STX/USDT', 'MANA/USDT', 'NEAR/USDT', 'DOT/USDT', 'STRK/USDT', 'CRV/USDT', 'SOL/USDT', 'SUI/USDT', 'AAVE/USDT', 'AVAX/USDT', 'ZK/USDT', 
+stderr: 'MKR/USDT', 'ETH/USDT', 'OP/USDT', 'SNX/USDT', 'COMP/USDT', 'TIA/USDT', 'DOGE/USDT', 'INJ/USDT', 'FTM/USDT', 'BCH/USDT', 'SUSHI/USDT', 'ETC/USDT']
+stderr: 2026-06-20 18:11:51,559 - freqtrade.configuration.configuration - INFO - Filter trades by timerange: 20250620-20260620
+stderr: 2026-06-20 18:11:51,559 - freqtrade.exchange.check_exchange - INFO - Checking exchange...
+stderr: 2026-06-20 18:11:51,566 - freqtrade.exchange.check_exchange - INFO - Exchange "binance" is officially supported by the Freqtrade development team.
+stderr: 2026-06-20 18:11:51,566 - freqtrade.configuration.config_validation - INFO - Validating configuration ...
+stderr: 2026-06-20 18:11:51,568 - freqtrade.commands.optimize_commands - INFO - Starting freqtrade in Backtesting mode
+stderr: 2026-06-20 18:11:51,568 - freqtrade.exchange.exchange - INFO - Instance is running with dry_run enabled
+stderr: 2026-06-20 18:11:51,569 - freqtrade.exchange.exchange - INFO - Using CCXT 4.5.59
+stderr: 2026-06-20 18:11:51,580 - freqtrade.exchange.exchange - INFO - Using Exchange "Binance"
+stderr: 2026-06-20 18:11:52,731 - freqtrade.resolvers.exchange_resolver - INFO - Using resolved exchange 'Binance'...
+stderr: 2026-06-20 18:11:52,740 - freqtrade.resolvers.iresolver - INFO - Using resolved strategy AIStrategy from 
+stderr: '/home/mohs/Desktop/fictional-octo-guide/user_data/backtest_results/AIStrategy/20260620T151141Z_AIStrategy_opt_v001_t0026_93ee3e5b_bt027/strategy.py'...
+stderr: 2026-06-20 18:11:52,740 - freqtrade.strategy.hyper - INFO - Found no parameter file.
+stderr: 2026-06-20 18:11:52,741 - freqtrade.resolvers.strategy_resolver - INFO - Override strategy 'timeframe' with value from the configuration: 5m.
+stderr: 2026-06-20 18:11:52,741 - freqtrade.resolvers.strategy_resolver - INFO - Override strategy 'stake_currency' with value from the configuration: USDT.
+stderr: 2026-06-20 18:11:52,741 - freqtrade.resolvers.strategy_resolver - INFO - Override strategy 'stake_amount' with value from the configuration: unlimited.
+stderr: 2026-06-20 18:11:52,742 - freqtrade.resolvers.strategy_resolver - INFO - Override strategy 'unfilledtimeout' with value from the configuration: {'entry': 10, 'exit': 10, 'exit_timeout_count': 0, 
+stderr: 'unit': 'minutes'}.
+stderr: 2026-06-20 18:11:52,742 - freqtrade.resolvers.strategy_resolver - INFO - Override strategy 'max_open_trades' with value from the configuration: 3.
+stderr: 2026-06-20 18:11:52,742 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using minimal_roi: {'0': 0.192, '1553': 0.123, '2332': 0.076, '3169': 0.0, '12': 0.061, '33': 0.017, '145': 0.0}
+stderr: 2026-06-20 18:11:52,743 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using timeframe: 5m
+stderr: 2026-06-20 18:11:52,743 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using stoploss: -0.336
+stderr: 2026-06-20 18:11:52,743 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using trailing_stop: False
+stderr: 2026-06-20 18:11:52,744 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using trailing_stop_positive_offset: 0.0
+stderr: 2026-06-20 18:11:52,744 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using trailing_only_offset_is_reached: False
+stderr: 2026-06-20 18:11:52,744 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using use_custom_stoploss: False
+stderr: 2026-06-20 18:11:52,745 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using process_only_new_candles: True
+stderr: 2026-06-20 18:11:52,745 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using order_types: {'entry': 'limit', 'exit': 'limit', 'stoploss': 'limit', 'stoploss_on_exchange': False, 
+stderr: 'stoploss_on_exchange_interval': 60}
+stderr: 2026-06-20 18:11:52,745 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using order_time_in_force: {'entry': 'GTC', 'exit': 'GTC'}
+stderr: 2026-06-20 18:11:52,745 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using stake_currency: USDT
+stderr: 2026-06-20 18:11:52,746 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using stake_amount: unlimited
+stderr: 2026-06-20 18:11:52,746 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using startup_candle_count: 0
+stderr: 2026-06-20 18:11:52,746 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using unfilledtimeout: {'entry': 10, 'exit': 10, 'exit_timeout_count': 0, 'unit': 'minutes'}
+stderr: 2026-06-20 18:11:52,746 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using use_exit_signal: True
+stderr: 2026-06-20 18:11:52,747 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using exit_profit_only: False
+stderr: 2026-06-20 18:11:52,747 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using ignore_roi_if_entry_signal: False
+stderr: 2026-06-20 18:11:52,747 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using exit_profit_offset: 0.0
+stderr: 2026-06-20 18:11:52,747 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using disable_dataframe_checks: False
+stderr: 2026-06-20 18:11:52,748 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using ignore_buying_expired_candle_after: 0
+stderr: 2026-06-20 18:11:52,748 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using position_adjustment_enable: False
+stderr: 2026-06-20 18:11:52,748 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using max_entry_position_adjustment: -1
+stderr: 2026-06-20 18:11:52,748 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using max_open_trades: 3
+stderr: 2026-06-20 18:11:52,749 - freqtrade.configuration.config_validation - INFO - Validating configuration ...
+stderr: 2026-06-20 18:11:52,752 - freqtrade.resolvers.iresolver - INFO - Using resolved pairlist StaticPairList from 
+stderr: '/home/mohs/Desktop/fictional-octo-guide/.venv/lib/python3.12/site-packages/freqtrade/plugins/pairlist/StaticPairList.py'...
+stderr: 2026-06-20 18:11:52,917 - freqtrade.plugins.pairlist.IPairList - INFO - Ignoring MKR/USDT from whitelist. Market is not active.
+stderr: 2026-06-20 18:11:52,917 - freqtrade.plugins.pairlist.IPairList - INFO - Ignoring FTM/USDT from whitelist. Market is not active.
+stderr: 2026-06-20 18:11:52,918 - freqtrade.optimize.backtesting - INFO - Using fee 0.1000% - worst case fee from exchange (lowest tier).
+stderr: 2026-06-20 18:11:52,981 - freqtrade.data.history.datahandlers.idatahandler - WARNING - XLM/USDT, spot, 5m, data starts at 2025-12-17 00:00:00
+stderr: 2026-06-20 18:11:53,504 - freqtrade.data.history.datahandlers.idatahandler - WARNING - SAND/USDT, spot, 5m, data starts at 2025-12-17 00:00:00
+stderr: 2026-06-20 18:11:53,614 - freqtrade.data.history.datahandlers.idatahandler - WARNING - APT/USDT, spot, 5m, data starts at 2025-12-17 00:00:00
+stderr: 2026-06-20 18:11:53,640 - freqtrade.data.history.datahandlers.idatahandler - WARNING - EGLD/USDT, spot, 5m, data starts at 2025-12-17 00:00:00
+stderr: 2026-06-20 18:11:53,666 - freqtrade.data.history.datahandlers.idatahandler - WARNING - GALA/USDT, spot, 5m, data starts at 2025-12-17 00:00:00
+stderr: 2026-06-20 18:11:53,869 - freqtrade.data.history.datahandlers.idatahandler - WARNING - HBAR/USDT, spot, 5m, data starts at 2025-12-17 00:00:00
+stderr: 2026-06-20 18:11:54,110 - freqtrade.data.history.datahandlers.idatahandler - WARNING - SEI/USDT, spot, 5m, data starts at 2025-12-17 00:00:00
+stderr: 2026-06-20 18:11:54,325 - freqtrade.data.history.datahandlers.idatahandler - INFO - Price jump in STRK/USDT, 5m, spot between two candles of 17.85% detected.
+stderr: 2026-06-20 18:11:54,539 - freqtrade.data.history.datahandlers.idatahandler - INFO - Price jump in AVAX/USDT, 5m, spot between two candles of 35.97% detected.
+stderr: 2026-06-20 18:11:54,738 - freqtrade.data.history.datahandlers.idatahandler - WARNING - COMP/USDT, spot, 5m, data starts at 2025-12-17 00:00:00
+stderr: 2026-06-20 18:11:55,033 - freqtrade.optimize.backtesting - INFO - Loading data from 2025-06-20 00:00:00 up to 2026-06-20 00:00:00 (365 days).
+stderr: 2026-06-20 18:12:30,750 - freqtrade.optimize.backtesting - INFO - Dataload complete. Calculating indicators
+stderr: 2026-06-20 18:12:30,752 - freqtrade.optimize.backtesting - INFO - Running backtesting for Strategy AIStrategy
+stderr: 2026-06-20 18:12:30,753 - freqtrade.strategy.hyper - INFO - Strategy Parameter: buy_ma_count = 6
+stderr: 2026-06-20 18:12:30,753 - freqtrade.strategy.hyper - INFO - Strategy Parameter: buy_ma_gap = 34
+stderr: 2026-06-20 18:12:30,754 - freqtrade.strategy.hyper - INFO - Strategy Parameter: sell_ma_count = 6
+stderr: 2026-06-20 18:12:30,754 - freqtrade.strategy.hyper - INFO - Strategy Parameter: sell_ma_gap = 59
+stderr: 2026-06-20 18:12:31,877 - freqtrade.optimize.backtesting - INFO - Backtesting with data from 2025-06-20 00:00:00 up to 2026-06-20 00:00:00 (365 days).
+stderr: 2026-06-20 18:13:34,362 - freqtrade.misc - INFO - dumping json to "/home/mohs/Desktop/fictional-octo-guide/user_data/backtest_results/backtest-result-2026-06-20_18-13-34.meta.json"
+stdout:   XTZ/USDT	  XLM/USDT	  XRP/USDT	  SHIB/USDT	  TRX/USDT	  YFI/USDT	  ALGO/USDT	  VET/USDT	  BNB/USDT	  ADA/USDT	  FIL/USDT	  LDO/USDT	  IMX/USDT	  SAND/USDT	  PENDLE/USDT	  ICP/USDT	  APT/USDT	  EGLD/USDT	  GALA/USDT	  BLUR/USDT	  AXS/USDT	  BTC/USDT	  DYDX/USDT	  HBAR/USDT	  RPL/USDT	  GMX/USDT	  ARB/USDT	  MINA/USDT	  ENJ/USDT	  SEI/USDT	  STX/USDT	  MANA/USDT	  NEAR/USDT	  DOT/USDT	  STRK/USDT	  CRV/USDT	  SOL/USDT	  SUI/USDT	  AAVE/USDT	  AVAX/USDT	  ZK/USDT	  ETH/USDT	  OP/USDT	  SNX/USDT	  COMP/USDT	  TIA/USDT	  DOGE/USDT	  INJ/USDT	  BCH/USDT	  SUSHI/USDT	  ETC/USDT	Result for strategy AIStrategy
+stdout:                                                BACKTESTING REPORT                                               
+stdout: ┏━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┓
+stdout: ┃        Pair ┃ Trades ┃ Avg Profit % ┃ Tot Profit USDT ┃ Tot Profit % ┃ Avg Duration ┃  Win  Draw  Loss  Win% ┃
+stdout: ┡━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━┩
+stdout: │    ARB/USDT │     40 │         0.29 │           2.696 │          2.7 │      1:28:00 │   23     0    17  57.5 │
+stdout: │    ADA/USDT │     63 │         0.05 │           2.126 │         2.13 │      1:57:00 │   35     0    28  55.6 │
+stdout: │   STRK/USDT │     71 │        -0.06 │           1.355 │         1.36 │      1:18:00 │   41     0    30  57.7 │
+stdout: │    DOT/USDT │     20 │         0.11 │           0.696 │          0.7 │      1:56:00 │   11     0     9  55.0 │
+stdout: │   NEAR/USDT │     43 │         0.01 │           0.326 │         0.33 │      1:42:00 │   21     0    22  48.8 │
+stdout: │    AXS/USDT │     27 │        -0.06 │           0.043 │         0.04 │      1:54:00 │   15     0    12  55.6 │
+stdout: │    XLM/USDT │      0 │          0.0 │           0.000 │          0.0 │         0:00 │    0     0     0     0 │
+stdout: │   SAND/USDT │      0 │          0.0 │           0.000 │          0.0 │         0:00 │    0     0     0     0 │
+stdout: │    APT/USDT │      0 │          0.0 │           0.000 │          0.0 │         0:00 │    0     0     0     0 │
+stdout: │   EGLD/USDT │      0 │          0.0 │           0.000 │          0.0 │         0:00 │    0     0     0     0 │
+stdout: │   GALA/USDT │      0 │          0.0 │           0.000 │          0.0 │         0:00 │    0     0     0     0 │
+stdout: │   HBAR/USDT │      0 │          0.0 │           0.000 │          0.0 │         0:00 │    0     0     0     0 │
+stdout: │    SEI/USDT │      0 │          0.0 │           0.000 │          0.0 │         0:00 │    0     0     0     0 │
+stdout: │   COMP/USDT │      0 │          0.0 │           0.000 │          0.0 │         0:00 │    0     0     0     0 │
+stdout: │    ENJ/USDT │     17 │        -0.19 │          -0.288 │        -0.29 │      1:27:00 │    6     0    11  35.3 │
+stdout: │    SOL/USDT │     42 │        -0.04 │          -0.398 │         -0.4 │      2:04:00 │   20     0    22  47.6 │
+stdout: │    ETH/USDT │     36 │        -0.07 │          -0.532 │        -0.53 │      1:46:00 │   16     0    20  44.4 │
+stdout: │    XRP/USDT │    209 │         -0.0 │          -0.548 │        -0.55 │      1:59:00 │  102     0   107  48.8 │
+stdout: │   MINA/USDT │     57 │        -0.01 │          -0.713 │        -0.71 │      1:19:00 │   30     0    27  52.6 │
+stdout: │   AAVE/USDT │     47 │        -0.31 │          -1.001 │         -1.0 │      2:08:00 │   18     0    29  38.3 │
+stdout: │    FIL/USDT │     63 │        -0.22 │          -1.077 │        -1.08 │      1:34:00 │   26     0    37  41.3 │
+stdout: │     ZK/USDT │     49 │        -0.37 │          -1.118 │        -1.12 │      1:34:00 │   25     0    24  51.0 │
+stdout: │   MANA/USDT │     27 │        -0.31 │          -1.197 │         -1.2 │      1:43:00 │   11     0    16  40.7 │
+stdout: │    STX/USDT │     23 │         0.03 │          -1.205 │         -1.2 │      1:48:00 │   13     0    10  56.5 │
+stdout: │    SUI/USDT │     34 │        -0.22 │          -1.206 │        -1.21 │      1:50:00 │   14     0    20  41.2 │
+stdout: │     OP/USDT │     20 │        -0.63 │          -1.229 │        -1.23 │      1:52:00 │    8     0    12  40.0 │
+stdout: │    TIA/USDT │     40 │        -0.34 │          -1.511 │        -1.51 │      1:41:00 │   21     0    19  52.5 │
+stdout: │    VET/USDT │     99 │        -0.18 │          -1.520 │        -1.52 │      1:52:00 │   46     0    53  46.5 │
+stdout: │    ETC/USDT │     18 │        -0.56 │          -1.553 │        -1.55 │      1:37:00 │    6     0    12  33.3 │
+stdout: │ PENDLE/USDT │     93 │        -0.08 │          -1.592 │        -1.59 │      1:52:00 │   46     0    47  49.5 │
+stdout: │    BTC/USDT │     70 │        -0.23 │          -1.768 │        -1.77 │      2:06:00 │   19     0    51  27.1 │
+stdout: │  SUSHI/USDT │     18 │        -0.73 │          -2.029 │        -2.03 │      1:47:00 │    7     0    11  38.9 │
+stdout: │   BLUR/USDT │     42 │        -0.29 │          -2.164 │        -2.16 │      1:44:00 │   15     0    27  35.7 │
+stdout: │    CRV/USDT │     80 │        -0.25 │          -2.231 │        -2.23 │      1:47:00 │   36     0    44  45.0 │
+stdout: │    ICP/USDT │     68 │        -0.36 │          -2.533 │        -2.53 │      1:39:00 │   34     0    34  50.0 │
+stdout: │   AVAX/USDT │     50 │         -0.4 │          -3.284 │        -3.28 │      1:53:00 │   20     0    30  40.0 │
+stdout: │    RPL/USDT │     70 │        -0.27 │          -3.292 │        -3.29 │      1:41:00 │   33     0    37  47.1 │
+stdout: │    GMX/USDT │     81 │        -0.16 │          -3.503 │         -3.5 │      1:48:00 │   35     0    46  43.2 │
+stdout: │    SNX/USDT │     88 │        -0.32 │          -3.532 │        -3.53 │      1:29:00 │   47     0    41  53.4 │
+stdout: │   DOGE/USDT │    393 │        -0.23 │          -3.689 │        -3.69 │      2:03:00 │  167     0   226  42.5 │
+stdout: │    BNB/USDT │    139 │        -0.23 │          -3.926 │        -3.93 │      2:02:00 │   50     0    89  36.0 │
+stdout: │    IMX/USDT │    105 │        -0.18 │          -4.041 │        -4.04 │      1:39:00 │   47     0    58  44.8 │
+stdout: │    INJ/USDT │     37 │        -0.85 │          -4.268 │        -4.27 │      1:44:00 │   12     0    25  32.4 │
+stdout: │    LDO/USDT │     84 │        -0.18 │          -4.298 │         -4.3 │      1:36:00 │   41     0    43  48.8 │
+stdout: │    YFI/USDT │    156 │         -0.2 │          -5.143 │        -5.14 │      2:04:00 │   64     0    92  41.0 │
+stdout: │   DYDX/USDT │     48 │        -0.67 │          -5.160 │        -5.16 │      1:43:00 │   15     0    33  31.3 │
+stdout: │   ALGO/USDT │    120 │        -0.16 │          -5.198 │         -5.2 │      1:53:00 │   58     0    62  48.3 │
+stdout: │    BCH/USDT │     90 │        -0.33 │          -5.407 │        -5.41 │      2:10:00 │   30     0    60  33.3 │
+stdout: │    XTZ/USDT │    206 │        -0.19 │          -5.838 │        -5.84 │      1:58:00 │   99     1   106  48.1 │
+stdout: │    TRX/USDT │    187 │         -0.2 │          -5.935 │        -5.94 │      2:12:00 │   67     0   120  35.8 │
+stdout: │   SHIB/USDT │    558 │         -0.2 │          -6.244 │        -6.24 │      2:04:00 │  226     0   332  40.5 │
+stdout: │       TOTAL │   3828 │         -0.2 │         -92.934 │       -92.93 │      1:54:00 │ 1676     1  2151  43.8 │
+stdout: └─────────────┴────────┴──────────────┴─────────────────┴──────────────┴──────────────┴────────────────────────┘
+stdout:                                          LEFT OPEN TRADES REPORT                                          
+stdout: ┏━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┓
+stdout: ┃  Pair ┃ Trades ┃ Avg Profit % ┃ Tot Profit USDT ┃ Tot Profit % ┃ Avg Duration ┃  Win  Draw  Loss  Win% ┃
+stdout: ┡━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━┩
+stdout: │ TOTAL │      0 │          0.0 │           0.000 │          0.0 │         0:00 │    0     0     0     0 │
+stdout: └───────┴────────┴──────────────┴─────────────────┴──────────────┴──────────────┴────────────────────────┘
+stdout:                                                 ENTER TAG STATS                                                
+stdout: ┏━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┓
+stdout: ┃ Enter Tag ┃ Entries ┃ Avg Profit % ┃ Tot Profit USDT ┃ Tot Profit % ┃ Avg Duration ┃  Win  Draw  Loss  Win% ┃
+stdout: ┡━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━┩
+stdout: │     OTHER │    3828 │         -0.2 │         -92.934 │       -92.93 │      1:54:00 │ 1676     1  2151  43.8 │
+stdout: │     TOTAL │    3828 │         -0.2 │         -92.934 │       -92.93 │      1:54:00 │ 1676     1  2151  43.8 │
+stdout: └───────────┴─────────┴──────────────┴─────────────────┴──────────────┴──────────────┴────────────────────────┘
+stdout:                                                EXIT REASON STATS                                               
+stdout: ┏━━━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┓
+stdout: ┃ Exit Reason ┃ Exits ┃ Avg Profit % ┃ Tot Profit USDT ┃ Tot Profit % ┃ Avg Duration ┃  Win  Draw  Loss  Win% ┃
+stdout: ┡━━━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━┩
+stdout: │         roi │  1845 │         0.92 │         206.168 │       206.17 │      2:00:00 │ 1639     1   205  88.8 │
+stdout: │ exit_signal │  1983 │        -1.25 │        -299.101 │       -299.1 │      1:48:00 │   37     0  1946   1.9 │
+stdout: │       TOTAL │  3828 │         -0.2 │         -92.934 │       -92.93 │      1:54:00 │ 1676     1  2151  43.8 │
+stdout: └─────────────┴───────┴──────────────┴─────────────────┴──────────────┴──────────────┴────────────────────────┘
+stdout:                                                       MIXED TAG STATS                                                       
+stdout: ┏━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┓
+stdout: ┃ Enter Tag ┃ Exit Reason ┃ Trades ┃ Avg Profit % ┃ Tot Profit USDT ┃ Tot Profit % ┃ Avg Duration ┃  Win  Draw  Loss  Win% ┃
+stdout: ┡━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━┩
+stdout: │           │         roi │   1845 │         0.92 │         206.168 │       206.17 │      2:00:00 │ 1639     1   205  88.8 │
+stdout: │           │ exit_signal │   1983 │        -1.25 │        -299.101 │       -299.1 │      1:48:00 │   37     0  1946   1.9 │
+stdout: │     TOTAL │             │   3828 │         -0.2 │         -92.934 │       -92.93 │      1:54:00 │ 1676     1  2151  43.8 │
+stdout: └───────────┴─────────────┴────────┴──────────────┴─────────────────┴──────────────┴──────────────┴────────────────────────┘
+stdout:                                    SUMMARY METRICS                                    
+stdout: ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+stdout: ┃ Metric                                 ┃ Value                                     ┃
+stdout: ┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+stdout: │ Backtesting from                       │ 2025-06-20 00:00:00                       │
+stdout: │ Backtesting to                         │ 2026-06-20 00:00:00                       │
+stdout: │ Trading Mode                           │ Spot                                      │
+stdout: │ Max open trades                        │ 3                                         │
+stdout: │                                        │                                           │
+stdout: │ Total/Daily Avg Trades                 │ 3828 / 10.49                              │
+stdout: │ Starting balance                       │ 100 USDT                                  │
+stdout: │ Final balance                          │ 7.066 USDT                                │
+stdout: │ Absolute profit                        │ -92.934 USDT                              │
+stdout: │ Total profit %                         │ -92.93%                                   │
+stdout: │ CAGR %                                 │ -92.93%                                   │
+stdout: │ Sharpe (closed trades)                 │ -23.29                                    │
+stdout: │ Sortino (closed trades)                │ -27.81                                    │
+stdout: │ Calmar (closed trades)                 │ -5.23                                     │
+stdout: │ SQN                                    │ -7.19                                     │
+stdout: │ Profit factor                          │ 0.69                                      │
+stdout: │ Expectancy (Ratio)                     │ -0.02 (-0.17)                             │
+stdout: │ Avg. daily profit                      │ -0.255 USDT                               │
+stdout: │ Avg. stake amount                      │ 12.214 USDT                               │
+stdout: │ Market change                          │ -56.74%                                   │
+stdout: │ Total trade volume                     │ 93604.201 USDT                            │
+stdout: │                                        │                                           │
+stdout: │ Best Pair                              │ ARB/USDT 2.70%                            │
+stdout: │ Worst Pair                             │ SHIB/USDT -6.24%                          │
+stdout: │ Best trade                             │ SNX/USDT 8.16%                            │
+stdout: │ Worst trade                            │ STRK/USDT -12.29%                         │
+stdout: │ Best day                               │ 3.665 USDT                                │
+stdout: │ Worst day                              │ -8.983 USDT                               │
+stdout: │ Days win/draw/lose                     │ 90 / 28 / 246                             │
+stdout: │ Min/Max/Avg. Duration Winners          │ 0d 00:10 / 0d 05:05 / 0d 01:54            │
+stdout: │ Min/Max/Avg. Duration Losers           │ 0d 00:05 / 0d 05:50 / 0d 01:54            │
+stdout: │ Max Consecutive Wins / Loss            │ 12 / 19                                   │
+stdout: │ Rejected Entry signals                 │ 154196                                    │
+stdout: │ Entry/Exit Timeouts                    │ 0 / 0                                     │
+stdout: │                                        │                                           │
+stdout: │ Min/Max balance (closed trades)        │ 7.05 USDT / 99.721 USDT                   │
+stdout: │ Max % of account underwater            │ 92.95%                                    │
+stdout: │ Absolute drawdown                      │ 92.95 USDT (92.95%)                       │
+stdout: │ Drawdown duration                      │ 361 days 08:40:00                         │
+stdout: │ Profit at drawdown start               │ 0 USDT                                    │
+stdout: │ Profit at drawdown end                 │ -92.95 USDT                               │
+stdout: │ Drawdown start                         │ 2025-06-21 19:05:00                       │
+stdout: │ Drawdown end                           │ 2026-06-18 03:45:00                       │
+stdout: │                                        │                                           │
+stdout: │ Wallet based Metrics                   │                                           │
+stdout: │ Min/Max balance (wallet balance)       │ 7.044 USDT / 100.11 USDT                  │
+stdout: │ Min/Max balance dates (wallet balance) │ 2026-06-18 23:15:00 / 2025-06-21 18:40:00 │
+stdout: │ Max % of account underwater (balance)  │ 92.96%                                    │
+stdout: │ Absolute drawdown (wallet balance)     │ 93.067 USDT (92.96%)                      │
+stdout: │ Drawdown duration                      │ 362 days 04:35:00                         │
+stdout: │ Profit at drawdown start               │ 0.11 USDT                                 │
+stdout: │ Profit at drawdown end                 │ -92.956 USDT                              │
+stdout: │ Drawdown start                         │ 2025-06-21 18:40:00                       │
+stdout: │ Drawdown end                           │ 2026-06-18 23:15:00                       │
+stdout: │ Sharpe (daily wallet balance)          │ -6.56                                     │
+stdout: │ Sortino (daily wallet balance)         │ -7.94                                     │
+stdout: │ Calmar (daily wallet balance)          │ -5.25                                     │
+stdout: └────────────────────────────────────────┴───────────────────────────────────────────┘
+stdout: 
+stdout: Backtested 2025-06-20 00:00:00 -> 2026-06-20 00:00:00 | Max open trades : 3
+stdout:                                                           STRATEGY SUMMARY                                                          
+stdout: ┏━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┓
+stdout: ┃   Strategy ┃ Trades ┃ Avg Profit % ┃ Tot Profit USDT ┃ Tot Profit % ┃ Avg Duration ┃  Win  Draw  Loss  Win% ┃           Drawdown ┃
+stdout: ┡━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━┩
+stdout: │ AIStrategy │   3828 │        -0.20 │         -92.934 │       -92.93 │      1:54:00 │ 1676     1  2151  43.8 │ 92.95 USDT  92.95% │
+stdout: └────────────┴────────┴──────────────┴─────────────────┴──────────────┴──────────────┴────────────────────────┴────────────────────┘

@@ -1,0 +1,41 @@
+[
+  {
+    "pair": "FIL/USDT",
+    "net_profit_currency": -5.8765002299999995,
+    "net_profit_pct": -5.8765002299999995,
+    "total_trades": 187,
+    "win_count": 82,
+    "loss_count": 105,
+    "win_rate_pct": 43.85026737967914,
+    "avg_trade_result_pct": -0.09581063450015317,
+    "avg_trade_duration_minutes": 96.0,
+    "pair_classification": null,
+    "classification_rationale": null
+  },
+  {
+    "pair": "WIF/USDT",
+    "net_profit_currency": -8.21352939,
+    "net_profit_pct": -8.21352939,
+    "total_trades": 187,
+    "win_count": 82,
+    "loss_count": 105,
+    "win_rate_pct": 43.85026737967914,
+    "avg_trade_result_pct": -0.14293058611367152,
+    "avg_trade_duration_minutes": 101.0,
+    "pair_classification": null,
+    "classification_rationale": null
+  },
+  {
+    "pair": "AXS/USDT",
+    "net_profit_currency": -10.99049126,
+    "net_profit_pct": -10.99049126,
+    "total_trades": 177,
+    "win_count": 77,
+    "loss_count": 100,
+    "win_rate_pct": 43.50282485875706,
+    "avg_trade_result_pct": -0.21592260008375755,
+    "avg_trade_duration_minutes": 100.0,
+    "pair_classification": null,
+    "classification_rationale": null
+  }
+]
