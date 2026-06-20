@@ -1,0 +1,1 @@
+{"strategy_name": "ScalpSuper", "params": {"buy": {}, "sell": {}, "roi": {}, "stoploss": {"stoploss": -0.02}, "trailing": {"trailing_stop": false}}}

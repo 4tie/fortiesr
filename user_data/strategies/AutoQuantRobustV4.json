@@ -1,0 +1,126 @@
+{
+  "strategy_name": "AutoQuantRobustV4",
+  "description": "A robust trend-following strategy with multiple filters including trend, momentum, volatility, and volume filters with ATR-based risk control.",
+  "timeframe": "1h",
+  "minimal_roi": {
+    "0": 0.06,
+    "60": 0.04,
+    "240": 0.02,
+    "720": 0.01,
+    "1440": 0
+  },
+  "stoploss": -0.10,
+  "trailing_stop": true,
+  "trailing_stop_positive": 0.015,
+  "trailing_stop_positive_offset": 0.025,
+  "trailing_only_offset_is_reached": true,
+  "process_only_new_candles": true,
+  "startup_candle_count": 200,
+  "can_short": false,
+  "parameters": {
+    "buy": {
+      "trend_ema_period": {
+        "default": 200,
+        "min": 100,
+        "max": 200,
+        "type": "int"
+      },
+      "rsi_period": {
+        "default": 14,
+        "min": 10,
+        "max": 20,
+        "type": "int"
+      },
+      "rsi_oversold": {
+        "default": 30,
+        "min": 20,
+        "max": 35,
+        "type": "int"
+      },
+      "macd_fast": {
+        "default": 12,
+        "min": 8,
+        "max": 15,
+        "type": "int"
+      },
+      "macd_slow": {
+        "default": 26,
+        "min": 20,
+        "max": 30,
+        "type": "int"
+      },
+      "macd_signal": {
+        "default": 9,
+        "min": 5,
+        "max": 10,
+        "type": "int"
+      },
+      "atr_period": {
+        "default": 14,
+        "min": 10,
+        "max": 20,
+        "type": "int"
+      },
+      "atr_multiplier": {
+        "default": 1.5,
+        "min": 1.0,
+        "max": 3.0,
+        "type": "decimal"
+      },
+      "volume_multiplier": {
+        "default": 1.5,
+        "min": 1.0,
+        "max": 3.0,
+        "type": "decimal"
+      },
+      "volume_period": {
+        "default": 20,
+        "min": 15,
+        "max": 30,
+        "type": "int"
+      }
+    },
+    "sell": {
+      "rsi_overbought": {
+        "default": 70,
+        "min": 65,
+        "max": 80,
+        "type": "int"
+      }
+    },
+    "stoploss": {
+      "atr_stoploss_multiplier": {
+        "default": 2.0,
+        "min": 1.5,
+        "max": 3.0,
+        "type": "decimal"
+      }
+    }
+  },
+  "indicators": [
+    "EMA (trend filter)",
+    "RSI (momentum oscillator)",
+    "MACD (momentum confirmation)",
+    "ATR (volatility measurement)",
+    "Volume ratio (liquidity filter)"
+  ],
+  "entry_conditions": [
+    "Price above long-term EMA (uptrend)",
+    "RSI oversold (buying opportunity)",
+    "MACD bullish crossover",
+    "ATR below 5% of price (volatility filter)",
+    "Volume spike (confirmation)"
+  ],
+  "exit_conditions": [
+    "RSI overbought (take profit)",
+    "MACD bearish crossover (exit signal)",
+    "Price below trend EMA (trend break)"
+  ],
+  "risk_management": {
+    "stoploss_type": "ATR-based dynamic",
+    "trailing_stop": true,
+    "max_open_trades_recommended": 3,
+    "risk_per_trade": "2-3% of portfolio"
+  },
+  "optimization_notes": "This strategy has been designed with reasonable parameter ranges to avoid overfitting. The optimizer should focus on fine-tuning the RSI thresholds and ATR multipliers rather than making large structural changes."
+}

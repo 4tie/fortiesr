@@ -1,0 +1,1 @@
+{"strategy_name": "ScalpBB", "params": {"buy": {}, "sell": {}, "roi": {}, "stoploss": {"stoploss": -0.01}, "trailing": {"trailing_stop": false}}}

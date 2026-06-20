@@ -1,0 +1,23 @@
+{
+  "strategy_name": "DualMomentum",
+  "params": {
+    "buy": {},
+    "sell": {},
+    "roi": {},
+    "stoploss": {
+      "stoploss": -0.5
+    },
+    "trailing": {
+      "trailing_stop": false
+    }
+  },
+  "optimized_params": {
+    "ema_fast": 12,
+    "ema_slow": 26,
+    "daily_sma_period": 10,
+    "max_open_trades": 3,
+    "pairs": ["ETH/USDT", "BNB/USDT", "DOGE/USDT", "SOL/USDT"],
+    "best_oos_pct": 0.32,
+    "full_pct": 61.76
+  }
+}

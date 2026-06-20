@@ -1,0 +1,26 @@
+{
+  "strategy_name": "SwingHighToSky",
+  "params": {
+    "buy": {
+      "buy_cci": -175,
+      "buy_cciTime": 72,
+      "buy_rsi": 90,
+      "buy_rsiTime": 36
+    },
+    "sell": {},
+    "roi": {
+      "0": 0.05,
+      "120": 0.02,
+      "240": 0.0
+    },
+    "stoploss": {
+      "stoploss": -0.025
+    },
+    "trailing": {
+      "trailing_stop": true,
+      "trailing_stop_positive": 0.012,
+      "trailing_stop_positive_offset": 0.02,
+      "trailing_only_offset_is_reached": true
+    }
+  }
+}

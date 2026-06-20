@@ -1,0 +1,19 @@
+{
+  "strategy_name": "IntradayAdaptive_v1",
+  "params": {
+    "buy": {},
+    "sell": {},
+    "roi": {
+      "0": 0.08,
+      "30": 0.04,
+      "60": 0.02,
+      "120": 0.0
+    },
+    "stoploss": {
+      "stoploss": -0.05
+    },
+    "trailing": {
+      "trailing_stop": false
+    }
+  }
+}

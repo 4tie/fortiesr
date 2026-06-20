@@ -1,0 +1,1 @@
+{"strategy_name": "ScalpRSI_Extremes", "params": {"buy": {}, "sell": {}, "roi": {}, "stoploss": {"stoploss": -0.012}, "trailing": {"trailing_stop": false}}}

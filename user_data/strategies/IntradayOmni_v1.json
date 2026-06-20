@@ -1,0 +1,19 @@
+{
+  "strategy_name": "IntradayOmni_v1",
+  "params": {
+    "buy": {},
+    "sell": {},
+    "roi": {
+      "0": 0.12,
+      "60": 0.06,
+      "180": 0.03,
+      "360": 0.0
+    },
+    "stoploss": {
+      "stoploss": -0.07
+    },
+    "trailing": {
+      "trailing_stop": false
+    }
+  }
+}

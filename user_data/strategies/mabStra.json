@@ -1,0 +1,19 @@
+{
+  "strategy_name": "mabStra",
+  "params": {
+    "buy": {},
+    "sell": {},
+    "roi": {
+      "0": 0.598,
+      "644": 0.166,
+      "3269": 0.115,
+      "7289": 0.0
+    },
+    "stoploss": {
+      "stoploss": -0.028
+    },
+    "trailing": {
+      "trailing_stop": false
+    }
+  }
+}

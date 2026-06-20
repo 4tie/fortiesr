@@ -1,0 +1,1 @@
+{"strategy_name": "ShortMACD", "params": {"buy": {}, "sell": {}, "roi": {}, "stoploss": {"stoploss": -0.015}, "trailing": {"trailing_stop": false}}}

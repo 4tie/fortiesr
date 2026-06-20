@@ -1,0 +1,23 @@
+{
+  "strategy_name": "MomentumRobust",
+  "params": {
+    "buy": {},
+    "sell": {},
+    "roi": {
+      "0": 0.1,
+      "60": 0.05,
+      "120": 0.025,
+      "240": 0.01,
+      "480": 0.0
+    },
+    "stoploss": {
+      "stoploss": -0.08
+    },
+    "trailing": {
+      "trailing_stop": true,
+      "trailing_stop_positive": 0.01,
+      "trailing_stop_positive_offset": 0.02,
+      "trailing_only_offset_is_reached": true
+    }
+  }
+}

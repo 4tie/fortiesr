@@ -1,0 +1,14 @@
+{
+  "strategy_name": "DualMomentum",
+  "params": {
+    "buy": {},
+    "sell": {},
+    "roi": {},
+    "stoploss": {
+      "stoploss": -0.5
+    },
+    "trailing": {
+      "trailing_stop": false
+    }
+  }
+}

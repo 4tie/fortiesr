@@ -1,0 +1,16 @@
+{
+  "strategy_name": "SmokeTestStrategy",
+  "params": {
+    "buy": {},
+    "sell": {},
+    "roi": {
+      "0": 0.02
+    },
+    "stoploss": {
+      "stoploss": -0.08
+    },
+    "trailing": {
+      "trailing_stop": false
+    }
+  }
+}

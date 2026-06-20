@@ -1,0 +1,875 @@
+{
+  "updated": "2026-06-15T06:10:30.662067+00:00",
+  "data": {
+    "BTC/USDT": [
+      {
+        "minNotional": 0.0,
+        "maxNotional": 50000.0,
+        "maintenanceMarginRate": 0.004,
+        "maxLeverage": 125.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 50000.0,
+        "maxNotional": 250000.0,
+        "maintenanceMarginRate": 0.005,
+        "maxLeverage": 100.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 250000.0,
+        "maxNotional": 1000000.0,
+        "maintenanceMarginRate": 0.01,
+        "maxLeverage": 50.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 1000000.0,
+        "maxNotional": 5000000.0,
+        "maintenanceMarginRate": 0.015,
+        "maxLeverage": 25.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 5000000.0,
+        "maxNotional": 20000000.0,
+        "maintenanceMarginRate": 0.025,
+        "maxLeverage": 15.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 20000000.0,
+        "maxNotional": 100000000.0,
+        "maintenanceMarginRate": 0.05,
+        "maxLeverage": 5.0,
+        "maintAmt": 0.0
+      }
+    ],
+    "ETH/USDT": [
+      {
+        "minNotional": 0.0,
+        "maxNotional": 50000.0,
+        "maintenanceMarginRate": 0.004,
+        "maxLeverage": 125.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 50000.0,
+        "maxNotional": 250000.0,
+        "maintenanceMarginRate": 0.005,
+        "maxLeverage": 100.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 250000.0,
+        "maxNotional": 1000000.0,
+        "maintenanceMarginRate": 0.01,
+        "maxLeverage": 50.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 1000000.0,
+        "maxNotional": 5000000.0,
+        "maintenanceMarginRate": 0.015,
+        "maxLeverage": 25.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 5000000.0,
+        "maxNotional": 20000000.0,
+        "maintenanceMarginRate": 0.025,
+        "maxLeverage": 15.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 20000000.0,
+        "maxNotional": 100000000.0,
+        "maintenanceMarginRate": 0.05,
+        "maxLeverage": 5.0,
+        "maintAmt": 0.0
+      }
+    ],
+    "1INCH/USDT": [
+      {
+        "minNotional": 0.0,
+        "maxNotional": 50000.0,
+        "maintenanceMarginRate": 0.004,
+        "maxLeverage": 125.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 50000.0,
+        "maxNotional": 250000.0,
+        "maintenanceMarginRate": 0.005,
+        "maxLeverage": 100.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 250000.0,
+        "maxNotional": 1000000.0,
+        "maintenanceMarginRate": 0.01,
+        "maxLeverage": 50.0,
+        "maintAmt": 0.0
+      }
+    ],
+    "AAVE/USDT": [
+      {
+        "minNotional": 0.0,
+        "maxNotional": 50000.0,
+        "maintenanceMarginRate": 0.004,
+        "maxLeverage": 125.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 50000.0,
+        "maxNotional": 250000.0,
+        "maintenanceMarginRate": 0.005,
+        "maxLeverage": 100.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 250000.0,
+        "maxNotional": 1000000.0,
+        "maintenanceMarginRate": 0.01,
+        "maxLeverage": 50.0,
+        "maintAmt": 0.0
+      }
+    ],
+    "ADA/USDT": [
+      {
+        "minNotional": 0.0,
+        "maxNotional": 50000.0,
+        "maintenanceMarginRate": 0.004,
+        "maxLeverage": 125.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 50000.0,
+        "maxNotional": 250000.0,
+        "maintenanceMarginRate": 0.005,
+        "maxLeverage": 100.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 250000.0,
+        "maxNotional": 1000000.0,
+        "maintenanceMarginRate": 0.01,
+        "maxLeverage": 50.0,
+        "maintAmt": 0.0
+      }
+    ],
+    "ALGO/USDT": [
+      {
+        "minNotional": 0.0,
+        "maxNotional": 50000.0,
+        "maintenanceMarginRate": 0.004,
+        "maxLeverage": 125.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 50000.0,
+        "maxNotional": 250000.0,
+        "maintenanceMarginRate": 0.005,
+        "maxLeverage": 100.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 250000.0,
+        "maxNotional": 1000000.0,
+        "maintenanceMarginRate": 0.01,
+        "maxLeverage": 50.0,
+        "maintAmt": 0.0
+      }
+    ],
+    "APT/USDT": [
+      {
+        "minNotional": 0.0,
+        "maxNotional": 50000.0,
+        "maintenanceMarginRate": 0.004,
+        "maxLeverage": 125.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 50000.0,
+        "maxNotional": 250000.0,
+        "maintenanceMarginRate": 0.005,
+        "maxLeverage": 100.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 250000.0,
+        "maxNotional": 1000000.0,
+        "maintenanceMarginRate": 0.01,
+        "maxLeverage": 50.0,
+        "maintAmt": 0.0
+      }
+    ],
+    "ARB/USDT": [
+      {
+        "minNotional": 0.0,
+        "maxNotional": 50000.0,
+        "maintenanceMarginRate": 0.004,
+        "maxLeverage": 125.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 50000.0,
+        "maxNotional": 250000.0,
+        "maintenanceMarginRate": 0.005,
+        "maxLeverage": 100.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 250000.0,
+        "maxNotional": 1000000.0,
+        "maintenanceMarginRate": 0.01,
+        "maxLeverage": 50.0,
+        "maintAmt": 0.0
+      }
+    ],
+    "ATOM/USDT": [
+      {
+        "minNotional": 0.0,
+        "maxNotional": 50000.0,
+        "maintenanceMarginRate": 0.004,
+        "maxLeverage": 125.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 50000.0,
+        "maxNotional": 250000.0,
+        "maintenanceMarginRate": 0.005,
+        "maxLeverage": 100.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 250000.0,
+        "maxNotional": 1000000.0,
+        "maintenanceMarginRate": 0.01,
+        "maxLeverage": 50.0,
+        "maintAmt": 0.0
+      }
+    ],
+    "AVAX/USDT": [
+      {
+        "minNotional": 0.0,
+        "maxNotional": 50000.0,
+        "maintenanceMarginRate": 0.004,
+        "maxLeverage": 125.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 50000.0,
+        "maxNotional": 250000.0,
+        "maintenanceMarginRate": 0.005,
+        "maxLeverage": 100.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 250000.0,
+        "maxNotional": 1000000.0,
+        "maintenanceMarginRate": 0.01,
+        "maxLeverage": 50.0,
+        "maintAmt": 0.0
+      }
+    ],
+    "BCH/USDT": [
+      {
+        "minNotional": 0.0,
+        "maxNotional": 50000.0,
+        "maintenanceMarginRate": 0.004,
+        "maxLeverage": 125.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 50000.0,
+        "maxNotional": 250000.0,
+        "maintenanceMarginRate": 0.005,
+        "maxLeverage": 100.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 250000.0,
+        "maxNotional": 1000000.0,
+        "maintenanceMarginRate": 0.01,
+        "maxLeverage": 50.0,
+        "maintAmt": 0.0
+      }
+    ],
+    "COMP/USDT": [
+      {
+        "minNotional": 0.0,
+        "maxNotional": 50000.0,
+        "maintenanceMarginRate": 0.004,
+        "maxLeverage": 125.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 50000.0,
+        "maxNotional": 250000.0,
+        "maintenanceMarginRate": 0.005,
+        "maxLeverage": 100.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 250000.0,
+        "maxNotional": 1000000.0,
+        "maintenanceMarginRate": 0.01,
+        "maxLeverage": 50.0,
+        "maintAmt": 0.0
+      }
+    ],
+    "CRV/USDT": [
+      {
+        "minNotional": 0.0,
+        "maxNotional": 50000.0,
+        "maintenanceMarginRate": 0.004,
+        "maxLeverage": 125.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 50000.0,
+        "maxNotional": 250000.0,
+        "maintenanceMarginRate": 0.005,
+        "maxLeverage": 100.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 250000.0,
+        "maxNotional": 1000000.0,
+        "maintenanceMarginRate": 0.01,
+        "maxLeverage": 50.0,
+        "maintAmt": 0.0
+      }
+    ],
+    "DOGE/USDT": [
+      {
+        "minNotional": 0.0,
+        "maxNotional": 50000.0,
+        "maintenanceMarginRate": 0.004,
+        "maxLeverage": 125.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 50000.0,
+        "maxNotional": 250000.0,
+        "maintenanceMarginRate": 0.005,
+        "maxLeverage": 100.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 250000.0,
+        "maxNotional": 1000000.0,
+        "maintenanceMarginRate": 0.01,
+        "maxLeverage": 50.0,
+        "maintAmt": 0.0
+      }
+    ],
+    "DOT/USDT": [
+      {
+        "minNotional": 0.0,
+        "maxNotional": 50000.0,
+        "maintenanceMarginRate": 0.004,
+        "maxLeverage": 125.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 50000.0,
+        "maxNotional": 250000.0,
+        "maintenanceMarginRate": 0.005,
+        "maxLeverage": 100.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 250000.0,
+        "maxNotional": 1000000.0,
+        "maintenanceMarginRate": 0.01,
+        "maxLeverage": 50.0,
+        "maintAmt": 0.0
+      }
+    ],
+    "EOS/USDT": [
+      {
+        "minNotional": 0.0,
+        "maxNotional": 50000.0,
+        "maintenanceMarginRate": 0.004,
+        "maxLeverage": 125.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 50000.0,
+        "maxNotional": 250000.0,
+        "maintenanceMarginRate": 0.005,
+        "maxLeverage": 100.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 250000.0,
+        "maxNotional": 1000000.0,
+        "maintenanceMarginRate": 0.01,
+        "maxLeverage": 50.0,
+        "maintAmt": 0.0
+      }
+    ],
+    "ETC/USDT": [
+      {
+        "minNotional": 0.0,
+        "maxNotional": 50000.0,
+        "maintenanceMarginRate": 0.004,
+        "maxLeverage": 125.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 50000.0,
+        "maxNotional": 250000.0,
+        "maintenanceMarginRate": 0.005,
+        "maxLeverage": 100.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 250000.0,
+        "maxNotional": 1000000.0,
+        "maintenanceMarginRate": 0.01,
+        "maxLeverage": 50.0,
+        "maintAmt": 0.0
+      }
+    ],
+    "FIL/USDT": [
+      {
+        "minNotional": 0.0,
+        "maxNotional": 50000.0,
+        "maintenanceMarginRate": 0.004,
+        "maxLeverage": 125.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 50000.0,
+        "maxNotional": 250000.0,
+        "maintenanceMarginRate": 0.005,
+        "maxLeverage": 100.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 250000.0,
+        "maxNotional": 1000000.0,
+        "maintenanceMarginRate": 0.01,
+        "maxLeverage": 50.0,
+        "maintAmt": 0.0
+      }
+    ],
+    "ICP/USDT": [
+      {
+        "minNotional": 0.0,
+        "maxNotional": 50000.0,
+        "maintenanceMarginRate": 0.004,
+        "maxLeverage": 125.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 50000.0,
+        "maxNotional": 250000.0,
+        "maintenanceMarginRate": 0.005,
+        "maxLeverage": 100.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 250000.0,
+        "maxNotional": 1000000.0,
+        "maintenanceMarginRate": 0.01,
+        "maxLeverage": 50.0,
+        "maintAmt": 0.0
+      }
+    ],
+    "LINK/USDT": [
+      {
+        "minNotional": 0.0,
+        "maxNotional": 50000.0,
+        "maintenanceMarginRate": 0.004,
+        "maxLeverage": 125.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 50000.0,
+        "maxNotional": 250000.0,
+        "maintenanceMarginRate": 0.005,
+        "maxLeverage": 100.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 250000.0,
+        "maxNotional": 1000000.0,
+        "maintenanceMarginRate": 0.01,
+        "maxLeverage": 50.0,
+        "maintAmt": 0.0
+      }
+    ],
+    "LTC/USDT": [
+      {
+        "minNotional": 0.0,
+        "maxNotional": 50000.0,
+        "maintenanceMarginRate": 0.004,
+        "maxLeverage": 125.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 50000.0,
+        "maxNotional": 250000.0,
+        "maintenanceMarginRate": 0.005,
+        "maxLeverage": 100.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 250000.0,
+        "maxNotional": 1000000.0,
+        "maintenanceMarginRate": 0.01,
+        "maxLeverage": 50.0,
+        "maintAmt": 0.0
+      }
+    ],
+    "MANA/USDT": [
+      {
+        "minNotional": 0.0,
+        "maxNotional": 50000.0,
+        "maintenanceMarginRate": 0.004,
+        "maxLeverage": 125.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 50000.0,
+        "maxNotional": 250000.0,
+        "maintenanceMarginRate": 0.005,
+        "maxLeverage": 100.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 250000.0,
+        "maxNotional": 1000000.0,
+        "maintenanceMarginRate": 0.01,
+        "maxLeverage": 50.0,
+        "maintAmt": 0.0
+      }
+    ],
+    "MATIC/USDT": [
+      {
+        "minNotional": 0.0,
+        "maxNotional": 50000.0,
+        "maintenanceMarginRate": 0.004,
+        "maxLeverage": 125.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 50000.0,
+        "maxNotional": 250000.0,
+        "maintenanceMarginRate": 0.005,
+        "maxLeverage": 100.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 250000.0,
+        "maxNotional": 1000000.0,
+        "maintenanceMarginRate": 0.01,
+        "maxLeverage": 50.0,
+        "maintAmt": 0.0
+      }
+    ],
+    "NEAR/USDT": [
+      {
+        "minNotional": 0.0,
+        "maxNotional": 50000.0,
+        "maintenanceMarginRate": 0.004,
+        "maxLeverage": 125.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 50000.0,
+        "maxNotional": 250000.0,
+        "maintenanceMarginRate": 0.005,
+        "maxLeverage": 100.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 250000.0,
+        "maxNotional": 1000000.0,
+        "maintenanceMarginRate": 0.01,
+        "maxLeverage": 50.0,
+        "maintAmt": 0.0
+      }
+    ],
+    "OP/USDT": [
+      {
+        "minNotional": 0.0,
+        "maxNotional": 50000.0,
+        "maintenanceMarginRate": 0.004,
+        "maxLeverage": 125.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 50000.0,
+        "maxNotional": 250000.0,
+        "maintenanceMarginRate": 0.005,
+        "maxLeverage": 100.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 250000.0,
+        "maxNotional": 1000000.0,
+        "maintenanceMarginRate": 0.01,
+        "maxLeverage": 50.0,
+        "maintAmt": 0.0
+      }
+    ],
+    "PEPE/USDT": [
+      {
+        "minNotional": 0.0,
+        "maxNotional": 50000.0,
+        "maintenanceMarginRate": 0.004,
+        "maxLeverage": 125.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 50000.0,
+        "maxNotional": 250000.0,
+        "maintenanceMarginRate": 0.005,
+        "maxLeverage": 100.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 250000.0,
+        "maxNotional": 1000000.0,
+        "maintenanceMarginRate": 0.01,
+        "maxLeverage": 50.0,
+        "maintAmt": 0.0
+      }
+    ],
+    "SAND/USDT": [
+      {
+        "minNotional": 0.0,
+        "maxNotional": 50000.0,
+        "maintenanceMarginRate": 0.004,
+        "maxLeverage": 125.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 50000.0,
+        "maxNotional": 250000.0,
+        "maintenanceMarginRate": 0.005,
+        "maxLeverage": 100.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 250000.0,
+        "maxNotional": 1000000.0,
+        "maintenanceMarginRate": 0.01,
+        "maxLeverage": 50.0,
+        "maintAmt": 0.0
+      }
+    ],
+    "SHIB/USDT": [
+      {
+        "minNotional": 0.0,
+        "maxNotional": 50000.0,
+        "maintenanceMarginRate": 0.004,
+        "maxLeverage": 125.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 50000.0,
+        "maxNotional": 250000.0,
+        "maintenanceMarginRate": 0.005,
+        "maxLeverage": 100.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 250000.0,
+        "maxNotional": 1000000.0,
+        "maintenanceMarginRate": 0.01,
+        "maxLeverage": 50.0,
+        "maintAmt": 0.0
+      }
+    ],
+    "SOL/USDT": [
+      {
+        "minNotional": 0.0,
+        "maxNotional": 50000.0,
+        "maintenanceMarginRate": 0.004,
+        "maxLeverage": 125.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 50000.0,
+        "maxNotional": 250000.0,
+        "maintenanceMarginRate": 0.005,
+        "maxLeverage": 100.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 250000.0,
+        "maxNotional": 1000000.0,
+        "maintenanceMarginRate": 0.01,
+        "maxLeverage": 50.0,
+        "maintAmt": 0.0
+      }
+    ],
+    "SUSHI/USDT": [
+      {
+        "minNotional": 0.0,
+        "maxNotional": 50000.0,
+        "maintenanceMarginRate": 0.004,
+        "maxLeverage": 125.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 50000.0,
+        "maxNotional": 250000.0,
+        "maintenanceMarginRate": 0.005,
+        "maxLeverage": 100.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 250000.0,
+        "maxNotional": 1000000.0,
+        "maintenanceMarginRate": 0.01,
+        "maxLeverage": 50.0,
+        "maintAmt": 0.0
+      }
+    ],
+    "THETA/USDT": [
+      {
+        "minNotional": 0.0,
+        "maxNotional": 50000.0,
+        "maintenanceMarginRate": 0.004,
+        "maxLeverage": 125.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 50000.0,
+        "maxNotional": 250000.0,
+        "maintenanceMarginRate": 0.005,
+        "maxLeverage": 100.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 250000.0,
+        "maxNotional": 1000000.0,
+        "maintenanceMarginRate": 0.01,
+        "maxLeverage": 50.0,
+        "maintAmt": 0.0
+      }
+    ],
+    "TRX/USDT": [
+      {
+        "minNotional": 0.0,
+        "maxNotional": 50000.0,
+        "maintenanceMarginRate": 0.004,
+        "maxLeverage": 125.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 50000.0,
+        "maxNotional": 250000.0,
+        "maintenanceMarginRate": 0.005,
+        "maxLeverage": 100.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 250000.0,
+        "maxNotional": 1000000.0,
+        "maintenanceMarginRate": 0.01,
+        "maxLeverage": 50.0,
+        "maintAmt": 0.0
+      }
+    ],
+    "UNI/USDT": [
+      {
+        "minNotional": 0.0,
+        "maxNotional": 50000.0,
+        "maintenanceMarginRate": 0.004,
+        "maxLeverage": 125.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 50000.0,
+        "maxNotional": 250000.0,
+        "maintenanceMarginRate": 0.005,
+        "maxLeverage": 100.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 250000.0,
+        "maxNotional": 1000000.0,
+        "maintenanceMarginRate": 0.01,
+        "maxLeverage": 50.0,
+        "maintAmt": 0.0
+      }
+    ],
+    "WIF/USDT": [
+      {
+        "minNotional": 0.0,
+        "maxNotional": 50000.0,
+        "maintenanceMarginRate": 0.004,
+        "maxLeverage": 125.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 50000.0,
+        "maxNotional": 250000.0,
+        "maintenanceMarginRate": 0.005,
+        "maxLeverage": 100.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 250000.0,
+        "maxNotional": 1000000.0,
+        "maintenanceMarginRate": 0.01,
+        "maxLeverage": 50.0,
+        "maintAmt": 0.0
+      }
+    ],
+    "XLM/USDT": [
+      {
+        "minNotional": 0.0,
+        "maxNotional": 50000.0,
+        "maintenanceMarginRate": 0.004,
+        "maxLeverage": 125.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 50000.0,
+        "maxNotional": 250000.0,
+        "maintenanceMarginRate": 0.005,
+        "maxLeverage": 100.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 250000.0,
+        "maxNotional": 1000000.0,
+        "maintenanceMarginRate": 0.01,
+        "maxLeverage": 50.0,
+        "maintAmt": 0.0
+      }
+    ],
+    "XRP/USDT": [
+      {
+        "minNotional": 0.0,
+        "maxNotional": 50000.0,
+        "maintenanceMarginRate": 0.004,
+        "maxLeverage": 125.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 50000.0,
+        "maxNotional": 250000.0,
+        "maintenanceMarginRate": 0.005,
+        "maxLeverage": 100.0,
+        "maintAmt": 0.0
+      },
+      {
+        "minNotional": 250000.0,
+        "maxNotional": 1000000.0,
+        "maintenanceMarginRate": 0.01,
+        "maxLeverage": 50.0,
+        "maintAmt": 0.0
+      }
+    ]
+  }
+}
