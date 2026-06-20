@@ -1,12 +1,9 @@
-"""
-AI Executor
-External integration for Ollama AI service
-"""
+"""External integration wrapper for Ollama AI generation."""
 
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
-import httpx
-import json
+
+from backend.services.ai.ollama_client import OllamaClient
 
 
 @dataclass
@@ -32,7 +29,7 @@ class AIExecutor:
     
     def __init__(self, base_url: str = "http://localhost:11434"):
         self.base_url = base_url
-        self.client = httpx.AsyncClient(timeout=60.0)
+        self.client = OllamaClient(base_url=base_url, model="", timeout=60.0, strict_json=False)
     
     async def execute(self, request: AIRequest) -> AIResponse:
         """
@@ -45,40 +42,25 @@ class AIExecutor:
             AIResponse with generated text
         """
         errors = []
-        
         try:
-            # Build Ollama API request
-            url = f"{self.base_url}/api/generate"
-            payload = {
-                "model": request.model,
-                "prompt": request.prompt,
-                "stream": False,
-                "options": {
-                    "temperature": request.temperature,
-                    "num_predict": request.max_tokens,
-                }
-            }
-            
-            # Execute request
-            response = await self.client.post(url, json=payload)
-            response.raise_for_status()
-            
-            data = response.json()
-            
+            text = await self.client.generate(
+                request.prompt,
+                model=request.model,
+                options={"temperature": request.temperature, "num_predict": request.max_tokens},
+                feature="ai_executor",
+            )
+            if text is None:
+                return AIResponse(
+                    success=False,
+                    text="",
+                    model=request.model,
+                    errors=["Ollama returned an empty or invalid response"],
+                )
             return AIResponse(
                 success=True,
-                text=data.get('response', ''),
+                text=text,
                 model=request.model,
                 errors=[]
-            )
-            
-        except httpx.HTTPError as e:
-            errors.append(f"HTTP error: {str(e)}")
-            return AIResponse(
-                success=False,
-                text='',
-                model=request.model,
-                errors=errors
             )
         except Exception as e:
             errors.append(f"AI execution failed: {str(e)}")
@@ -91,7 +73,7 @@ class AIExecutor:
     
     async def close(self):
         """Close HTTP client"""
-        await self.client.aclose()
+        await self.client.close()
     
     async def __aenter__(self):
         return self

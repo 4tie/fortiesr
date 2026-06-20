@@ -257,7 +257,7 @@ function HintBadge({ hint, onInsert }) {
 
 // ── Version history panel ─────────────────────────────────────────────────────
 
-function VersionHistoryPanel({ strategyName, onRestore, loading, snapshots }) {
+function VersionHistoryPanel({ onRestore, loading, snapshots }) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-10">

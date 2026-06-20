@@ -9,6 +9,7 @@ const useRealTimeUpdates = (run, enabled = true, interval = 5000) => {
   const [isConnected, setIsConnected] = useState(false);
   const [lastUpdate, setLastUpdate] = useState(null);
   const [error, setError] = useState(null);
+  const [isPolling, setIsPolling] = useState(false);
   const wsRef = useRef(null);
   const pollIntervalRef = useRef(null);
   const previousDataRef = useRef(null);
@@ -79,6 +80,7 @@ const useRealTimeUpdates = (run, enabled = true, interval = 5000) => {
         
         // Start polling as fallback
         pollIntervalRef.current = setInterval(fetchRunData, interval);
+        setIsPolling(true);
       };
     } catch (err) {
       console.error("Error creating WebSocket:", err);
@@ -99,7 +101,7 @@ const useRealTimeUpdates = (run, enabled = true, interval = 5000) => {
         pollIntervalRef.current = null;
       }
     };
-  }, [enabled, run?.run_id, interval, fetchRunData]);
+  }, [enabled, run?.run_id, interval, fetchRunData, setIsPolling]);
 
   // Manual refresh function
   const refresh = useCallback(() => {
@@ -131,7 +133,7 @@ const useRealTimeUpdates = (run, enabled = true, interval = 5000) => {
     error,
     refresh,
     toggleUpdates,
-    isLive: enabled && (isConnected || pollIntervalRef.current !== null),
+    isLive: enabled && (isConnected || isPolling),
   };
 };
 

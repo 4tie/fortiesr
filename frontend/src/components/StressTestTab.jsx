@@ -59,7 +59,7 @@ function scoreLabel(score) {
   return "Poor";
 }
 
-function ModeCard({ id, icon, title, subtitle, selected, onClick, disabled }) {
+function ModeCard({ icon, title, subtitle, selected, onClick, disabled }) {
   return (
     <button
       type="button"
@@ -134,7 +134,6 @@ export default function StressTestTab({
   const [windowDays,  setWindowDays]  = useState(14);
 
   const [running,     setRunning]     = useState(false);
-  const [sessionId,   setSessionId]   = useState(null);
   const [runError,    setRunError]    = useState(null);
   const [progress,    setProgress]    = useState(null);
   const [result,      setResult]      = useState(null);
@@ -254,7 +253,7 @@ export default function StressTestTab({
   const removePair = (p) => { setPairs(prev => prev.filter(x => x !== p)); markChanged(); };
 
   const handleLaunch = async () => {
-    setRunError(null); setResult(null); setSessionId(null); setProgress(null);
+    setRunError(null); setResult(null); setProgress(null);
     if (!strategy)  { setRunError("Please select a strategy."); return; }
     if (!timerange && mode !== "crash_gauntlet") { setRunError("Please set a date range."); return; }
     if (!timerange && mode === "crash_gauntlet") {
@@ -303,7 +302,6 @@ export default function StressTestTab({
           : (detail || "Failed to start stress test.");
         setRunError(msg); setRunning(false); return;
       }
-      setSessionId(data.session_id);
       const estimatedSegs = mode === "crash_gauntlet" ? 6 : mode === "time_split" ? Number(nSplits) : Number(nWindows);
       startPoll(data.session_id, estimatedSegs);
     } catch {

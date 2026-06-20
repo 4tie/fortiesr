@@ -37,7 +37,7 @@ class AIService:
         Returns:
             OllamaClient instance or None if configuration is invalid
         """
-        config = config_from_user_data_dir(self.user_data_dir, strict_json=True)
+        config = config_from_user_data_dir(self.user_data_dir, strict_json=True, require_model=False)
         if config is None:
             logger.warning("Failed to create Ollama config from settings")
             return None

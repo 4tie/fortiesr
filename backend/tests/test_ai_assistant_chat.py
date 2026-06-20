@@ -1,14 +1,22 @@
 from __future__ import annotations
 
 import json
+import asyncio
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
+from fastapi import HTTPException
 
-from backend.api.routers.ai_assistant import router
+from backend.api.routers.ai_assistant import (
+    ChatRequest,
+    ConfirmActionRequest,
+    chat,
+    confirm_action,
+    get_chat_session,
+    list_models,
+)
+from backend.services.ai.ollama_types import OllamaChatResponse
 from backend.models import (
     OptimizerScoreMetric,
     OptimizerSession,
@@ -22,36 +30,59 @@ from backend.services.storage.optimizer_store import OptimizerStore
 from backend.utils import read_json
 
 
-class DummyResponse:
+class RouteResponse:
     def __init__(self, payload: dict, status_code: int = 200) -> None:
         self.payload = payload
         self.status_code = status_code
-
-    def raise_for_status(self) -> None:
-        return None
 
     def json(self) -> dict:
         return self.payload
 
 
-class DummyAsyncClient:
+class DirectAiClient:
+    def __init__(self, request) -> None:
+        self.request = request
+
+    def post(self, path: str, json: dict) -> RouteResponse:
+        async def _run() -> dict:
+            if path == "/api/ai/chat":
+                return await chat(ChatRequest(**json), self.request)
+            if path == "/api/ai/actions/confirm":
+                return await confirm_action(ConfirmActionRequest(**json), self.request)
+            raise AssertionError(f"Unhandled POST path: {path}")
+
+        return _response_from_async(_run)
+
+    def get(self, path: str) -> RouteResponse:
+        async def _run() -> dict:
+            if path == "/api/ai/models":
+                return await list_models(self.request)
+            if path.startswith("/api/ai/chat/"):
+                return await get_chat_session(path.rsplit("/", 1)[-1], self.request)
+            raise AssertionError(f"Unhandled GET path: {path}")
+
+        return _response_from_async(_run)
+
+
+class DummyOllamaClient:
     def __init__(self, *args, **kwargs) -> None:
         pass
 
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, exc_type, exc, tb) -> None:
+    async def close(self) -> None:
         return None
 
-    async def post(self, *args, **kwargs):
-        return DummyResponse({"message": {"content": "Fact: the backend context has no profit metric selected yet."}})
+    async def chat(self, *args, **kwargs):
+        return OllamaChatResponse(content="Fact: the backend context has no profit metric selected yet.")
+
+
+def _response_from_async(func) -> RouteResponse:
+    try:
+        return RouteResponse(asyncio.run(func()))
+    except HTTPException as exc:
+        return RouteResponse({"detail": exc.detail}, status_code=exc.status_code)
 
 
 def _client(tmp_path: Path, *, model: str = "llama3"):
-    app = FastAPI()
-    app.include_router(router)
-
     user_data = tmp_path / "user_data"
     strategies = user_data / "strategies"
     user_data.mkdir(parents=True, exist_ok=True)
@@ -74,17 +105,19 @@ def _client(tmp_path: Path, *, model: str = "llama3"):
     services.backtest_runner.get_current_run_id.return_value = None
     services.run_detail.side_effect = Exception("no runs")
 
-    app.state.services = services
-    app.state.log_broadcaster = MagicMock(history=[])
-    app.state.session_store = MagicMock()
-    app.state.session_store.get.return_value = None
-    return TestClient(app), services, user_data
+    state = SimpleNamespace()
+    state.services = services
+    state.log_broadcaster = MagicMock(history=[])
+    state.session_store = MagicMock()
+    state.session_store.get.return_value = None
+    request = SimpleNamespace(app=SimpleNamespace(state=state))
+    return DirectAiClient(request), services, user_data
 
 
 def test_chat_uses_ollama_and_persists_session(tmp_path):
     client, _, user_data = _client(tmp_path)
 
-    with patch("backend.services.assistant_service.httpx.AsyncClient", DummyAsyncClient):
+    with patch("backend.services.assistant_service.OllamaClient", DummyOllamaClient):
         response = client.post("/api/ai/chat", json={"message": "Why is this losing?"})
 
     assert response.status_code == 200
@@ -251,7 +284,7 @@ def test_unknown_action_returns_400_error(tmp_path):
 def test_chat_with_context_overrides_includes_context_in_prompt(tmp_path):
     client, _, user_data = _client(tmp_path)
 
-    with patch("backend.services.assistant_service.httpx.AsyncClient", DummyAsyncClient):
+    with patch("backend.services.assistant_service.OllamaClient", DummyOllamaClient):
         response = client.post(
             "/api/ai/chat",
             json={
@@ -311,20 +344,7 @@ def test_models_endpoint_handles_malformed_json(tmp_path):
         def json(self):
             raise json.JSONDecodeError("Invalid JSON", "", 0)
 
-    class DummyClient:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *args):
-            pass
-
-        async def get(self, *args, **kwargs):
-            return DummyResponse()
-
-    with patch("httpx.AsyncClient", DummyClient):
+    with patch("httpx.AsyncClient.get", AsyncMock(return_value=DummyResponse())):
         response = client.get("/api/ai/models")
 
     assert response.status_code == 200
@@ -336,7 +356,7 @@ def test_models_endpoint_handles_malformed_json(tmp_path):
 def test_session_persists_messages_and_context(tmp_path):
     client, _, user_data = _client(tmp_path)
 
-    with patch("backend.services.assistant_service.httpx.AsyncClient", DummyAsyncClient):
+    with patch("backend.services.assistant_service.OllamaClient", DummyOllamaClient):
         # First message
         response1 = client.post(
             "/api/ai/chat",
@@ -374,7 +394,7 @@ def test_include_strategy_source_attaches_strategy_content(tmp_path):
     strategy_file = strategies_dir / "TestStrategy.py"
     strategy_file.write_text("# Test strategy\ndef dummy(): pass", encoding="utf-8")
 
-    with patch("backend.services.assistant_service.httpx.AsyncClient", DummyAsyncClient):
+    with patch("backend.services.assistant_service.OllamaClient", DummyOllamaClient):
         response = client.post(
             "/api/ai/chat",
             json={

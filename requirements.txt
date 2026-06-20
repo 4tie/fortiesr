@@ -2,7 +2,6 @@ colorama
 fastapi
 filelock
 httpx
-httpx2
 optuna
 pandas
 pydantic
