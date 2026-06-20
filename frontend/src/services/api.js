@@ -212,6 +212,233 @@ export const api = {
       return res.json();
     },
   },
+
+  /**
+   * Settings endpoints
+   */
+  settings: {
+    /**
+     * Get application settings
+     * @returns {Promise<{settings: object}>}
+     */
+    async get() {
+      const res = await fetch(`${API_BASE}/settings`);
+      return parseJsonResponse(res, "Failed to load settings.");
+    },
+
+    /**
+     * Save application settings
+     * @param {object} settings
+     * @returns {Promise<{settings: object}>}
+     */
+    async save(settings) {
+      const res = await fetch(`${API_BASE}/settings`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(settings),
+      });
+      return parseJsonResponse(res, "Failed to save settings.");
+    },
+
+    /**
+     * Reset settings to defaults
+     * @returns {Promise<{settings: object}>}
+     */
+    async reset() {
+      const res = await fetch(`${API_BASE}/settings`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reset: true }),
+      });
+      return parseJsonResponse(res, "Failed to reset settings.");
+    },
+  },
+
+  /**
+   * AI/LLM endpoints
+   */
+  ai: {
+    /**
+     * Get available AI models
+     * @returns {Promise<{reachable: boolean, models: string[], error?: string}>}
+     */
+    async getModels() {
+      const res = await fetch(`${API_BASE}/ai/models`);
+      return parseJsonResponse(res, "Failed to fetch AI models.");
+    },
+
+    /**
+     * Get agent context
+     * @param {object} contextOverrides
+     * @returns {Promise<object>}
+     */
+    async getContext(contextOverrides = {}) {
+      const query = new URLSearchParams(
+        Object.entries(contextOverrides).filter(([, v]) => v !== undefined)
+      ).toString();
+      const res = await fetch(`${API_BASE}/agent/context${query ? `?${query}` : ""}`);
+      return parseJsonResponse(res, "Failed to load agent context.");
+    },
+  },
+
+  /**
+   * Pairs endpoints
+   */
+  pairs: {
+    /**
+     * Get all pairs
+     * @returns {Promise<object>}
+     */
+    async getAll() {
+      const res = await fetch(`${API_BASE}/pairs`);
+      return parseJsonResponse(res, "Failed to load pairs.");
+    },
+
+    /**
+     * Search pairs
+     * @param {string} query
+     * @returns {Promise<object>}
+     */
+    async search(query) {
+      const res = await fetch(`${API_BASE}/pairs/search?q=${encodeURIComponent(query)}`);
+      return parseJsonResponse(res, "Failed to search pairs.");
+    },
+
+    /**
+     * Toggle pair favorite
+     * @param {string} pair
+     * @returns {Promise<object>}
+     */
+    async toggleFavorite(pair) {
+      const res = await fetch(`${API_BASE}/pairs/toggle-favorite`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pair }),
+      });
+      return parseJsonResponse(res, "Failed to toggle favorite.");
+    },
+
+    /**
+     * Toggle pair lock
+     * @param {string} pair
+     * @returns {Promise<object>}
+     */
+    async toggleLock(pair) {
+      const res = await fetch(`${API_BASE}/pairs/toggle-lock`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pair }),
+      });
+      return parseJsonResponse(res, "Failed to toggle lock.");
+    },
+
+    /**
+     * Toggle pair selection
+     * @param {string} pair
+     * @param {boolean} selected
+     * @returns {Promise<object>}
+     */
+    async toggleSelect(pair, selected) {
+      const res = await fetch(`${API_BASE}/pairs/toggle-select`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pair, selected }),
+      });
+      return parseJsonResponse(res, "Failed to toggle selection.");
+    },
+  },
+
+  /**
+   * Backtest endpoints
+   */
+  backtest: {
+    /**
+     * Get backtest results
+     * @param {string} runId
+     * @returns {Promise<object>}
+     */
+    async getResults(runId) {
+      const res = await fetch(`${API_BASE}/backtest/results/${runId}`);
+      return parseJsonResponse(res, "Failed to load backtest results.");
+    },
+  },
+
+  /**
+   * Session endpoints
+   */
+  session: {
+    /**
+     * Get session status
+     * @param {string} sessionId
+     * @returns {Promise<object>}
+     */
+    async getStatus(sessionId) {
+      const res = await fetch(`${API_BASE}/session/status/${sessionId}`);
+      return parseJsonResponse(res, "Failed to load session status.");
+    },
+  },
+
+  /**
+   * Performance endpoints
+   */
+  performance: {
+    /**
+     * Get performance runs
+     * @param {string} strategyName
+     * @returns {Promise<{runs: object[]}>}
+     */
+    async getRuns(strategyName) {
+      const res = await fetch(`${API_BASE}/performance/runs?strategy=${encodeURIComponent(strategyName)}`);
+      return parseJsonResponse(res, "Failed to load performance runs.");
+    },
+
+    /**
+     * Get performance run details
+     * @param {string} runId
+     * @returns {Promise<object>}
+     */
+    async getRun(runId) {
+      const res = await fetch(`${API_BASE}/performance/runs/${runId}`);
+      return parseJsonResponse(res, "Failed to load run details.");
+    },
+
+    /**
+     * Apply performance run
+     * @param {string} runId
+     * @returns {Promise<{message: string}>}
+     */
+    async applyRun(runId) {
+      const res = await fetch(`${API_BASE}/performance/runs/${runId}/apply`, {
+        method: "POST",
+      });
+      return parseJsonResponse(res, "Failed to apply run.");
+    },
+  },
+
+  /**
+   * Strategies endpoints
+   */
+  strategies: {
+    /**
+     * Get strategy files
+     * @param {string} name
+     * @returns {Promise<object>}
+     */
+    async getFiles(name) {
+      const res = await fetch(`${API_BASE}/strategies/files/${encodeURIComponent(name)}`);
+      return parseJsonResponse(res, "Failed to load strategy files.");
+    },
+
+    /**
+     * Get strategy snapshots
+     * @param {string} name
+     * @returns {Promise<{snapshots: object[]}>}
+     */
+    async getSnapshots(name) {
+      const res = await fetch(`${API_BASE}/strategies/${encodeURIComponent(name)}/snapshots`);
+      return parseJsonResponse(res, "Failed to load strategy snapshots.");
+    },
+  },
 };
 
 export default api;

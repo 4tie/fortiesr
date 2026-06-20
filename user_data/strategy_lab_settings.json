@@ -4,11 +4,11 @@
   "user_data_directory_path": "/home/mohs/Desktop/fictional-octo-guide/user_data",
   "default_config_file_path": "/home/mohs/Desktop/fictional-octo-guide/user_data/config.json",
   "ollama_api_url": "http://localhost:11434",
-  "ollama_model": "llama3:latest",
+  "ollama_model": "fourty",
   "ollama_provider": "local",
   "ollama_api_key": "4b9a225c6fa5434299cf62c48241c9bb.bk7HyvUocYHkseKTMj2HSeFQ",
   "network_mode": "local",
   "hyperopt_workers": 4,
   "ollama_self_healing_enabled": false,
-  "ollama_timeout": 30
+  "ollama_timeout": 120
 }

@@ -6,8 +6,15 @@
       ".local/secondary_skills"
     ]
   },
+  
   "permission": {
     "*": "ask",
+    "skills": "allow",
+    "tools": "allow",
+    "todowriter": "allow",
+    "webfetch": "allow",
+    "websearch": "allow",
+    "question": "allow",
     "read": {
       "*": "allow",
       "*.env": "deny",
