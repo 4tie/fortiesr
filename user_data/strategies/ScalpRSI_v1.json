@@ -1,0 +1,32 @@
+{
+  "strategy_name": "ScalpRSI_v1",
+  "params": {
+    "trailing": {
+      "trailing_stop": false,
+      "trailing_stop_positive": null,
+      "trailing_stop_positive_offset": 0.0,
+      "trailing_only_offset_is_reached": false
+    },
+    "max_open_trades": {
+      "max_open_trades": 3
+    },
+    "buy": {
+      "rsi_buy": 15,
+      "rsi_period": 14
+    },
+    "sell": {
+      "rsi_sell": 83
+    },
+    "roi": {
+      "0": 0.082,
+      "33": 0.058,
+      "90": 0.024,
+      "155": 0
+    },
+    "stoploss": {
+      "stoploss": -0.308
+    }
+  },
+  "ft_stratparam_v": 1,
+  "export_time": "2026-06-18 11:21:37.225905+00:00"
+}

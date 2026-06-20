@@ -1,0 +1,20 @@
+{
+  "strategy_name": "OllamaScalp_v1",
+  "params": {
+    "buy": {},
+    "sell": {},
+    "roi": {
+      "0": 0.03,
+      "60": 0.015,
+      "120": 0.0
+    },
+    "stoploss": {
+      "stoploss": -0.05
+    },
+    "trailing": {
+      "trailing_stop": true,
+      "trailing_stop_positive": 0.01,
+      "trailing_stop_positive_offset": 0.02
+    }
+  }
+}

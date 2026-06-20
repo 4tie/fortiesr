@@ -1,0 +1,1 @@
+{"strategy_name": "ScalpMomentum", "params": {"buy": {}, "sell": {}, "roi": {}, "stoploss": {"stoploss": -0.012}, "trailing": {"trailing_stop": false}}}

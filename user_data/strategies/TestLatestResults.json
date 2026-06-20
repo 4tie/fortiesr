@@ -1,0 +1,16 @@
+{
+  "strategy_name": "TestLatestResults",
+  "params": {
+    "buy": {},
+    "sell": {},
+    "roi": {
+      "0": 0.01
+    },
+    "stoploss": {
+      "stoploss": -0.05
+    },
+    "trailing": {
+      "trailing_stop": false
+    }
+  }
+}

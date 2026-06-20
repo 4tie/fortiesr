@@ -1,0 +1,19 @@
+{
+  "strategy_name": "HybridScalp_v1",
+  "params": {
+    "buy": {},
+    "sell": {},
+    "roi": {
+      "0": 0.02,
+      "45": 0.01,
+      "120": 0.005,
+      "240": 0.0
+    },
+    "stoploss": {
+      "stoploss": -0.035
+    },
+    "trailing": {
+      "trailing_stop": false
+    }
+  }
+}

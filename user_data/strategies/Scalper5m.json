@@ -1,0 +1,1 @@
+{"strategy_name": "Scalper5m", "params": {"buy": {}, "sell": {}, "roi": {}, "stoploss": {"stoploss": -0.008}, "trailing": {"trailing_stop": true, "trailing_stop_positive": 0.003, "trailing_stop_positive_offset": 0.005, "trailing_only_offset_is_reached": true}}}

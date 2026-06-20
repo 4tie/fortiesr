@@ -1,0 +1,12 @@
+colorama
+fastapi
+filelock
+httpx
+optuna
+pandas
+pydantic
+python-dotenv
+scikit-learn
+scikit-optimize
+uvicorn
+freqtrade
