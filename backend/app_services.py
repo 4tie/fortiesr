@@ -31,6 +31,7 @@ from .services.strategy.snapshot_service import SnapshotService
 from .services.vectorbt import VectorBTParameterScreener
 from .services.pairs.pair_selector import PairSelectorService
 from .services.service_groups import StrategyServices, ExecutionServices, StorageServices
+from .services.discord import DiscordBotService
 from .services.interfaces import IStrategyRegistry, IRunRepository, ISettingsStore, IBacktestRunner
 from .models import SaveSettingsRequest
 from .settings_store import SettingsStore
@@ -141,6 +142,9 @@ class AppServices:
             vectorbt_screener=self.vectorbt_screener,
         )
         self.registry.scan()
+
+        # Discord integration
+        self.discord_service = DiscordBotService(self.settings_store)
 
     def create_strategy_services(self) -> StrategyServices:
         """Factory method to create strategy services group."""

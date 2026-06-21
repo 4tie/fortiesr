@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>4tie Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --violet: #8B5CF6;
+            --violet-glow: #A78BFA;
+            --cyan: #7DD3FC;
+            --mint: #5EE2B5;
+            --amber: #F5B544;
+            --red: #F26D6D;
+            --pink: #F472B6;
+            --gold: #FBBF24;
+            --magenta: #E879F9;
+            --text: #F4F4F8;
+            --muted: #8A8A9B;
+            --bg: #15151F;
+            --glass: rgba(31, 31, 43, 0.55);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter Tight', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Background Effects */
+        .background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .violet-orb {
+            position: absolute;
+            top: -200px;
+            left: -200px;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, var(--violet) 0%, transparent 70%);
+            opacity: 0.15;
+            filter: blur(100px);
+            animation: pulse-violet 8s ease-in-out infinite;
+        }
+
+        .cyan-orb {
+            position: absolute;
+            top: 50%;
+            right: -200px;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, var(--cyan) 0%, transparent 70%);
+            opacity: 0.12;
+            filter: blur(100px);
+            animation: pulse-cyan 10s ease-in-out infinite;
+        }
+
+        .dot-grid {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: radial-gradient(circle, var(--muted) 1px, transparent 1px);
+            background-size: 24px 24px;
+            opacity: 0.08;
+        }
+
+        @keyframes pulse-violet {
+            0%, 100% { transform: scale(1); opacity: 0.15; }
+            50% { transform: scale(1.1); opacity: 0.2; }
+        }
+
+        @keyframes pulse-cyan {
+            0%, 100% { transform: scale(1); opacity: 0.12; }
+            50% { transform: scale(1.15); opacity: 0.18; }
+        }
+
+        /* Navigation */
+        .nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 64px;
+            background: var(--glass);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            z-index: 100;
+        }
+
+        .nav-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .brand-mark {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .brand-circle {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--violet) 0%, var(--cyan) 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .brand-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--mint);
+            border-radius: 50%;
+            animation: pulse-dot 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-dot {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.3); opacity: 0.7; }
+        }
+
+        .brand-text {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 14px;
+            font-weight: 500;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--text);
+        }
+
+        .nav-center {
+            display: flex;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 24px;
+            padding: 4px;
+            gap: 2px;
+        }
+
+        .tab {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-family: 'Inter Tight', sans-serif;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--muted);
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .tab:hover {
+            color: var(--text);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .tab.active {
+            background: white;
+            color: var(--bg);
+            font-weight: 600;
+        }
+
+        .nav-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .status-pill {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 20px;
+            padding: 6px 12px;
+        }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            background: var(--mint);
+            border-radius: 50%;
+            animation: pulse-dot 2s ease-in-out infinite;
+        }
+
+        .status-text {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            font-weight: 500;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+
+        .clock {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            font-weight: 500;
+            letter-spacing: 0.05em;
+            color: var(--text);
+        }
+
+        /* Main Content */
+        .main {
+            position: relative;
+            z-index: 1;
+            padding-top: 64px;
+            min-height: 100vh;
+        }
+
+        .content-panel {
+            padding: 24px;
+        }
+
+        .tab-panel {
+            display: none;
+        }
+
+        .tab-panel.active {
+            display: block;
+        }
+
+        /* Glass Card */
+        .glass-card {
+            background: var(--glass);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 24px;
+        }
+    </style>
+</head>
+<body>
+    <div class="background">
+        <div class="violet-orb"></div>
+        <div class="cyan-orb"></div>
+        <div class="dot-grid"></div>
+    </div>
+
+    <nav class="nav">
+        <div class="nav-left">
+            <div class="brand-mark">
+                <div class="brand-circle">
+                    <div class="brand-dot"></div>
+                </div>
+                <span class="brand-text">4tie / R</span>
+            </div>
+        </div>
+
+        <div class="nav-center">
+            <button class="tab active" data-tab="overview">Overview</button>
+            <button class="tab" data-tab="agents">Agents</button>
+            <button class="tab" data-tab="tasks">Tasks</button>
+            <button class="tab" data-tab="schedule">Schedule</button>
+            <button class="tab" data-tab="content">Content</button>
+        </div>
+
+        <div class="nav-right">
+            <div class="status-pill">
+                <div class="status-dot"></div>
+                <span class="status-text">All systems operational</span>
+            </div>
+            <div class="clock" id="clock">00:00:00</div>
+        </div>
+    </nav>
+
+    <main class="main">
+        <div class="content-panel">
+            <div id="overview" class="tab-panel active">
+                <div class="glass-card">
+                    <h1 style="font-family: 'Inter Tight', sans-serif; font-size: 24px; font-weight: 600; color: var(--text); margin-bottom: 8px;">Overview</h1>
+                    <p style="font-family: 'Inter Tight', sans-serif; font-size: 14px; color: var(--muted);">Dashboard overview panel</p>
+                </div>
+            </div>
+
+            <div id="agents" class="tab-panel">
+                <div class="glass-card">
+                    <h1 style="font-family: 'Inter Tight', sans-serif; font-size: 24px; font-weight: 600; color: var(--text); margin-bottom: 8px;">Agents</h1>
+                    <p style="font-family: 'Inter Tight', sans-serif; font-size: 14px; color: var(--muted);">Agent management panel</p>
+                </div>
+            </div>
+
+            <div id="tasks" class="tab-panel">
+                <div class="glass-card">
+                    <h1 style="font-family: 'Inter Tight', sans-serif; font-size: 24px; font-weight: 600; color: var(--text); margin-bottom: 8px;">Tasks</h1>
+                    <p style="font-family: 'Inter Tight', sans-serif; font-size: 14px; color: var(--muted);">Task management panel</p>
+                </div>
+            </div>
+
+            <div id="schedule" class="tab-panel">
+                <div class="glass-card">
+                    <h1 style="font-family: 'Inter Tight', sans-serif; font-size: 24px; font-weight: 600; color: var(--text); margin-bottom: 8px;">Schedule</h1>
+                    <p style="font-family: 'Inter Tight', sans-serif; font-size: 14px; color: var(--muted);">Schedule panel</p>
+                </div>
+            </div>
+
+            <div id="content" class="tab-panel">
+                <div class="glass-card">
+                    <h1 style="font-family: 'Inter Tight', sans-serif; font-size: 24px; font-weight: 600; color: var(--text); margin-bottom: 8px;">Content</h1>
+                    <p style="font-family: 'Inter Tight', sans-serif; font-size: 14px; color: var(--muted);">Content panel placeholder</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Tab switching
+        const tabs = document.querySelectorAll('.tab');
+        const tabPanels = document.querySelectorAll('.tab-panel');
+
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                const targetTab = tab.dataset.tab;
+
+                // Update tab buttons
+                tabs.forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+
+                // Update tab panels
+                tabPanels.forEach(panel => {
+                    panel.classList.remove('active');
+                    if (panel.id === targetTab) {
+                        panel.classList.add('active');
+                    }
+                });
+            });
+        });
+
+        // Live clock
+        function updateClock() {
+            const now = new Date();
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+            document.getElementById('clock').textContent = `${hours}:${minutes}:${seconds}`;
+        }
+
+        updateClock();
+        setInterval(updateClock, 1000);
+    </script>
+</body>
+</html>

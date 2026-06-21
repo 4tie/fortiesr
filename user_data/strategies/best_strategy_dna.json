@@ -1,0 +1,43 @@
+{
+  "indicator_weights": {
+    "sma_short_5": 0.9321770780663213,
+    "sma_short_10": 0.95854718687601,
+    "sma_short_20": 0.6063209134875509,
+    "sma_short_50": 0.272895045785727,
+    "sma_short_100": 0.10917387527093314,
+    "sma_long_5": 0.048789678392637925,
+    "sma_long_10": 0.853403809851217,
+    "sma_long_20": 0.6184508645264637,
+    "sma_long_50": 0.8754572793323323,
+    "sma_long_100": 0.25246587958054756
+  },
+  "buy_thresholds": {
+    "rsi_buy": 26.260822072581057,
+    "macd_signal_buy": 0.06580352066960712,
+    "ema_cross_buy": 0.016379546100368417,
+    "atr_breakout_buy": 0.032425938265373225
+  },
+  "sell_thresholds": {
+    "rsi_sell": 74.93893326350212,
+    "macd_signal_sell": 0.05396060895388108,
+    "ema_cross_sell": 0.033592219272808574,
+    "atr_breakout_sell": 0.029338453018674895
+  },
+  "risk_parameters": {
+    "stoploss": -0.08750436414863608,
+    "trailing_stop": 0.030875495052317486,
+    "position_sizing": 0.08939665175649572,
+    "max_open_trades": 4,
+    "trailing_only": true
+  },
+  "hold_days": 48,
+  "regime_sensitivity": 0.71333075524989,
+  "indicator_switches": {
+    "use_ema_cross": false,
+    "use_atr": false,
+    "use_rsi": false,
+    "use_macd": false,
+    "use_bollinger": false,
+    "use_adx": false
+  }
+}

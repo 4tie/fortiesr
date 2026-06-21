@@ -27,3 +27,4 @@ pymoo>=0.6.0
 stable-baselines3>=2.0.0
 gymnasium>=0.29.0
 shimmy>=0.2.1
+discord.py>=2.3.0
