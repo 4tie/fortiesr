@@ -73,7 +73,7 @@ async def _stage_hyperopt(
     run_id: str, state: PipelineState, out_dir: Path, pairs: list | None = None
 ) -> dict | None:
     """Dispatcher: routes to WFO or standard hyperopt based on state.wfo_enabled."""
-    _start_stage(run_id, state, 2)
+    _start_stage(run_id, state, 3)  # Stage 3: WFA Hyperopt (1-based indexing)
     if state.wfo_enabled:
         return await _stage_hyperopt_wfo(run_id, state, out_dir, pairs)
     return await _stage_hyperopt_standard(run_id, state, out_dir, pairs)
@@ -157,12 +157,12 @@ async def _stage_hyperopt_standard(
             _rlog(run_id, 2, logging.INFO,
                   "Stage 2 | Strategy has no buy-space parameters; skipping implicit 'buy' optimization.")
 
-    _rlog(run_id, 2, logging.INFO,
-          f"Stage 2 | Hyperopt Execution | epochs={state.hyperopt_epochs}"
+    _rlog(run_id, 3, logging.INFO,
+          f"Stage 3 | Hyperopt Execution | epochs={state.hyperopt_epochs}"
           f" | loss={state.hyperopt_loss}"
           f" | spaces={','.join(effective_spaces)} | range={pure_is_range}"
           f" | pairs={len(pairs) if pairs else 'all'}")
-    _emit(run_id, 2, "running", "Starting hyperopt — this may take several minutes...", 20)
+    _emit(run_id, 3, "running", "Starting hyperopt — this may take several minutes...", 20)
 
     cmd = [
         state.freqtrade_path, "hyperopt",
@@ -191,27 +191,29 @@ async def _stage_hyperopt_standard(
         raise _Cancelled()
 
     if rc != 0:
-        msg = _classify_subprocess_error(rc, stdout, "Stage 2 (Hyperopt Execution)")
-        _rlog(run_id, 2, logging.ERROR, f"Stage 2 | FAIL | {msg}")
-        _fail_stage(run_id, state, 2, msg)
+        msg = _classify_subprocess_error(rc, stdout, "Stage 3 (Hyperopt Execution)")
+        _rlog(run_id, 3, logging.ERROR, f"Stage 3 | FAIL | {msg}")
+        _fail_stage(run_id, state, 3, msg)
         return None
 
     # Try to extract best params using hyperopt-show
+    # IMPORTANT: Extract BEFORE restoring original strategy name, because hyperopt
+    # results are stored under the mutated strategy name (e.g., AIStrategy_HardMutation)
     _rlog(run_id, 2, logging.DEBUG, "Stage 2 | Extracting best params via hyperopt-show…")
     best_params = await _extract_hyperopt_best(state, out_dir)
     
     # Restore original strategy name and clean up temp file if we used one
     if hasattr(state, 'param_overrides') and state.param_overrides and state.strategy != original_strategy:
         _rlog(run_id, 2, logging.DEBUG,
-              f"Stage 2 | Preserved run-local temporary strategy variant: {state.strategy}")
+              f"Stage 2 | Restoring original strategy name: {original_strategy} (was {state.strategy})")
         state.strategy = original_strategy
         # Clear param_overrides after use
         state.param_overrides = {}
     
     if best_params is None:
         msg = "Hyperopt completed but could not extract best parameters."
-        _rlog(run_id, 2, logging.ERROR, f"Stage 2 | FAIL | {msg}")
-        _fail_stage(run_id, state, 2, msg)
+        _rlog(run_id, 3, logging.ERROR, f"Stage 3 | FAIL | {msg}")
+        _fail_stage(run_id, state, 3, msg)
         return None
 
     # ── Store baseline trade counts for Phase 4 capital starvation detection ──
@@ -239,9 +241,9 @@ async def _stage_hyperopt_standard(
               "Stage 2 | Failed to run baseline backtest for trade counts, continuing without baseline data")
         state.baseline_trade_counts = {}
 
-    _rlog(run_id, 2, logging.INFO,
-          f"Stage 2 | PASS | best_loss={best_params.get('loss', 'N/A')}  params_keys={list(best_params.get('params_dict', {}).keys())}")
-    _pass_stage(run_id, state, 2,
+    _rlog(run_id, 3, logging.INFO,
+          f"Stage 3 | PASS | best_loss={best_params.get('loss', 'N/A')}  params_keys={list(best_params.get('params_dict', {}).keys())}")
+    _pass_stage(run_id, state, 3,
                 f"Hyperopt completed — best loss: {best_params.get('loss', 'N/A')}",
                 {"best_params": best_params})
     return best_params
@@ -286,16 +288,16 @@ async def _stage_hyperopt_wfo(
         skip_note = policy.wfo_skip_note(n)
         state.validation_notes.append(skip_note)
         state.wfo_windows = []
-        _rlog(run_id, 2, logging.WARNING,
+        _rlog(run_id, 3, logging.WARNING,
               f"WFO: {skip_note}")
-        _emit(run_id, 2, "running",
+        _emit(run_id, 3, "running",
               f"WFO skipped (insufficient windows: {n} < {min_windows}) — falling back to standard hyperopt.", 18)
         return await _stage_hyperopt_standard(run_id, state, out_dir, pairs)
 
-    _rlog(run_id, 2, logging.INFO,
+    _rlog(run_id, 3, logging.INFO,
           f"WFO | {n} windows | IS={state.wfo_is_months}m OOS={state.wfo_oos_months}m "
           f"recency_weight={state.wfo_recency_weight}")
-    _emit(run_id, 2, "running",
+    _emit(run_id, 3, "running",
           f"Walk-Forward Optimization: {n} windows "
           f"(IS={state.wfo_is_months}m / OOS={state.wfo_oos_months}m)…", 18)
 
@@ -304,8 +306,8 @@ async def _stage_hyperopt_wfo(
     has_buy_space = _strategy_has_buy_space_params(state)
     if "buy" in effective_spaces and not has_buy_space:
         effective_spaces = [space for space in effective_spaces if space != "buy"]
-        _rlog(run_id, 2, logging.WARNING,
-              "Stage 2 WFO | Removing explicit 'buy' space because the strategy defines no buy-space parameters.")
+        _rlog(run_id, 3, logging.WARNING,
+              "Stage 3 WFO | Removing explicit 'buy' space because the strategy defines no buy-space parameters.")
     if "buy" not in effective_spaces and has_buy_space:
         effective_spaces.insert(0, "buy")
 
@@ -322,9 +324,9 @@ async def _stage_hyperopt_wfo(
             raise _Cancelled()
 
         # ── Hyperopt on IS window ──────────────────────────────────────────
-        _rlog(run_id, 2, logging.INFO,
+        _rlog(run_id, 3, logging.INFO,
               f"WFO W{wnum}/{n} | Hyperopt IS={is_range}")
-        _emit(run_id, 2, "running",
+        _emit(run_id, 3, "running",
               f"WFO Window {wnum}/{n}: hyperopt IS={is_range}…",
               20 + int(i / n * 30))
 
@@ -345,15 +347,15 @@ async def _stage_hyperopt_wfo(
         # Add pairs to command if provided
         if pairs:
             hp_cmd.extend(["--pairs", *pairs])
-        rc, stdout, _ = await _run_subprocess(run_id, hp_cmd, stage=2, stream=True, timeout=3600)
+        rc, stdout, _ = await _run_subprocess(run_id, hp_cmd, stage=3, stream=True, timeout=3600)
 
         if _cancelled(run_id):
             raise _Cancelled()
 
         if rc != 0:
-            _rlog(run_id, 2, logging.WARNING,
+            _rlog(run_id, 3, logging.WARNING,
                   f"WFO W{wnum}/{n} | Hyperopt failed (rc={rc}) — skipping window.")
-            _emit(run_id, 2, "running",
+            _emit(run_id, 3, "running",
                   f"WFO Window {wnum}/{n}: hyperopt failed (rc={rc}), skipping.",
                   -1,
                   {
@@ -368,7 +370,7 @@ async def _stage_hyperopt_wfo(
 
         win_params = await _extract_hyperopt_best(state, out_dir)
         if win_params is None:
-            _rlog(run_id, 2, logging.WARNING,
+            _rlog(run_id, 3, logging.WARNING,
                   f"WFO W{wnum}/{n} | Could not extract best params — skipping.")
             continue
 
@@ -384,23 +386,23 @@ async def _stage_hyperopt_wfo(
                 source=patched,
             )
         except Exception as exc:
-            _rlog(run_id, 2, logging.WARNING, f"WFO W{wnum}/{n} | Patch error: {exc}")
+            _rlog(run_id, 3, logging.WARNING, f"WFO W{wnum}/{n} | Patch error: {exc}")
             continue
 
         # ── OOS backtest ───────────────────────────────────────────────────
-        _rlog(run_id, 2, logging.INFO,
+        _rlog(run_id, 3, logging.INFO,
               f"WFO W{wnum}/{n} | OOS Validate OOS={oos_range}")
-        _emit(run_id, 2, "running",
+        _emit(run_id, 3, "running",
               f"WFO Window {wnum}/{n}: validating OOS={oos_range}…",
               20 + int(i / n * 30) + 2)
 
         oos_prefix = str(out_dir / f"wfo_w{wnum}_oos")
         oos_cmd = _backtest_cmd(state, strategy=win_strat, timerange=oos_range,
                                 result_prefix=oos_prefix, pairs=pairs)
-        oos_rc, _, _ = await _run_subprocess(run_id, oos_cmd, stage=2)
+        oos_rc, _, _ = await _run_subprocess(run_id, oos_cmd, stage=3)
 
-        _rlog(run_id, 2, logging.DEBUG,
-              f"Stage 2 | Preserved WFO validation variant: {win_path}")
+        _rlog(run_id, 3, logging.DEBUG,
+              f"Stage 3 | Preserved WFO validation variant: {win_path}")
 
         if _cancelled(run_id):
             raise _Cancelled()
@@ -441,10 +443,10 @@ async def _stage_hyperopt_wfo(
         state.wfo_windows = wfo_results[:]
         _save_state_to_disk(state)
 
-        _rlog(run_id, 2, logging.INFO,
+        _rlog(run_id, 3, logging.INFO,
               f"WFO W{wnum}/{n} | profit={oos_profit*100:.2f}% "
               f"max_dd={oos_max_dd:.1f}% trades={oos_trades} w={recency_w:.3f}")
-        _emit(run_id, 2, "running",
+        _emit(run_id, 3, "running",
               f"WFO Window {wnum}/{n}: profit {oos_profit*100:.2f}%",
               -1,
               result,
@@ -452,8 +454,8 @@ async def _stage_hyperopt_wfo(
 
     if last_good_params is None:
         msg = "WFO: all windows failed — no valid parameters obtained."
-        _rlog(run_id, 2, logging.ERROR, msg)
-        _fail_stage(run_id, state, 2, msg)
+        _rlog(run_id, 3, logging.ERROR, msg)
+        _fail_stage(run_id, state, 3, msg)
         return None
 
     valid = [r for r in wfo_results if r["passed"]]
@@ -462,9 +464,9 @@ async def _stage_hyperopt_wfo(
 
     # ── 50% Pass Rate Check ───────────────────────────────────────────────
     if pass_rate < 0.5:
-        _rlog(run_id, 2, logging.WARNING,
+        _rlog(run_id, 3, logging.WARNING,
               f"WFO FAILED: Pass rate {pass_rate:.1%} ({len(valid)}/{n}) below 50% threshold")
-        _emit(run_id, 2, "running",
+        _emit(run_id, 3, "running",
               f"WFO Pass rate {pass_rate:.1%} below 50% threshold — triggering self-healing retry...",
               -1)
 
@@ -492,8 +494,8 @@ async def _stage_hyperopt_wfo(
                 f"WFO failed after {state.max_retries} self-healing attempts. "
                 f"Pass rate remained below 50% ({pass_rate:.1%})."
             )
-            _rlog(run_id, 2, logging.ERROR, msg)
-            _fail_stage(run_id, state, 2, msg, {
+            _rlog(run_id, 3, logging.ERROR, msg)
+            _fail_stage(run_id, state, 3, msg, {
                 "wfo_windows": wfo_results,
                 "pass_rate": pass_rate,
                 "retry_history": state.retry_history,
@@ -504,14 +506,14 @@ async def _stage_hyperopt_wfo(
         ai_suggestions = None
         if state.ai_enabled:
             try:
-                _rlog(run_id, 2, logging.INFO,
+                _rlog(run_id, 3, logging.INFO,
                       "WFO self-healing: requesting AI suggestions for parameter mutations")
                 ai_suggestions = await ask_ollama_for_wfa_fix(wfo_results, state)
                 if ai_suggestions:
-                    _rlog(run_id, 2, logging.INFO,
+                    _rlog(run_id, 3, logging.INFO,
                           f"AI suggestions received: {ai_suggestions.get('reasoning', 'N/A')}")
             except Exception as exc:
-                _rlog(run_id, 2, logging.WARNING,
+                _rlog(run_id, 3, logging.WARNING,
                       f"AI suggestion request failed: {exc}")
 
         # Apply mutations (AI or Hard Mutation fallback)
@@ -528,7 +530,7 @@ async def _stage_hyperopt_wfo(
                     state.param_overrides = {}
                 state.param_overrides.update(ai_suggestions["param_overrides"])
 
-            _emit(run_id, 2, "running",
+            _emit(run_id, 3, "running",
                   f"⚠️ WFA Self-Healing Retry {state.retry_count}/{state.max_retries}: "
                   f"Applying AI-suggested parameter mutations...",
                   -1,
@@ -543,7 +545,7 @@ async def _stage_hyperopt_wfo(
                   msg_type="self_heal_retry")
         else:
             # Hard Mutation fallback
-            _rlog(run_id, 2, logging.WARNING,
+            _rlog(run_id, 3, logging.WARNING,
                   "AI unavailable or failed — applying HARD MUTATION")
             if not hasattr(state, 'param_overrides'):
                 state.param_overrides = {}
@@ -556,7 +558,7 @@ async def _stage_hyperopt_wfo(
             state.hyperopt_spaces = ["buy", "stoploss", "roi"]
             state.hyperopt_epochs = int(state.hyperopt_epochs * 2.0)
 
-            _emit(run_id, 2, "running",
+            _emit(run_id, 3, "running",
                   f"⚠️ WFA Self-Healing Retry {state.retry_count}/{state.max_retries}: "
                   f"Applying HARD MUTATION with forced Boolean indicators...",
                   -1,
@@ -575,16 +577,16 @@ async def _stage_hyperopt_wfo(
                   msg_type="self_heal_retry")
 
         # Reset stage status and retry WFO
-        state.stages[1].status = "pending"
-        state.stages[1].message = ""
-        state.stages[1].data = {}
+        state.stages[2].status = "pending"
+        state.stages[2].message = ""
+        state.stages[2].data = {}
         _save_state_to_disk(state)
 
         # Retry WFO by calling this function again
         return await _stage_hyperopt_wfo(run_id, state, out_dir, pairs)
 
     # ── Pass Rate >= 50%: Aggregate Parameters ───────────────────────────
-    _rlog(run_id, 2, logging.INFO,
+    _rlog(run_id, 3, logging.INFO,
           f"WFO complete | Pass rate {pass_rate:.1%} ({len(valid)}/{n}) meets 50% threshold")
 
     # Aggregate parameters using Recency-Weighted Average
@@ -594,20 +596,20 @@ async def _stage_hyperopt_wfo(
                 passing_window_params, passing_window_weights
             )
             best_params = {"params_dict": aggregated_params_dict, "loss": None}
-            _rlog(run_id, 2, logging.INFO,
+            _rlog(run_id, 3, logging.INFO,
                   f"Aggregated parameters from {len(passing_window_params)} passing segments "
                   f"using recency-weighted average")
         except Exception as exc:
-            _rlog(run_id, 2, logging.WARNING,
+            _rlog(run_id, 3, logging.WARNING,
                   f"Parameter aggregation failed: {exc} — using most recent window")
             best_params = last_good_params
     else:
         best_params = last_good_params
 
-    _rlog(run_id, 2, logging.INFO,
+    _rlog(run_id, 3, logging.INFO,
           f"WFO complete | {len(valid)}/{n} windows passed | "
           f"avg profit {avg_profit:.2f}% | using aggregated parameters")
-    _pass_stage(run_id, state, 2,
+    _pass_stage(run_id, state, 3,
                 f"WFO: {len(valid)}/{n} windows passed — avg {avg_profit:.2f}% OOS profit, "
                 f"parameters aggregated from passing segments",
                 {

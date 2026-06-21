@@ -73,6 +73,7 @@ def _generate_wfo_windows(
 
 STAGE_NAMES = [
     "Pre-Flight Filtering",
+    "Portfolio Baseline Backtest",
     "WFA Hyperopt",
     "Robustness & Feature Injection",
     "Portfolio Competition",

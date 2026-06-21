@@ -155,6 +155,7 @@ async def run_pipeline(run_id: str) -> None:
 
         # ── Stage 2: Portfolio Baseline Backtest ───────────────────────────
         # Check if Stage 2 needs to run based on both current_stage and individual stage status
+        # Stage 2 corresponds to index 1 in the stages array (0-indexed: stages[1] = Stage 2)
         stage2_needs_run = (state.current_stage < 2) or (len(state.stages) > 1 and state.stages[1].status != "passed")
         
         if stage2_needs_run:
@@ -210,7 +211,7 @@ async def run_pipeline(run_id: str) -> None:
         while True:
             # ── Stage 3: WFA Hyperopt (renumbered from Stage 2) ───────────────
             # Check if Stage 3 needs to run based on both current_stage and individual stage status
-            # Stage 3 corresponds to index 2 in the stages array
+            # Stage 3 corresponds to index 2 in the stages array (0-indexed: stages[2] = Stage 3)
             stage3_needs_run = (state.current_stage < 3) or (len(state.stages) > 2 and state.stages[2].status != "passed")
             
             if not stage3_needs_run:
@@ -363,13 +364,13 @@ async def run_pipeline(run_id: str) -> None:
                         f"{state.max_retries} self-healing attempts ({failure_label} detected). "
                         "See retry history and suggestions below."
                     )
-                    _rlog(run_id, 2, logging.ERROR, f"Sensitivity | {msg}")
-                    _fail_stage(run_id, state, 2, msg, state.generalization_failure)
+                    _rlog(run_id, 3, logging.ERROR, f"Sensitivity | {msg}")
+                    _fail_stage(run_id, state, 3, msg, state.generalization_failure)
                     return
 
                 # ── Hard Mutation for FAIL_NEGATIVE_BASELINE ───────────────────
                 if failure_reason == "FAIL_NEGATIVE_BASELINE":
-                    _rlog(run_id, 2, logging.WARNING,
+                    _rlog(run_id, 3, logging.WARNING,
                           "FAIL_NEGATIVE_BASELINE detected — applying HARD MUTATION")
                     
                     # Force dominant Boolean indicators to True via state overrides
@@ -473,23 +474,12 @@ async def run_pipeline(run_id: str) -> None:
                 _rlog(run_id, 3, logging.ERROR, "Auto-Patching FAILED — pipeline halted.")
                 return
 
-            # ── Stage 4: Robustness & Feature Injection (Slippage/Fee Stress Testing) ───
-            _rlog(run_id, 4, logging.INFO, "── ENTERING Stage 4: Robustness & Feature Injection ──")
-            state.current_stage = 4
-            _save_state_to_disk(state)
-            stage4_result = await _stage_robustness_feature_injection(run_id, state, out_dir, optimized_path)
-
-            if stage4_result is None:
-                # Stage 4 failed (bad exit code, missing data, etc.)
-                _rlog(run_id, 4, logging.ERROR, "Stage 4 FAILED — pipeline halted.")
-                return
-
-            # Stage 4 passed — continue to Stage 5
-            break  # Exit the while True loop
+            # Stage 3 complete — exit the retry loop and continue to Stage 4
+            break
 
         # ── Stage 4: Robustness & Feature Injection (if not already completed) ──
         # Check if Stage 4 needs to run based on both current_stage and individual stage status
-        # Stage 4 corresponds to index 3 in the stages array
+        # Stage 4 corresponds to index 3 in the stages array (0-indexed: stages[3] = Stage 4)
         stage4_needs_run = (state.current_stage < 4) or (len(state.stages) > 3 and state.stages[3].status != "passed")
         
         if stage4_needs_run:

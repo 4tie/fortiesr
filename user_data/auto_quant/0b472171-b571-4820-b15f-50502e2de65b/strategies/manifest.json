@@ -7,6 +7,46 @@
       "strategy_name": "AIStrategy",
       "path": "/home/mohs/Desktop/fictional-octo-guide/user_data/auto_quant/0b472171-b571-4820-b15f-50502e2de65b/strategies/AIStrategy.py",
       "source": "/home/mohs/Desktop/fictional-octo-guide/user_data/strategies/AIStrategy.py"
+    },
+    {
+      "role": "sensitivity",
+      "strategy_name": "AIStrategy_SensBest",
+      "path": "/home/mohs/Desktop/fictional-octo-guide/user_data/auto_quant/0b472171-b571-4820-b15f-50502e2de65b/strategies/AIStrategy_SensBest_sensitivity_v1.py"
+    },
+    {
+      "role": "sensitivity",
+      "strategy_name": "AIStrategy_SensBest",
+      "path": "/home/mohs/Desktop/fictional-octo-guide/user_data/auto_quant/0b472171-b571-4820-b15f-50502e2de65b/strategies/AIStrategy_SensBest.py"
+    },
+    {
+      "role": "sensitivity",
+      "strategy_name": "AIStrategy_SensPlus",
+      "path": "/home/mohs/Desktop/fictional-octo-guide/user_data/auto_quant/0b472171-b571-4820-b15f-50502e2de65b/strategies/AIStrategy_SensPlus_sensitivity_v1.py"
+    },
+    {
+      "role": "sensitivity",
+      "strategy_name": "AIStrategy_SensPlus",
+      "path": "/home/mohs/Desktop/fictional-octo-guide/user_data/auto_quant/0b472171-b571-4820-b15f-50502e2de65b/strategies/AIStrategy_SensPlus.py"
+    },
+    {
+      "role": "sensitivity",
+      "strategy_name": "AIStrategy_SensMinus",
+      "path": "/home/mohs/Desktop/fictional-octo-guide/user_data/auto_quant/0b472171-b571-4820-b15f-50502e2de65b/strategies/AIStrategy_SensMinus_sensitivity_v1.py"
+    },
+    {
+      "role": "sensitivity",
+      "strategy_name": "AIStrategy_SensMinus",
+      "path": "/home/mohs/Desktop/fictional-octo-guide/user_data/auto_quant/0b472171-b571-4820-b15f-50502e2de65b/strategies/AIStrategy_SensMinus.py"
+    },
+    {
+      "role": "mutation",
+      "strategy_name": "AIStrategy_HardMutation",
+      "path": "/home/mohs/Desktop/fictional-octo-guide/user_data/auto_quant/0b472171-b571-4820-b15f-50502e2de65b/strategies/AIStrategy_HardMutation_mutation_v1.py"
+    },
+    {
+      "role": "mutation",
+      "strategy_name": "AIStrategy_HardMutation",
+      "path": "/home/mohs/Desktop/fictional-octo-guide/user_data/auto_quant/0b472171-b571-4820-b15f-50502e2de65b/strategies/AIStrategy_HardMutation.py"
     }
   ]
 }
