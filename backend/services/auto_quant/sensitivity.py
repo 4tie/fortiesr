@@ -489,8 +489,13 @@ def _score(
 
     neighbors = [p_plus, p_minus]
 
-    if any(v < 0 for v in neighbors):
-        return False, "Low", "Sharp Peak"
+    # Allow slight negative neighbors (-5%) when p_best is positive
+    if p_best is not None and p_best > 0:
+        if any(v < -0.05 for v in neighbors):
+            return False, "Low", "Sharp Peak"
+    else:
+        if any(v < 0 for v in neighbors):
+            return False, "Low", "Sharp Peak"
 
     if p_best is not None and p_best > 0:
         threshold_30 = p_best * 0.3
@@ -499,9 +504,9 @@ def _score(
 
     if p_best is not None and p_best > 0:
         min_n = min(neighbors)
-        if min_n >= p_best * 0.70:
-            return True, "High", "Stable Plateau"
         if min_n >= p_best * 0.50:
+            return True, "High", "Stable Plateau"
+        if min_n >= p_best * 0.30:
             return True, "Medium", "Stable Plateau"
         return True, "Low", "Stable Plateau"
 

@@ -65,9 +65,9 @@ class PipelineState:
     min_sharpe: float = MIN_SHARPE
     monte_carlo_threshold: float = MONTE_CARLO_THRESHOLD
     # Per-run hyperopt settings
-    hyperopt_loss: str = "ProfitLockinHyperOptLoss"
-    hyperopt_spaces: list = field(default_factory=lambda: ["stoploss", "roi"])
-    hyperopt_epochs: int = 100
+    hyperopt_loss: str = "OnlyProfitHyperOptLoss"
+    hyperopt_spaces: list = field(default_factory=lambda: ["buy", "stoploss", "roi"])
+    hyperopt_epochs: int = 200
     hyperopt_workers: int = 1
     # Per-run OOS profit gate (Stage 4)
     min_oos_profit: float = 0.0

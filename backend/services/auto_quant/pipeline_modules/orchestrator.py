@@ -435,13 +435,13 @@ async def run_pipeline(run_id: str) -> None:
                 _sens_reason = attempt_record.get("reason", "sensitivity")
                 if _sens_reason == "FAIL_NEGATIVE_BASELINE":
                     # Hard mutation already applied above
-                    _new_loss = "SharpeHyperOptLoss"
+                    _new_loss = "OnlyProfitHyperOptLoss"
                 elif _sens_reason == "drawdown":
                     _new_loss = "CalmarHyperOptLoss"
                 elif _sens_reason == "both":
                     _new_loss = "ProfitDrawDownHyperOptLoss"
                 else:
-                    _new_loss = "SharpeHyperOptLoss"
+                    _new_loss = "OnlyProfitHyperOptLoss"
                 
                 # Only apply standard soft mutation if not hard mutation and no ollama suggestions
                 if _sens_reason != "FAIL_NEGATIVE_BASELINE" and not ollama_suggestions:
