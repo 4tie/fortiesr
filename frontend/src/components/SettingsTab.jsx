@@ -315,7 +315,7 @@ export default function SettingsTab() {
               )}
             </div>
 
-            {/* ── AI Assistant ── */}
+            {/* ── AI Assistant (OLLAMA) ── */}
             <SectionDivider label="AI ASSISTANT (OLLAMA)" />
 
             <div className="space-y-4">
@@ -502,6 +502,117 @@ export default function SettingsTab() {
                   </p>
                 )}
               </div>
+            </div>
+
+            {/* ── Reliability Settings ── */}
+            <SectionDivider label="RELIABILITY SETTINGS" />
+
+            <div className="space-y-4">
+              <div className="bg-base-300/30 border border-base-300 rounded-lg px-3 py-2.5 text-xs text-base-content/60 space-y-1">
+                <p className="font-semibold text-base-content/80">Configure Ollama reliability and performance:</p>
+                <p>• <strong>Retry delays:</strong> Time to wait between retry attempts (seconds)</p>
+                <p>• <strong>Circuit breaker:</strong> Opens after N failures, cools down for M seconds</p>
+                <p>• <strong>Connection pooling:</strong> Max concurrent connections and keepalive duration</p>
+              </div>
+
+              {/* Retry Delays */}
+              <div className="form-control">
+                <label className="label py-1">
+                  <span className="label-text font-medium text-sm">Retry Delays (seconds)</span>
+                  <span className="label-text-alt text-base-content/50 text-xs">Comma-separated: 2,5,10,15</span>
+                </label>
+                <input
+                  type="text"
+                  className="input input-bordered input-sm w-full"
+                  value={(settings.ollama_retry_delays || []).join(",")}
+                  onChange={e => {
+                    const delays = e.target.value.split(",").map(s => parseFloat(s.trim())).filter(n => !isNaN(n) && n > 0);
+                    update("ollama_retry_delays", delays.length > 0 ? delays : [2, 5, 10, 15]);
+                  }}
+                  placeholder="2,5,10,15"
+                  disabled={saving}
+                />
+              </div>
+
+              {/* Circuit Breaker Settings */}
+              <div className="grid grid-cols-2 gap-4">
+                <InputRow
+                  label="Circuit Breaker Threshold"
+                  sub="Failures before opening circuit"
+                  value={settings.ollama_circuit_breaker_threshold ?? 5}
+                  onChange={v => update("ollama_circuit_breaker_threshold", v)}
+                  disabled={saving}
+                  type="number"
+                  min={1}
+                  max={20}
+                />
+                <InputRow
+                  label="Circuit Breaker Cooldown (s)"
+                  sub="Seconds to wait before retry"
+                  value={settings.ollama_circuit_breaker_cooldown ?? 300}
+                  onChange={v => update("ollama_circuit_breaker_cooldown", v)}
+                  disabled={saving}
+                  type="number"
+                  min={30}
+                  max={600}
+                />
+              </div>
+
+              {/* Connection Pool Settings */}
+              <div className="grid grid-cols-2 gap-4">
+                <InputRow
+                  label="Connection Pool Size"
+                  sub="Max concurrent connections"
+                  value={settings.ollama_connection_pool_size ?? 10}
+                  onChange={v => update("ollama_connection_pool_size", v)}
+                  disabled={saving}
+                  type="number"
+                  min={1}
+                  max={50}
+                />
+                <InputRow
+                  label="Connection Keepalive (s)"
+                  sub="Keep idle connections alive"
+                  value={settings.ollama_connection_keepalive ?? 30}
+                  onChange={v => update("ollama_connection_keepalive", v)}
+                  disabled={saving}
+                  type="number"
+                  min={5}
+                  max={120}
+                />
+              </div>
+
+              {/* Health Check Settings */}
+              <div className="form-control">
+                <label className="label cursor-pointer justify-start gap-3 py-2">
+                  <input
+                    type="checkbox"
+                    className="toggle toggle-sm toggle-primary"
+                    checked={settings.ollama_enable_health_check ?? true}
+                    onChange={e => update("ollama_enable_health_check", e.target.checked)}
+                    disabled={saving}
+                  />
+                  <div className="flex flex-col">
+                    <span className="label-text font-medium text-sm">Enable Health Checks</span>
+                    <span className="label-text-alt text-base-content/50 text-xs">
+                      Periodically check Ollama health before requests
+                    </span>
+                  </div>
+                </label>
+              </div>
+
+              {settings.ollama_enable_health_check && (
+                <InputRow
+                  label="Health Check Interval (seconds)"
+                  sub="Time between health checks"
+                  value={settings.ollama_health_check_interval ?? 60}
+                  onChange={v => update("ollama_health_check_interval", v)}
+                  disabled={saving}
+                  type="number"
+                  min={10}
+                  max={300}
+                />
+              )}
             </div>
 
             {/* ── Danger Zone ── */}

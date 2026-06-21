@@ -31,9 +31,12 @@ class CircuitBreaker:
         self.failure_count = 0
         self.last_failure_time: datetime | None = None
         self.state = "closed"
+        self.total_failures = 0
+        self.total_successes = 0
 
     def record_failure(self) -> None:
         self.failure_count += 1
+        self.total_failures += 1
         self.last_failure_time = datetime.now(timezone.utc)
         if self.failure_count >= self.failure_threshold:
             self.state = "open"
@@ -45,6 +48,7 @@ class CircuitBreaker:
 
     def record_success(self) -> None:
         self.failure_count = 0
+        self.total_successes += 1
         self.last_failure_time = None
         self.state = "closed"
 
@@ -68,6 +72,8 @@ class CircuitBreaker:
             "failure_threshold": self.failure_threshold,
             "last_failure_time": self.last_failure_time.isoformat() if self.last_failure_time else None,
             "cooldown_seconds": self.cooldown_seconds,
+            "total_failures": self.total_failures,
+            "total_successes": self.total_successes,
         }
 
 
@@ -122,6 +128,8 @@ class OllamaClient:
         retry_delays: list[float] | None = None,
         sleep: SleepFunc = asyncio.sleep,
         circuit_breaker: CircuitBreaker | None = None,
+        connection_pool_size: int = 10,
+        connection_keepalive: int = 30,
     ) -> None:
         if config is not None:
             base_url = config.base_url
@@ -131,6 +139,14 @@ class OllamaClient:
             strict_json = config.strict_json
             log_dir = config.log_dir
             api_key = config.auth_api_key
+            # Use reliability settings from config if provided
+            retry_delays = retry_delays if retry_delays is not None else list(config.retry_delays)
+            circuit_breaker = circuit_breaker or CircuitBreaker(
+                failure_threshold=config.circuit_breaker_threshold,
+                cooldown_seconds=config.circuit_breaker_cooldown
+            )
+            connection_pool_size = config.connection_pool_size
+            connection_keepalive = config.connection_keepalive
         self.base_url = str(base_url or "http://localhost:11434").rstrip("/")
         self.model = model
         self.timeout = float(timeout)
@@ -138,10 +154,18 @@ class OllamaClient:
         self.strict_json = strict_json
         self.log_dir = log_dir
         self.api_key = api_key
-        self.retry_delays = retry_delays if retry_delays is not None else [10, 30, 40, 50]
+        self.retry_delays = retry_delays if retry_delays is not None else [2, 5, 10, 15]
         self._sleep = sleep
         self.circuit_breaker = circuit_breaker or CircuitBreaker()
+        self.connection_pool_size = connection_pool_size
+        self.connection_keepalive = connection_keepalive
         self._client: httpx.AsyncClient | None = None
+        self._metrics: dict[str, Any] = {
+            "total_requests": 0,
+            "successful_requests": 0,
+            "failed_requests": 0,
+            "total_latency_ms": 0,
+        }
 
     @property
     def cache_key(self) -> tuple[Any, ...]:
@@ -153,13 +177,21 @@ class OllamaClient:
             self.health_timeout,
             self.strict_json,
             self.log_dir,
+            self.connection_pool_size,
+            self.connection_keepalive,
         )
 
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
+            limits = httpx.Limits(
+                max_connections=self.connection_pool_size,
+                max_keepalive_connections=self.connection_pool_size,
+                keepalive_expiry=self.connection_keepalive,
+            )
             self._client = httpx.AsyncClient(
                 timeout=self.timeout + 10,
                 headers=build_headers(self.base_url, api_key=self.api_key),
+                limits=limits,
             )
         return self._client
 
@@ -167,6 +199,38 @@ class OllamaClient:
         if self._client is not None and not self._client.is_closed:
             await self._client.aclose()
         self._client = None
+
+    def get_metrics(self) -> dict[str, Any]:
+        """Get current metrics for monitoring."""
+        return {
+            "circuit_breaker": self.circuit_breaker.get_state_info(),
+            "client_metrics": self._metrics.copy(),
+            "success_rate": (
+                self._metrics["successful_requests"] / self._metrics["total_requests"]
+                if self._metrics["total_requests"] > 0
+                else 0
+            ),
+            "average_latency_ms": (
+                self._metrics["total_latency_ms"] / self._metrics["successful_requests"]
+                if self._metrics["successful_requests"] > 0
+                else 0
+            ),
+        }
+
+    def _record_request_start(self) -> float:
+        """Record request start time and increment total requests."""
+        self._metrics["total_requests"] += 1
+        return time.time()
+
+    def _record_request_success(self, start_time: float) -> None:
+        """Record successful request metrics."""
+        duration_ms = (time.time() - start_time) * 1000
+        self._metrics["successful_requests"] += 1
+        self._metrics["total_latency_ms"] += duration_ms
+
+    def _record_request_failure(self) -> None:
+        """Record failed request metrics."""
+        self._metrics["failed_requests"] += 1
 
     async def _retry(self, func: Callable[[], Awaitable[Any]]) -> Any:
         last_exc: Exception | None = None
@@ -286,7 +350,7 @@ class OllamaClient:
             logger.warning("Ollama circuit breaker is open; skipping feature '%s'", feature)
             return None
 
-        start = time.time()
+        start = self._record_request_start()
         payload: dict[str, Any] = {
             "model": model or self.model,
             "prompt": prompt,
@@ -310,26 +374,28 @@ class OllamaClient:
                 )
 
             resp = await self._retry(_call)
-            duration_ms = int((time.time() - start) * 1000)
             if resp.status_code != 200:
                 error = response_error_text(resp, f"HTTP {resp.status_code}")
                 logger.warning("Ollama generate returned %s: %s", resp.status_code, error)
-                self._log_interaction(feature, prompt, system_prompt, None, duration_ms, False, error)
+                self._log_interaction(feature, prompt, system_prompt, None, int((time.time() - start) * 1000), False, error)
                 self.circuit_breaker.record_failure()
+                self._record_request_failure()
                 return None
             data = resp.json()
             result = data.get("response", "") if isinstance(data, dict) else ""
             if not result:
-                self._log_interaction(feature, prompt, system_prompt, None, duration_ms, False, "Empty response")
+                self._log_interaction(feature, prompt, system_prompt, None, int((time.time() - start) * 1000), False, "Empty response")
+                self._record_request_failure()
                 return None
-            self._log_interaction(feature, prompt, system_prompt, result, duration_ms, True, None)
+            self._log_interaction(feature, prompt, system_prompt, result, int((time.time() - start) * 1000), True, None)
             self.circuit_breaker.record_success()
+            self._record_request_success(start)
             return str(result)
         except Exception as exc:
-            duration_ms = int((time.time() - start) * 1000)
             logger.warning("Ollama generate failed for feature '%s': %s", feature, exc)
-            self._log_interaction(feature, prompt, system_prompt, None, duration_ms, False, str(exc))
+            self._log_interaction(feature, prompt, system_prompt, None, int((time.time() - start) * 1000), False, str(exc))
             self.circuit_breaker.record_failure()
+            self._record_request_failure()
             return None
 
     async def chat(
@@ -346,6 +412,7 @@ class OllamaClient:
         if not (model or self.model):
             raise RuntimeError("No Ollama model configured")
 
+        start = self._record_request_start()
         payload: dict[str, Any] = {
             "model": model or self.model,
             "messages": messages,
@@ -356,29 +423,35 @@ class OllamaClient:
         if options:
             payload["options"] = options
 
-        async def _call() -> httpx.Response:
-            client = await self._get_client()
-            return await client.post(
-                f"{self.base_url}/api/chat",
-                json=payload,
-                timeout=self.timeout,
-                headers=build_headers(self.base_url, include_content_type=True, api_key=self.api_key),
-            )
+        try:
+            async def _call() -> httpx.Response:
+                client = await self._get_client()
+                return await client.post(
+                    f"{self.base_url}/api/chat",
+                    json=payload,
+                    timeout=self.timeout,
+                    headers=build_headers(self.base_url, include_content_type=True, api_key=self.api_key),
+                )
 
-        resp = await self._retry(_call)
-        resp.raise_for_status()
-        data = resp.json()
-        message = data.get("message", {}) if isinstance(data, dict) else {}
-        raw_tool_calls = message.get("tool_calls") if isinstance(message, dict) else None
-        tool_calls = [
-            item for item in (_normalize_tool_call(call) for call in (raw_tool_calls or []))
-            if item and item.get("name")
-        ]
-        content = message.get("content", "") if isinstance(message, dict) else ""
-        if not content and isinstance(data, dict):
-            content = data.get("response", "")
-        self.circuit_breaker.record_success()
-        return OllamaChatResponse(content=str(content or ""), tool_calls=tool_calls, raw=data if isinstance(data, dict) else None)
+            resp = await self._retry(_call)
+            resp.raise_for_status()
+            data = resp.json()
+            message = data.get("message", {}) if isinstance(data, dict) else {}
+            raw_tool_calls = message.get("tool_calls") if isinstance(message, dict) else None
+            tool_calls = [
+                item for item in (_normalize_tool_call(call) for call in (raw_tool_calls or []))
+                if item and item.get("name")
+            ]
+            content = message.get("content", "") if isinstance(message, dict) else ""
+            if not content and isinstance(data, dict):
+                content = data.get("response", "")
+            self.circuit_breaker.record_success()
+            self._record_request_success(start)
+            return OllamaChatResponse(content=str(content or ""), tool_calls=tool_calls, raw=data if isinstance(data, dict) else None)
+        except Exception as exc:
+            self.circuit_breaker.record_failure()
+            self._record_request_failure()
+            raise
 
     async def chat_with_tools(
         self,
@@ -387,15 +460,13 @@ class OllamaClient:
         model: str | None = None,
         feature: str = "chat_with_tools",
     ) -> OllamaChatResponse:
-        start = time.time()
+        start = self._record_request_start()
         try:
             result = await self.chat(messages, tools=tools, model=model)
-            duration_ms = int((time.time() - start) * 1000)
-            self._log_interaction(feature, str(messages), None, result.content, duration_ms, True, None)
+            self._log_interaction(feature, str(messages), None, result.content, int((time.time() - start) * 1000), True, None)
             return result
         except Exception as exc:
-            duration_ms = int((time.time() - start) * 1000)
-            self._log_interaction(feature, str(messages), None, None, duration_ms, False, str(exc))
+            self._log_interaction(feature, str(messages), None, None, int((time.time() - start) * 1000), False, str(exc))
             logger.warning("Ollama chat failed for feature '%s': %s", feature, exc)
             return OllamaChatResponse(content=str(exc), tool_calls=[])
 
@@ -406,6 +477,7 @@ class OllamaClient:
         model: str | None = None,
         options: dict[str, Any] | None = None,
     ) -> AsyncIterator[dict[str, Any]]:
+        start = self._record_request_start()
         payload: dict[str, Any] = {
             "model": model or self.model,
             "messages": messages,
@@ -414,19 +486,26 @@ class OllamaClient:
         if options:
             payload["options"] = options
 
-        client = await self._get_client()
-        async with client.stream(
-            "POST",
-            f"{self.base_url}/api/chat",
-            json=payload,
-            timeout=self.timeout,
-            headers=build_headers(self.base_url, include_content_type=True, api_key=self.api_key),
-        ) as resp:
-            resp.raise_for_status()
-            async for line in resp.aiter_lines():
-                if not line:
-                    continue
-                yield json.loads(line)
+        try:
+            client = await self._get_client()
+            async with client.stream(
+                "POST",
+                f"{self.base_url}/api/chat",
+                json=payload,
+                timeout=self.timeout,
+                headers=build_headers(self.base_url, include_content_type=True, api_key=self.api_key),
+            ) as resp:
+                resp.raise_for_status()
+                async for line in resp.aiter_lines():
+                    if not line:
+                        continue
+                    yield json.loads(line)
+            self.circuit_breaker.record_success()
+            self._record_request_success(start)
+        except Exception as exc:
+            self.circuit_breaker.record_failure()
+            self._record_request_failure()
+            raise
 
     def _log_interaction(
         self,

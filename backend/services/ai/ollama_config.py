@@ -38,6 +38,13 @@ def config_from_settings(
     raw_api_key = str(_get(settings, "ollama_api_key", "") or "").strip()
     resolved_timeout = timeout if timeout is not None else _get(settings, "ollama_timeout", 30)
 
+    # Reliability settings
+    retry_delays = _get(settings, "ollama_retry_delays", [2, 5, 10, 15]) or [2, 5, 10, 15]
+    circuit_breaker_threshold = _get(settings, "ollama_circuit_breaker_threshold", 5) or 5
+    circuit_breaker_cooldown = _get(settings, "ollama_circuit_breaker_cooldown", 300) or 300
+    connection_pool_size = _get(settings, "ollama_connection_pool_size", 10) or 10
+    connection_keepalive = _get(settings, "ollama_connection_keepalive", 30) or 30
+
     if not base_url:
         logger.warning("Ollama API URL is not configured")
         return None
@@ -55,6 +62,11 @@ def config_from_settings(
         health_timeout=float(health_timeout or 5),
         strict_json=bool(strict_json),
         log_dir=log_dir,
+        retry_delays=tuple(retry_delays) if isinstance(retry_delays, list) else retry_delays,
+        circuit_breaker_threshold=int(circuit_breaker_threshold),
+        circuit_breaker_cooldown=int(circuit_breaker_cooldown),
+        connection_pool_size=int(connection_pool_size),
+        connection_keepalive=int(connection_keepalive),
     )
 
 

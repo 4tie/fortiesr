@@ -44,6 +44,18 @@ class SettingsModel(StrictModel):
     ollama_self_healing_enabled: bool = False
     ollama_timeout: int = 30
 
+    # Reliability settings
+    ollama_retry_delays: list[int] = [2, 5, 10, 15]
+    ollama_circuit_breaker_threshold: int = 5
+    ollama_circuit_breaker_cooldown: int = 300
+    ollama_enable_health_check: bool = True
+    ollama_health_check_interval: int = 60
+    ollama_timeout_chat: int = 30
+    ollama_timeout_generate: int = 60
+    ollama_timeout_autoquant: int = 120
+    ollama_connection_pool_size: int = 10
+    ollama_connection_keepalive: int = 30
+
     # Workflow-specific model overrides
     ollama_model_chat: str = ""
     ollama_model_autoquant: str = ""
