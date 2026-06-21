@@ -18,6 +18,12 @@ class OllamaConfig:
     health_timeout: float = 5.0
     strict_json: bool = False
     log_dir: str | None = None
+    # Reliability settings
+    retry_delays: list[float] = (2, 5, 10, 15)
+    circuit_breaker_threshold: int = 5
+    circuit_breaker_cooldown: int = 300
+    connection_pool_size: int = 10
+    connection_keepalive: int = 30
 
     @property
     def auth_api_key(self) -> str | None:
@@ -34,6 +40,8 @@ class OllamaConfig:
             self.health_timeout,
             self.strict_json,
             self.log_dir,
+            self.connection_pool_size,
+            self.connection_keepalive,
         )
 
 

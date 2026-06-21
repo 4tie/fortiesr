@@ -148,6 +148,13 @@ class PipelineState:
     regime_probabilities: dict = field(default_factory=dict)  # Regime posterior probabilities
     regime_history: list = field(default_factory=list)  # Historical regime classifications
     regime_model_path: str = None  # Path to trained HMM model
+    # Genetic Algorithm Evolution
+    genetic_evolution_enabled: bool = False  # Enable/disable genetic evolution
+    best_dna: dict = field(default_factory=dict)  # Best DNA from evolution
+    ga_history: list = field(default_factory=list)  # Evolution history across generations
+    ga_generations: int = 20  # Number of GA generations
+    ga_population_size: int = 50  # GA population size
+    ga_converged: bool = False  # Whether GA converged
 
 
 # ── Global in-memory registry ─────────────────────────────────────────────────

@@ -16,6 +16,7 @@ from .helpers import _emit, _run_subprocess
 from .logging import _rlog, logger
 from .stages_assessment import _stage_delivery, _stage_joint_portfolio_backtest
 from .stages_optimization import _stage_hyperopt, _stage_patch
+from .stages_genetic import _stage_genetic_evolution
 from .stages_regime import _stage_regime_detection
 from .stages_validation import _stage_portfolio_baseline, _stage_robustness_feature_injection, _stage_pre_flight_filtering, _stage_pre_selection, _stage_sanity_backtest, _stage_stress_test
 from .helpers import _fail_stage, _pass_stage
@@ -213,6 +214,17 @@ async def run_pipeline(run_id: str) -> None:
             # Stage 2 already completed and current_stage > 2, skip to next stage
             _rlog(run_id, 2, logging.INFO, "── SKIPPING: Stage 2 already completed (current_stage=%d)", state.current_stage)
             s2_result = state.stages[1].data if len(state.stages) > 1 else {}
+
+        # ── Stage 2.5: Genetic Algorithm Evolution ─────────────────────────
+        # Run genetic evolution if enabled
+        if state.genetic_evolution_enabled:
+            _rlog(run_id, 2, logging.INFO, "── ENTERING Stage 2.5: Genetic Algorithm Evolution ──")
+            ga_result = await _stage_genetic_evolution(run_id, state, out_dir)
+            if ga_result:
+                _rlog(run_id, 2, logging.INFO,
+                      f"Genetic Evolution Complete | Best fitness: {ga_result.get('best_fitness', 0):.4f}")
+            else:
+                _rlog(run_id, 2, logging.WARNING, "Genetic evolution failed, using default parameters")
 
         # ── Stages 3-4: Self-healing retry loop (renumbered from 2-3) ───────
         oos_result: dict | None = None

@@ -157,6 +157,40 @@ async def list_models(request: Request) -> dict:
         await client.close()
 
 
+@router.get(
+    "/metrics",
+    summary="Get Ollama reliability metrics",
+    description=(
+        "Returns current reliability metrics including circuit breaker state, "
+        "success rate, average latency, and request counts."
+    ),
+)
+async def get_metrics(request: Request) -> dict:
+    services = request.app.state.services
+    cfg = services.settings_store.load()
+    config = config_from_settings(cfg, require_model=False)
+    if config is None:
+        return {
+            "error": "Ollama API URL not configured",
+            "metrics": None,
+        }
+    client = OllamaClient(config=config)
+    try:
+        metrics = client.get_metrics()
+        return {
+            "metrics": metrics,
+            "settings": {
+                "retry_delays": cfg.ollama_retry_delays,
+                "circuit_breaker_threshold": cfg.ollama_circuit_breaker_threshold,
+                "circuit_breaker_cooldown": cfg.ollama_circuit_breaker_cooldown,
+                "connection_pool_size": cfg.ollama_connection_pool_size,
+                "connection_keepalive": cfg.ollama_connection_keepalive,
+            },
+        }
+    finally:
+        await client.close()
+
+
 class ChatRequest(BaseModel):
     message: str = Field(..., description="User message for the assistant.")
     session_id: str | None = Field(default=None, description="Existing assistant chat session id.")
