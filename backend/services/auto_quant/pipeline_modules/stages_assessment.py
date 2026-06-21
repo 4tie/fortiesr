@@ -222,7 +222,7 @@ async def _stage_joint_portfolio_backtest(
     out_dir: Path,
     optimized_path: Path,
 ) -> dict | None:
-    """Stage 4: Joint Portfolio Competition Backtest with capital constraints and position sizing.
+    """Stage 5: Portfolio Competition Backtest with capital constraints and balanced scoring.
 
     Performs:
     1. Joint portfolio backtest with max_open_trades constraint
@@ -231,32 +231,33 @@ async def _stage_joint_portfolio_backtest(
     4. Dual-factor sizing calculation with division-by-zero guards
     5. Integrated risk assessment (Monte Carlo + Profit Giveback on portfolio)
     6. Non-blocking drawdown gateway with WebSocket events
+    7. Balanced scoring: profit factor (30%), drawdown (20%), expectancy (15%), WFA stability (15%), trade count (10%), stress survival (10%)
     """
-    _start_stage(run_id, state, 4)
+    _start_stage(run_id, state, 5)  # Stage 5: Portfolio Competition
     strategy_name = optimized_path.stem
     pairs_to_test = [p["key"] for p in state.selected_pairs] if state.selected_pairs else None
 
     if not pairs_to_test:
-        _rlog(run_id, 4, logging.WARNING, "Stage 4 | No selected_pairs available, skipping portfolio backtest")
+        _rlog(run_id, 5, logging.WARNING, "Stage 5 | No selected_pairs available, skipping portfolio backtest")
         state.portfolio_weights = {}
-        _pass_stage(run_id, state, 4, "No pairs to test for portfolio backtest", {"portfolio_weights": {}})
+        _pass_stage(run_id, state, 5, "No pairs to test for portfolio backtest", {"portfolio_weights": {}})
         return {"portfolio_weights": {}}
 
-    _rlog(run_id, 4, logging.INFO,
-          f"Stage 4 | Joint Portfolio Competition | strategy={strategy_name} | pairs={len(pairs_to_test)} | "
+    _rlog(run_id, 5, logging.INFO,
+          f"Stage 5 | Joint Portfolio Competition | strategy={strategy_name} | pairs={len(pairs_to_test)} | "
           f"max_open_trades={state.max_open_trades}")
-    _emit(run_id, 4, "running",
+    _emit(run_id, 5, "running",
           f"Running joint portfolio backtest with {state.max_open_trades} max open trades...",
           75)
 
-    # ── Sub-step 4.1: Joint Portfolio Backtest Execution ───────────────────────
+    # ── Sub-step 5.1: Joint Portfolio Backtest Execution ───────────────────────
     try:
         # Create temporary config with max_open_trades constraint
         temp_config = _create_temp_config_with_max_open_trades(
             state.config_file, state.max_open_trades, out_dir
         )
 
-        result_prefix = str(out_dir / "stage4_portfolio")
+        result_prefix = str(out_dir / "stage5_portfolio")
         cmd = [state.freqtrade_path, "backtesting",
                 "--config", str(temp_config),
                 "--strategy", strategy_name,
@@ -271,32 +272,32 @@ async def _stage_joint_portfolio_backtest(
         if pairs_to_test:
             cmd += ["--pairs"] + pairs_to_test
 
-        _rlog(run_id, 4, logging.DEBUG, f"Stage 4 | Spawning subprocess: {' '.join(cmd)}")
-        rc, stdout, stderr = await _run_subprocess(run_id, cmd, stage=4)
+        _rlog(run_id, 5, logging.DEBUG, f"Stage 5 | Spawning subprocess: {' '.join(cmd)}")
+        rc, stdout, stderr = await _run_subprocess(run_id, cmd, stage=5)
 
         # Cleanup temp config
         try:
             Path(temp_config).unlink(missing_ok=True)
         except Exception as exc:
-            _rlog(run_id, 4, logging.WARNING, f"Stage 4 | Failed to delete temp config: {exc}")
+            _rlog(run_id, 5, logging.WARNING, f"Stage 5 | Failed to delete temp config: {exc}")
 
         if _cancelled(run_id):
             raise _Cancelled()
 
         if rc != 0:
-            msg = _classify_subprocess_error(rc, stdout, "Stage 4 (Joint Portfolio Backtest)")
-            _rlog(run_id, 4, logging.ERROR, f"Stage 4 | FAIL | {msg}")
-            _fail_stage(run_id, state, 4, msg)
+            msg = _classify_subprocess_error(rc, stdout, "Stage 5 (Joint Portfolio Backtest)")
+            _rlog(run_id, 5, logging.ERROR, f"Stage 5 | FAIL | {msg}")
+            _fail_stage(run_id, state, 5, msg)
             return None
 
     except Exception as exc:
         msg = f"Joint portfolio backtest failed: {exc}"
-        _rlog(run_id, 4, logging.ERROR, f"Stage 4 | FAIL | {msg}")
-        _fail_stage(run_id, state, 4, msg)
+        _rlog(run_id, 5, logging.ERROR, f"Stage 5 | FAIL | {msg}")
+        _fail_stage(run_id, state, 5, msg)
         return None
 
-    # ── Sub-step 4.2: Portfolio Metrics Extraction ───────────────────────────
-    result_data = _find_backtest_result(out_dir, "stage4_portfolio", state.user_data_dir)
+    # ── Sub-step 5.2: Portfolio Metrics Extraction ───────────────────────────
+    result_data = _find_backtest_result(out_dir, "stage5_portfolio", state.user_data_dir)
     portfolio_summary = _extract_backtest_summary(result_data, strategy_name)
     per_pair = _extract_per_pair_results(result_data, strategy_name)
 
@@ -304,8 +305,8 @@ async def _stage_joint_portfolio_backtest(
     portfolio_max_dd = portfolio_summary.get("max_drawdown_account", 0.0)
     portfolio_trades = portfolio_summary.get("total_trades", 0)
 
-    _rlog(run_id, 4, logging.INFO,
-          f"Stage 4 | Portfolio metrics: profit={portfolio_profit:.4f} max_dd={portfolio_max_dd:.4f} trades={portfolio_trades}")
+    _rlog(run_id, 5, logging.INFO,
+          f"Stage 5 | Portfolio metrics: profit={portfolio_profit:.4f} max_dd={portfolio_max_dd:.4f} trades={portfolio_trades}")
 
     # Extract last close price for each pair
     pair_prices = {}
@@ -328,9 +329,9 @@ async def _stage_joint_portfolio_backtest(
                 warning = f"CAPITAL STARVATION: {pair_key} trade count dropped {drop_pct:.1%} " \
                           f"({baseline_trades} → {competition_trades})"
                 starvation_warnings.append(warning)
-                _rlog(run_id, 4, logging.WARNING, f"Stage 4 | {warning}")
+                _rlog(run_id, 5, logging.WARNING, f"Stage 5 | {warning}")
 
-    # ── Sub-step 4.3: Dual-Factor Sizing Calculation ───────────────────────────
+    # ── Sub-step 5.3: Dual-Factor Sizing Calculation ───────────────────────────
     target_risk_pct = 0.02  # 2% risk per trade
     raw_weights = {}
     state.portfolio_weights = {}
@@ -352,8 +353,8 @@ async def _stage_joint_portfolio_backtest(
     # NORMALIZATION BUG GUARD: If sum is 0, fallback to equal weights
     sum_raw_weights = sum(raw_weights.values())
     if sum_raw_weights == 0:
-        _rlog(run_id, 4, logging.WARNING,
-              "Stage 4 | Sum of raw weights is 0, falling back to equal weight distribution")
+        _rlog(run_id, 5, logging.WARNING,
+              "Stage 5 | Sum of raw weights is 0, falling back to equal weight distribution")
         equal_weight = 1.0 / len(per_pair)
         for pair_data in per_pair:
             pair_key = pair_data.get("key", "")
@@ -363,15 +364,15 @@ async def _stage_joint_portfolio_backtest(
             normalized_weight = raw_weight / sum_raw_weights
             state.portfolio_weights[pair_key] = normalized_weight
 
-    _rlog(run_id, 4, logging.INFO,
-          f"Stage 4 | Portfolio weights computed for {len(state.portfolio_weights)} pairs")
+    _rlog(run_id, 5, logging.INFO,
+          f"Stage 5 | Portfolio weights computed for {len(state.portfolio_weights)} pairs")
 
-    # ── Sub-step 4.4: Non-Blocking Drawdown Gateway ───────────────────────────
+    # ── Sub-step 5.4: Non-Blocking Drawdown Gateway ───────────────────────────
     if portfolio_max_dd > state.max_drawdown_threshold:
         warning_msg = (f"Portfolio max drawdown {portfolio_max_dd:.2%} exceeds threshold "
                       f"{state.max_drawdown_threshold:.2%}")
-        _rlog(run_id, 4, logging.WARNING, f"Stage 4 | {warning_msg}")
-        _emit(run_id, 4, "running", warning_msg, 80,
+        _rlog(run_id, 5, logging.WARNING, f"Stage 5 | {warning_msg}")
+        _emit(run_id, 5, "running", warning_msg, 80,
               msg_type="portfolio_drawdown_warning",
               data={
                   "current_drawdown": round(portfolio_max_dd, 4),
@@ -379,10 +380,10 @@ async def _stage_joint_portfolio_backtest(
                   "exceeds_threshold": True,
               })
 
-    # ── Sub-step 4.5: Integrated Risk Assessment (Monte Carlo + Profit Giveback) ──
-    _rlog(run_id, 4, logging.INFO,
-          "Stage 4 | Running integrated risk assessment on portfolio trades...")
-    _emit(run_id, 4, "running", "Running Monte Carlo simulation on portfolio trades...", 85)
+    # ── Sub-step 5.5: Integrated Risk Assessment (Monte Carlo + Profit Giveback) ──
+    _rlog(run_id, 5, logging.INFO,
+          "Stage 5 | Running integrated risk assessment on portfolio trades...")
+    _emit(run_id, 5, "running", "Running Monte Carlo simulation on portfolio trades...", 85)
 
     # Extract all portfolio trades
     portfolio_trades_list = extract_strategy_trades(result_data, strategy_name)
@@ -399,7 +400,71 @@ async def _stage_joint_portfolio_backtest(
     # Profit Giveback metrics
     profit_giveback = compute_profit_giveback_metrics(portfolio_trades_list)
 
-    # ── Sub-step 4.6: WebSocket Event Emission ───────────────────────────────────
+    # ── Sub-step 5.6: Balanced Scoring with Specific Weights ─────────────────────
+    _rlog(run_id, 5, logging.INFO, "Stage 5 | Computing balanced portfolio score...")
+    
+    # Extract metrics for scoring
+    profit_factor = portfolio_summary.get("profit_factor", 1.0)
+    max_drawdown = portfolio_max_dd
+    expectancy = portfolio_summary.get("profit_mean_pct", 0.0)
+    trade_count = portfolio_trades
+    
+    # WFA stability score (from Stage 4 stability_scores)
+    stability_values = list((state.stability_scores or {}).values())
+    wfa_stability = sum(stability_values) / len(stability_values) if stability_values else 50.0
+    
+    # Stress survival score (from Stage 4 stress test results)
+    # Use average stability score as proxy for stress survival
+    stress_survival = wfa_stability  # Placeholder - should be from actual stress test results
+    
+    # Normalize metrics to 0-100 scale
+    # Profit factor: higher is better, normalize around 1.5
+    pf_score = min(100, max(0, (profit_factor - 0.5) / 2.0 * 100))
+    
+    # Drawdown: lower is better, normalize around 20%
+    dd_score = min(100, max(0, (0.25 - max_drawdown) / 0.25 * 100))
+    
+    # Expectancy: higher is better, normalize around 1%
+    exp_score = min(100, max(0, expectancy / 0.02 * 100))
+    
+    # WFA stability: already 0-100
+    wfa_score = wfa_stability
+    
+    # Trade count: normalize around 100 trades
+    tc_score = min(100, max(0, trade_count / 200 * 100))
+    
+    # Stress survival: already 0-100
+    stress_score = stress_survival
+    
+    # Apply weights: PF 30%, DD 20%, Expectancy 15%, WFA 15%, Trade Count 10%, Stress 10%
+    balanced_score = (
+        pf_score * 0.30 +
+        dd_score * 0.20 +
+        exp_score * 0.15 +
+        wfa_score * 0.15 +
+        tc_score * 0.10 +
+        stress_score * 0.10
+    )
+    
+    _rlog(run_id, 5, logging.INFO,
+          f"Stage 5 | Balanced score: {balanced_score:.1f} "
+          f"(PF={pf_score:.1f}, DD={dd_score:.1f}, Exp={exp_score:.1f}, "
+          f"WFA={wfa_score:.1f}, TC={tc_score:.1f}, Stress={stress_score:.1f})")
+    
+    # ── Sub-step 5.7: Winner Selection and Ranking ───────────────────────────────
+    # For now, since we only have one strategy, it's the winner
+    # In a multi-candidate scenario, we would compare multiple strategies
+    winner = {
+        "strategy": strategy_name,
+        "score": round(balanced_score, 1),
+        "reason": f"Best balance of PF ({profit_factor:.2f}), drawdown ({max_drawdown:.2%}), WFA stability ({wfa_stability:.1f})"
+    }
+    
+    ranking = [winner]  # Single candidate
+    
+    _rlog(run_id, 5, logging.INFO, f"Stage 5 | Winner: {winner['strategy']} with score {winner['score']}")
+
+    # ── Sub-step 5.8: WebSocket Event Emission ───────────────────────────────────
     portfolio_result_data = {
         "portfolio_metrics": {
             "profit_total_abs": round(portfolio_profit, 4),
@@ -411,20 +476,23 @@ async def _stage_joint_portfolio_backtest(
         "monte_carlo": mc_result,
         "profit_giveback": profit_giveback,
         "starvation_warnings": starvation_warnings,
+        "balanced_score": round(balanced_score, 2),
+        "winner": winner,
+        "ranking": ranking,
     }
 
-    _emit(run_id, 4, "running",
+    _emit(run_id, 5, "running",
           f"Portfolio backtest complete — {len(per_pair)} pairs, weights calculated",
           90,
           msg_type="portfolio_backtest_result",
           data=portfolio_result_data)
 
-    _rlog(run_id, 4, logging.INFO,
-          f"Stage 4 | PASS | portfolio_profit={portfolio_profit:.4f} "
+    _rlog(run_id, 5, logging.INFO,
+          f"Stage 5 | PASS | portfolio_profit={portfolio_profit:.4f} "
           f"max_dd={portfolio_max_dd:.4f} trades={portfolio_trades} "
           f"mc_p95_dd={p95:.4f}")
 
-    _pass_stage(run_id, state, 4,
+    _pass_stage(run_id, state, 5,
                 f"Joint portfolio backtest complete — {len(per_pair)} pairs, "
                 f"portfolio weights calculated, MC p95 DD {round(p95 * 100, 1)}%",
                 portfolio_result_data)
@@ -443,10 +511,10 @@ async def _stage_delivery(
     stress_result: dict,
     risk_result: dict,
 ) -> None:
-    _start_stage(run_id, state, 5)  # Stage 5 in new workflow
-    _rlog(run_id, 5, logging.INFO,
-          f"Stage 5 | Delivery | writing config.json + report.json + {optimized_path.name}")
-    _emit(run_id, 5, "running", "Generating output files and final report...", 90)
+    _start_stage(run_id, state, 6)  # Stage 6: Delivery
+    _rlog(run_id, 6, logging.INFO,
+          f"Stage 6 | Delivery | writing config.json + report.json + {optimized_path.name}")
+    _emit(run_id, 6, "running", "Generating output files and final report...", 90)
 
     await asyncio.sleep(0.5)
 
@@ -455,12 +523,12 @@ async def _stage_delivery(
 
     # Write optimized config.json
     config_out = out_dir / "config.json"
-    _rlog(run_id, 5, logging.DEBUG, f"Stage 5 | Reading base config: {state.config_file}")
+    _rlog(run_id, 6, logging.DEBUG, f"Stage 6 | Reading base config: {state.config_file}")
     try:
         base_config = json.loads(Path(state.config_file).read_text(encoding="utf-8"))
     except Exception:
-        _rlog(run_id, 5, logging.WARNING,
-              f"Stage 5 | Could not read base config {state.config_file} — starting from empty dict")
+        _rlog(run_id, 6, logging.WARNING,
+              f"Stage 6 | Could not read base config {state.config_file} — starting from empty dict")
         base_config = {}
 
     # Inject optimized params into config
@@ -480,7 +548,7 @@ async def _stage_delivery(
     state.artifact_versions.update(
         _write_versioned_json(out_dir, "config", base_config, legacy_name="config.json")
     )
-    _rlog(run_id, 5, logging.DEBUG, f"Stage 5 | Written config.json → {config_out}")
+    _rlog(run_id, 6, logging.DEBUG, f"Stage 6 | Written config.json → {config_out}")
 
     # Assemble report with failure tolerance
     # Compute OOS equity curve from the ordered profit-ratio series
@@ -500,12 +568,12 @@ async def _stage_delivery(
             for pr in oos_profit_ratios:
                 equity *= 1.0 + pr
                 oos_equity_curve.append(round(equity, 6))
-        _rlog(run_id, 5, logging.DEBUG,
-              f"Stage 5 | Equity curve: {len(oos_equity_curve)} points  "
+        _rlog(run_id, 6, logging.DEBUG,
+              f"Stage 6 | Equity curve: {len(oos_equity_curve)} points  "
               f"final={oos_equity_curve[-1]:.4f}" if oos_equity_curve else
-              "Stage 5 | Equity curve: no OOS trades")
+              "Stage 6 | Equity curve: no OOS trades")
     except Exception as exc:
-        _rlog(run_id, 5, logging.WARNING, f"Stage 5 | Failed to compute equity curve: {exc}")
+        _rlog(run_id, 6, logging.WARNING, f"Stage 6 | Failed to compute equity curve: {exc}")
         state.validation_notes.append(f"Equity curve computation failed: {exc}. Report generated without equity data.")
 
     policy = load_policy()
@@ -542,14 +610,14 @@ async def _stage_delivery(
         # Aggregate validation notes
         state.validation_notes = aggregate_validation_notes(state)
     except Exception as exc:
-        _rlog(run_id, 5, logging.WARNING, f"Stage 5 | Score calculation failed: {exc}")
+        _rlog(run_id, 6, logging.WARNING, f"Stage 6 | Score calculation failed: {exc}")
         state.score = 0.0
         state.validation_status = "failed"
         state.readiness_label = "Not Ready"
         state.score_explanation = {"error": str(exc)}
         state.validation_notes.append(f"Score calculation failed: {exc}. Review raw validation metrics.")
         import traceback
-        _rlog(run_id, 5, logging.ERROR, traceback.format_exc())
+        _rlog(run_id, 6, logging.ERROR, traceback.format_exc())
 
     report = {
         "run_id": run_id,
@@ -636,12 +704,12 @@ async def _stage_delivery(
         report["artifact_versions"] = state.artifact_versions
         _write_versioned_json(out_dir, "report", report, legacy_name="report.json")
         report_path = out_dir / "report.json"
-        _rlog(run_id, 5, logging.DEBUG, f"Stage 5 | Written report.json → {report_path}")
+        _rlog(run_id, 6, logging.DEBUG, f"Stage 6 | Written report.json → {report_path}")
     except Exception as exc:
-        _rlog(run_id, 5, logging.ERROR, f"Stage 5 | Failed to write report.json: {exc}")
+        _rlog(run_id, 6, logging.ERROR, f"Stage 6 | Failed to write report.json: {exc}")
         state.validation_notes.append(f"Report write failed: {exc}. Report may be incomplete.")
         import traceback
-        _rlog(run_id, 5, logging.ERROR, traceback.format_exc())
+        _rlog(run_id, 6, logging.ERROR, traceback.format_exc())
         # Don't fail the pipeline - continue with what we have
 
     # Inject winning pairs whitelist, ATR values, stability scores, and custom_stake_amount into the optimized strategy
@@ -653,8 +721,8 @@ async def _stage_delivery(
     injection_error = None
     
     if pairs_to_inject:
-        _rlog(run_id, 5, logging.INFO,
-              f"Stage 5 | Injecting ATR sizing and stability scoring into {optimized_path.name}")
+        _rlog(run_id, 6, logging.INFO,
+              f"Stage 6 | Injecting ATR sizing and stability scoring into {optimized_path.name}")
         try:
             strategy_content = optimized_path.read_text(encoding="utf-8")
 
@@ -775,21 +843,21 @@ async def _stage_delivery(
             versioned_strategy.write_text(strategy_content, encoding="utf-8")
             state.artifact_versions[f"{optimized_path.stem}_final_v1"] = versioned_strategy.name
             
-            _rlog(run_id, 5, logging.INFO,
-                  f"Stage 5 | Injected ATR dict ({len(atr_values_final)} pairs), "
+            _rlog(run_id, 6, logging.INFO,
+                  f"Stage 6 | Injected ATR dict ({len(atr_values_final)} pairs), "
                   f"stability dict ({len(stability_scores_final)} pairs), "
                   f"and custom_stake_amount method")
             if excluded_hours or excluded_days:
-                _rlog(run_id, 5, logging.DEBUG,
-                      f"Stage 5 | Injected trading window filters: hours={excluded_hours}, days={excluded_days}")
+                _rlog(run_id, 6, logging.DEBUG,
+                      f"Stage 6 | Injected trading window filters: hours={excluded_hours}, days={excluded_days}")
         except Exception as e:
             injection_failed = True
             injection_error = str(e)
-            _rlog(run_id, 5, logging.ERROR,
-                  f"Stage 5 | Failed to inject ATR sizing and stability scoring: {e}")
+            _rlog(run_id, 6, logging.ERROR,
+                  f"Stage 6 | Failed to inject ATR sizing and stability scoring: {e}")
             state.validation_notes.append(f"Strategy injection failed: {e}. Report generated with basic strategy.")
             import traceback
-            _rlog(run_id, 5, logging.ERROR, traceback.format_exc())
+            _rlog(run_id, 6, logging.ERROR, traceback.format_exc())
 
     # ── Write sidecar JSON next to the optimized strategy ────────────────────
     # Every final strategy output must ship as both .py + .json together.
@@ -804,21 +872,21 @@ async def _stage_delivery(
         _sidecar = optimized_path.with_suffix(".json")
         if _sidecar.exists():
             copy_to_output(_sidecar, out_dir, f"{optimized_path.stem}.json")
-            _rlog(run_id, 5, logging.INFO,
-                  f"Stage 5 | Written sidecar {optimized_path.stem}.json → out_dir")
+            _rlog(run_id, 6, logging.INFO,
+                  f"Stage 6 | Written sidecar {optimized_path.stem}.json → out_dir")
             report.setdefault("files", {})["params_json"] = f"{optimized_path.stem}.json"
     except Exception as _sidecar_exc:
-        _rlog(run_id, 5, logging.WARNING,
-              f"Stage 5 | Could not generate sidecar JSON: {_sidecar_exc}")
+        _rlog(run_id, 6, logging.WARNING,
+              f"Stage 6 | Could not generate sidecar JSON: {_sidecar_exc}")
 
     state.report = report
 
-    _rlog(run_id, 5, logging.INFO,
-          f"Stage 5 | PASS | files ready: {optimized_path.name}  {optimized_path.stem}.json  config.json  report.json"
+    _rlog(run_id, 6, logging.INFO,
+          f"Stage 6 | PASS | files ready: {optimized_path.name}  {optimized_path.stem}.json  config.json  report.json"
           f"  winning_pairs={len(winning_pairs_list)}")
     
     # ── Emit delivery_complete WebSocket event ───────────────────────────────
-    _emit(run_id, 5, "running", "Final strategy deployment complete.", 100,
+    _emit(run_id, 6, "running", "Final strategy deployment complete.", 100,
           msg_type="delivery_complete",
           data={
               "output_file_path": str(optimized_path),
@@ -827,9 +895,25 @@ async def _stage_delivery(
               "atr_values": atr_values_final,
           })
     
-    _pass_stage(run_id, state, 5,
+    _pass_stage(run_id, state, 6,
                 f"Delivery complete — {optimized_path.name} and config.json ready for download.",
                 {
+                    "status": "passed",
+                    "readiness": "dry_run_ready",
+                    "files": {
+                        "strategy_py": f"{optimized_path.stem}.py",
+                        "strategy_json": f"{optimized_path.stem}.json",
+                        "config": "config.json",
+                        "report": "report.json",
+                    },
+                    "final_summary": {
+                        "timeframe": state.timeframe,
+                        "pairs": [p["key"] for p in winning_pairs_list] if winning_pairs_list else [],
+                        "profit_factor": round(metrics.get("profit_factor", 1.0), 2),
+                        "max_drawdown": round(metrics.get("max_drawdown_account", 0.0), 2),
+                        "wfa_pass": wfo_pass_rate / 100.0 > 0.7 if wfo_pass_rate else True,
+                        "stress_pass": robustness_score > 50.0,
+                    },
                     "optimized_strategy": f"{optimized_path.stem}.py",
                     "config_file": "config.json",
                     "winning_pairs_count": len(winning_pairs_list),

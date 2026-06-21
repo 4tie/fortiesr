@@ -467,7 +467,31 @@ async def _extract_hyperopt_best(
         import fnmatch
         # Escape special glob characters in strategy name
         escaped_strategy = fnmatch.translate(state.strategy).replace('.*', '').replace('?', '')
-        fthypt_files = list(results_dir.glob(f"{state.strategy}*.fthypt"))
+        # Try both patterns: with and without "strategy_" prefix
+        fthypt_files = list(results_dir.glob(f"strategy_{state.strategy}*.fthypt"))
+        
+        # Fallback: if no files found with "strategy_" prefix, try without prefix
+        if not fthypt_files:
+            fthypt_files = list(results_dir.glob(f"{state.strategy}*.fthypt"))
+        
+        # Fallback: if no files found with current strategy name, search for variant names
+        # (e.g., AIStrategy_HardMutation when state.strategy is AIStrategy)
+        if not fthypt_files:
+            logger.info("Helpers | Method 3: No files found for %s, searching for variant strategy names", state.strategy)
+            # Common variant suffixes used by the pipeline
+            variant_suffixes = ["_HardMutation", "_SensBest", "_SensPlus", "_SensMinus"]
+            base_strategy = state.strategy.split("_")[0]  # Extract base name (e.g., AIStrategy from AIStrategy_HardMutation)
+            for suffix in variant_suffixes:
+                variant_name = f"{base_strategy}{suffix}"
+                # Try with "strategy_" prefix first
+                variant_files = list(results_dir.glob(f"strategy_{variant_name}*.fthypt"))
+                if not variant_files:
+                    # Fallback to without prefix
+                    variant_files = list(results_dir.glob(f"{variant_name}*.fthypt"))
+                if variant_files:
+                    logger.info("Helpers | Method 3: Found %d files for variant %s", len(variant_files), variant_name)
+                    fthypt_files.extend(variant_files)
+                    break  # Use first matching variant
     logger.info("Helpers | Method 3: Found %d .fthypt files", len(fthypt_files))
     
     for fthypt in sorted(fthypt_files, reverse=True):

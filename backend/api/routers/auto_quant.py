@@ -495,6 +495,12 @@ async def resume_pipeline(run_id: str, body: ResumePipelineRequest) -> dict:
     # Advance current_stage to avoid getting stuck in resume logic
     if state.current_stage == 1:
         state.current_stage = 2
+    elif state.current_stage == 2:
+        # Stage 2 (Portfolio Baseline) approval - advance to Stage 3
+        state.current_stage = 3
+        # Mark Stage 2 as passed since user approved the baseline
+        if len(state.stages) > 1:
+            state.stages[1].status = "passed"
     state.status = "running"
     _pl._save_state_to_disk(state)
 

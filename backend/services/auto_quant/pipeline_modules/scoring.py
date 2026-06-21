@@ -44,7 +44,7 @@ def compute_score(
     pair_consistency = metrics.get("pair_consistency", 0.5)
     
     # Get score weights from policy
-    weights = policy.score_weights()
+    weights = policy.score_weights
     
     # Normalize metrics to 0-1 scale
     expectancy_norm = min(expectancy * 1000, 1.0)  # Expectancy typically small

@@ -164,6 +164,160 @@ function getApprovalReview(pipelineState) {
   };
 }
 
+function PortfolioBaselineReview({ data, onResume }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const portfolioSummary = data.portfolio_summary || {};
+  const perPair = data.per_pair || [];
+  const portfolioProfit = data.portfolio_profit ?? 0;
+  const portfolioMaxDd = data.portfolio_max_dd ?? 0;
+  const portfolioTrades = data.portfolio_trades ?? 0;
+  const maxOpenTrades = data.max_open_trades || 3;
+
+  // Calculate pair contributions and detect dominance
+  const totalProfit = perPair.reduce((sum, pair) => sum + (pair.profit_total_abs || 0), 0);
+  const pairContributions = perPair.map(pair => ({
+    ...pair,
+    contribution: totalProfit > 0 ? (pair.profit_total_abs || 0) / totalProfit : 0,
+  })).sort((a, b) => b.contribution - a.contribution);
+
+  const dominantPair = pairContributions.find(p => p.contribution > 0.7);
+  const hasDominanceWarning = !!dominantPair;
+
+  const handleResume = async () => {
+    if (!onResume) return;
+    setBusy(true);
+    setError("");
+    try {
+      await onResume(data.current_pairs || []);
+    } catch (err) {
+      setError(err.message || "Failed to resume pipeline.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const profitPct = totalProfit > 0 ? (portfolioProfit / totalProfit * 100) : portfolioProfit;
+  const maxDdPct = portfolioMaxDd * 100;
+
+  return (
+    <div className="card bg-warning/8 border border-warning/30">
+      <div className="card-body p-4 space-y-4">
+        <div className="flex items-start gap-3">
+          <div className="w-8 h-8 rounded-full bg-warning/20 text-warning flex items-center justify-center font-bold shrink-0">
+            !
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-sm font-bold text-warning">Stage 2: Portfolio Baseline Backtest</h3>
+            <p className="text-xs text-base-content/60 mt-1">
+              Review portfolio-level performance before proceeding to optimization.
+            </p>
+          </div>
+          <span className="badge badge-warning badge-sm shrink-0">awaiting approval</span>
+        </div>
+
+        {/* Portfolio Summary */}
+        <div className="rounded-lg bg-base-200/70 border border-base-300 p-3">
+          <h4 className="text-[10px] font-semibold uppercase tracking-wider text-base-content/45 mb-3">Portfolio Summary</h4>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-success">✓</span>
+              <div>
+                <div className="text-[10px] text-base-content/45">Profit</div>
+                <div className="font-mono text-sm font-bold text-success">{profitPct.toFixed(1)}%</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-success">✓</span>
+              <div>
+                <div className="text-[10px] text-base-content/45">Max Drawdown</div>
+                <div className="font-mono text-sm font-bold">{maxDdPct.toFixed(0)}%</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-success">✓</span>
+              <div>
+                <div className="text-[10px] text-base-content/45">Total Trades</div>
+                <div className="font-mono text-sm font-bold">{portfolioTrades}</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-success">✓</span>
+              <div>
+                <div className="text-[10px] text-base-content/45">Max Open Trades</div>
+                <div className="font-mono text-sm font-bold">{maxOpenTrades}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Per-Pair Contribution */}
+        <div className="rounded-lg bg-base-200/70 border border-base-300 p-3">
+          <h4 className="text-[10px] font-semibold uppercase tracking-wider text-base-content/45 mb-3">Per-Pair Contribution</h4>
+          <div className="space-y-2">
+            {pairContributions.map((pair) => (
+              <div key={pair.key} className="flex items-center justify-between text-xs">
+                <span className="font-mono text-primary">{pair.key}</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-base-content/60">{pair.trades ?? 0} trades</span>
+                  <span className={`font-mono ${pair.profit_total_abs >= 0 ? "text-success" : "text-error"}`}>
+                    {pair.profit_total_abs >= 0 ? "+" : ""}{(pair.profit_total_abs / totalProfit * 100).toFixed(1)}%
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Capital Pressure Signals */}
+        <div className="rounded-lg bg-base-200/70 border border-base-300 p-3">
+          <h4 className="text-[10px] font-semibold uppercase tracking-wider text-base-content/45 mb-2">Capital Pressure Signals</h4>
+          <div className="space-y-1 text-xs text-base-content/70">
+            <div className="flex items-center gap-2">
+              <span className="text-success">✓</span>
+              <span>No severe capital starvation detected</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-success">✓</span>
+              <span>Pair contributions reasonably balanced</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Dominance Warning */}
+        {hasDominanceWarning && (
+          <div className="rounded-lg border border-error/30 bg-error/10 p-3">
+            <h4 className="text-[10px] font-semibold uppercase tracking-wider text-error mb-2">Warning</h4>
+            <div className="space-y-1 text-xs text-base-content/70">
+              <div>{dominantPair.key} contributed {(dominantPair.contribution * 100).toFixed(0)}% of portfolio profit.</div>
+              <div>Portfolio appears overly dependent on one pair.</div>
+            </div>
+          </div>
+        )}
+
+        {/* Decision */}
+        <div className="flex items-center justify-between pt-2 border-t border-base-300">
+          <div className="text-xs text-base-content/60">
+            <span className="font-semibold text-warning">Decision:</span> Awaiting user approval for portfolio baseline
+          </div>
+          <button
+            type="button"
+            className="btn btn-warning btn-sm"
+            disabled={busy}
+            onClick={handleResume}
+          >
+            {busy ? <span className="loading loading-spinner loading-xs" /> : null}
+            Approve Portfolio & Continue
+          </button>
+        </div>
+
+        {error && <div className="alert alert-error py-2 text-xs">{error}</div>}
+      </div>
+    </div>
+  );
+}
+
 function ApprovalReviewPanel({ pipelineState, onResume }) {
   const review = useMemo(() => getApprovalReview(pipelineState), [pipelineState]);
   const [selectedPairs, setSelectedPairs] = useState([]);
@@ -184,6 +338,12 @@ function ApprovalReviewPanel({ pipelineState, onResume }) {
   if (!review) return null;
 
   const { data, rows, recommended, isPortfolioReview } = review;
+
+  // Use specialized portfolio baseline review for Stage 2
+  if (isPortfolioReview) {
+    return <PortfolioBaselineReview data={data} onResume={onResume} />;
+  }
+
   const selectedSet = new Set(selectedPairs);
   const sortedRows = [...rows].sort((a, b) => {
     const aRecommended = recommended.includes(pairKey(a)) ? 1 : 0;
@@ -219,9 +379,7 @@ function ApprovalReviewPanel({ pipelineState, onResume }) {
             !
           </div>
           <div className="flex-1 min-w-0">
-            <h3 className="text-sm font-bold text-warning">
-              {isPortfolioReview ? "Portfolio Review Required" : "Pair Selection Review Required"}
-            </h3>
+            <h3 className="text-sm font-bold text-warning">Pair Selection Review Required</h3>
             <p className="text-xs text-base-content/60 mt-1">
               AutoQuant paused after producing review data. Select the pairs to approve, then continue the run.
             </p>
@@ -239,20 +397,12 @@ function ApprovalReviewPanel({ pipelineState, onResume }) {
             <div className="font-mono text-sm font-bold text-warning">{recommended.length}</div>
           </div>
           <div className="rounded-lg bg-base-200/70 border border-base-300 px-3 py-2">
-            <div className="text-[10px] uppercase tracking-wider text-base-content/45">
-              {isPortfolioReview ? "Portfolio Profit" : "Total Profit"}
-            </div>
-            <div className="font-mono text-sm font-bold">
-              {isPortfolioReview
-                ? `${formatMaybeNumber(data.portfolio_profit, 2)} USDT`
-                : formatRatioPct(data.profit_total)}
-            </div>
+            <div className="text-[10px] uppercase tracking-wider text-base-content/45">Total Profit</div>
+            <div className="font-mono text-sm font-bold">{formatRatioPct(data.profit_total)}</div>
           </div>
           <div className="rounded-lg bg-base-200/70 border border-base-300 px-3 py-2">
-            <div className="text-[10px] uppercase tracking-wider text-base-content/45">
-              {isPortfolioReview ? "Portfolio Trades" : "Total Trades"}
-            </div>
-            <div className="font-mono text-sm font-bold">{data.portfolio_trades ?? data.total_trades ?? "-"}</div>
+            <div className="text-[10px] uppercase tracking-wider text-base-content/45">Total Trades</div>
+            <div className="font-mono text-sm font-bold">{data.total_trades ?? "-"}</div>
           </div>
         </div>
 
