@@ -1,0 +1,501 @@
+{
+  "success": false,
+  "max_iterations_reached": true,
+  "history": [
+    {
+      "iteration": 1,
+      "status": "completed",
+      "config": {
+        "strategy": "AIStrategy",
+        "timeframe": "5m",
+        "timerange": "20251222-20260620",
+        "pairs": [
+          "AXS/USDT",
+          "FIL/USDT",
+          "WIF/USDT"
+        ],
+        "hyperopt_loss": "ProfitLockinHyperOptLoss",
+        "epochs": 100
+      },
+      "metrics": {
+        "profit_pct": 0.0,
+        "total_trades": 0,
+        "trades_per_day": 0.0,
+        "profit_factor": 0.0,
+        "drawdown_pct": 0.0,
+        "profit_total": 0.0
+      },
+      "is_profitable": false,
+      "raw_metrics": {
+        "profit_total": 0.0,
+        "total_trades": 0,
+        "profit_factor": 0.0,
+        "max_drawdown_account": 0.0,
+        "best_epoch": 0,
+        "success": true
+      }
+    },
+    {
+      "iteration": 2,
+      "status": "completed",
+      "config": {
+        "strategy": "EnsembleFactory",
+        "timeframe": "15m",
+        "timerange": "20251222-20260620",
+        "pairs": [
+          "AXS/USDT",
+          "FIL/USDT",
+          "WIF/USDT"
+        ],
+        "hyperopt_loss": "OnlyProfitHyperOptLoss",
+        "epochs": 125
+      },
+      "metrics": {
+        "profit_pct": 0.0,
+        "total_trades": 0,
+        "trades_per_day": 0.0,
+        "profit_factor": 0.0,
+        "drawdown_pct": 0.0,
+        "profit_total": 0.0
+      },
+      "is_profitable": false,
+      "raw_metrics": {
+        "profit_total": 0.0,
+        "total_trades": 0,
+        "profit_factor": 0.0,
+        "max_drawdown_account": 0.0,
+        "best_epoch": 0,
+        "success": true
+      }
+    },
+    {
+      "iteration": 3,
+      "status": "completed",
+      "config": {
+        "strategy": "MomentumRobust",
+        "timeframe": "1h",
+        "timerange": "20251222-20260620",
+        "pairs": [
+          "AXS/USDT",
+          "FIL/USDT",
+          "WIF/USDT"
+        ],
+        "hyperopt_loss": "SharpeHyperOptLoss",
+        "epochs": 150
+      },
+      "metrics": {
+        "profit_pct": 0.0,
+        "total_trades": 0,
+        "trades_per_day": 0.0,
+        "profit_factor": 0.0,
+        "drawdown_pct": 0.0,
+        "profit_total": 0.0
+      },
+      "is_profitable": false,
+      "raw_metrics": {
+        "profit_total": 0.0,
+        "total_trades": 0,
+        "profit_factor": 0.0,
+        "max_drawdown_account": 0.0,
+        "best_epoch": 0,
+        "success": true
+      }
+    },
+    {
+      "iteration": 4,
+      "status": "completed",
+      "config": {
+        "strategy": "AutoQuantRobustV3",
+        "timeframe": "5m",
+        "timerange": "20251222-20260620",
+        "pairs": [
+          "AXS/USDT",
+          "FIL/USDT",
+          "WIF/USDT"
+        ],
+        "hyperopt_loss": "CalmarHyperOptLoss",
+        "epochs": 175
+      },
+      "metrics": {
+        "profit_pct": 0.0,
+        "total_trades": 0,
+        "trades_per_day": 0.0,
+        "profit_factor": 0.0,
+        "drawdown_pct": 0.0,
+        "profit_total": 0.0
+      },
+      "is_profitable": false,
+      "raw_metrics": {
+        "profit_total": 0.0,
+        "total_trades": 0,
+        "profit_factor": 0.0,
+        "max_drawdown_account": 0.0,
+        "best_epoch": 0,
+        "success": true
+      }
+    },
+    {
+      "iteration": 5,
+      "status": "completed",
+      "config": {
+        "strategy": "AutoQuantRobustV4",
+        "timeframe": "15m",
+        "timerange": "20251222-20260620",
+        "pairs": [
+          "AXS/USDT",
+          "FIL/USDT",
+          "WIF/USDT"
+        ],
+        "hyperopt_loss": "ProfitLockinHyperOptLoss",
+        "epochs": 200
+      },
+      "metrics": {
+        "profit_pct": 0.0,
+        "total_trades": 0,
+        "trades_per_day": 0.0,
+        "profit_factor": 0.0,
+        "drawdown_pct": 0.0,
+        "profit_total": 0.0
+      },
+      "is_profitable": false,
+      "raw_metrics": {
+        "profit_total": 0.0,
+        "total_trades": 0,
+        "profit_factor": 0.0,
+        "max_drawdown_account": 0.0,
+        "best_epoch": 0,
+        "success": true
+      }
+    },
+    {
+      "iteration": 6,
+      "status": "completed",
+      "config": {
+        "strategy": "CatFactory",
+        "timeframe": "1h",
+        "timerange": "20251222-20260620",
+        "pairs": [
+          "AXS/USDT",
+          "FIL/USDT",
+          "WIF/USDT"
+        ],
+        "hyperopt_loss": "OnlyProfitHyperOptLoss",
+        "epochs": 225
+      },
+      "metrics": {
+        "profit_pct": 0.0,
+        "total_trades": 0,
+        "trades_per_day": 0.0,
+        "profit_factor": 0.0,
+        "drawdown_pct": 0.0,
+        "profit_total": 0.0
+      },
+      "is_profitable": false,
+      "raw_metrics": {
+        "profit_total": 0.0,
+        "total_trades": 0,
+        "profit_factor": 0.0,
+        "max_drawdown_account": 0.0,
+        "best_epoch": 0,
+        "success": true
+      }
+    },
+    {
+      "iteration": 7,
+      "status": "completed",
+      "config": {
+        "strategy": "Diamond",
+        "timeframe": "5m",
+        "timerange": "20251222-20260620",
+        "pairs": [
+          "AXS/USDT",
+          "FIL/USDT",
+          "WIF/USDT"
+        ],
+        "hyperopt_loss": "SharpeHyperOptLoss",
+        "epochs": 250
+      },
+      "metrics": {
+        "profit_pct": 0.0,
+        "total_trades": 0,
+        "trades_per_day": 0.0,
+        "profit_factor": 0.0,
+        "drawdown_pct": 0.0,
+        "profit_total": 0.0
+      },
+      "is_profitable": false,
+      "raw_metrics": {
+        "profit_total": 0.0,
+        "total_trades": 0,
+        "profit_factor": 0.0,
+        "max_drawdown_account": 0.0,
+        "best_epoch": 0,
+        "success": true
+      }
+    },
+    {
+      "iteration": 8,
+      "status": "completed",
+      "config": {
+        "strategy": "DualMomentum",
+        "timeframe": "15m",
+        "timerange": "20251222-20260620",
+        "pairs": [
+          "AXS/USDT",
+          "FIL/USDT",
+          "WIF/USDT"
+        ],
+        "hyperopt_loss": "CalmarHyperOptLoss",
+        "epochs": 275
+      },
+      "metrics": {
+        "profit_pct": 0.0,
+        "total_trades": 0,
+        "trades_per_day": 0.0,
+        "profit_factor": 0.0,
+        "drawdown_pct": 0.0,
+        "profit_total": 0.0
+      },
+      "is_profitable": false,
+      "raw_metrics": {
+        "profit_total": 0.0,
+        "total_trades": 0,
+        "profit_factor": 0.0,
+        "max_drawdown_account": 0.0,
+        "best_epoch": 0,
+        "success": true
+      }
+    },
+    {
+      "iteration": 9,
+      "status": "completed",
+      "config": {
+        "strategy": "EnsembleFactory",
+        "timeframe": "1h",
+        "timerange": "20251222-20260620",
+        "pairs": [
+          "AXS/USDT",
+          "FIL/USDT",
+          "WIF/USDT"
+        ],
+        "hyperopt_loss": "ProfitLockinHyperOptLoss",
+        "epochs": 300
+      },
+      "metrics": {
+        "profit_pct": 0.0,
+        "total_trades": 0,
+        "trades_per_day": 0.0,
+        "profit_factor": 0.0,
+        "drawdown_pct": 0.0,
+        "profit_total": 0.0
+      },
+      "is_profitable": false,
+      "raw_metrics": {
+        "profit_total": 0.0,
+        "total_trades": 0,
+        "profit_factor": 0.0,
+        "max_drawdown_account": 0.0,
+        "best_epoch": 0,
+        "success": true
+      }
+    },
+    {
+      "iteration": 10,
+      "status": "completed",
+      "config": {
+        "strategy": "GAProfitableStrategy",
+        "timeframe": "5m",
+        "timerange": "20251222-20260620",
+        "pairs": [
+          "AXS/USDT",
+          "FIL/USDT",
+          "WIF/USDT"
+        ],
+        "hyperopt_loss": "OnlyProfitHyperOptLoss",
+        "epochs": 325
+      },
+      "metrics": {
+        "profit_pct": 0.0,
+        "total_trades": 0,
+        "trades_per_day": 0.0,
+        "profit_factor": 0.0,
+        "drawdown_pct": 0.0,
+        "profit_total": 0.0
+      },
+      "is_profitable": false,
+      "raw_metrics": {
+        "profit_total": 0.0,
+        "total_trades": 0,
+        "profit_factor": 0.0,
+        "max_drawdown_account": 0.0,
+        "best_epoch": 0,
+        "success": true
+      }
+    },
+    {
+      "iteration": 11,
+      "status": "completed",
+      "config": {
+        "strategy": "HybridScalp_v1",
+        "timeframe": "15m",
+        "timerange": "20251222-20260620",
+        "pairs": [
+          "AXS/USDT",
+          "FIL/USDT",
+          "WIF/USDT"
+        ],
+        "hyperopt_loss": "SharpeHyperOptLoss",
+        "epochs": 350
+      },
+      "metrics": {
+        "profit_pct": 0.0,
+        "total_trades": 0,
+        "trades_per_day": 0.0,
+        "profit_factor": 0.0,
+        "drawdown_pct": 0.0,
+        "profit_total": 0.0
+      },
+      "is_profitable": false,
+      "raw_metrics": {
+        "profit_total": 0.0,
+        "total_trades": 0,
+        "profit_factor": 0.0,
+        "max_drawdown_account": 0.0,
+        "best_epoch": 0,
+        "success": true
+      }
+    },
+    {
+      "iteration": 12,
+      "status": "completed",
+      "config": {
+        "strategy": "IntradayAdaptive_v1",
+        "timeframe": "1h",
+        "timerange": "20251222-20260620",
+        "pairs": [
+          "AXS/USDT",
+          "FIL/USDT",
+          "WIF/USDT"
+        ],
+        "hyperopt_loss": "CalmarHyperOptLoss",
+        "epochs": 375
+      },
+      "metrics": {
+        "profit_pct": 0.0,
+        "total_trades": 0,
+        "trades_per_day": 0.0,
+        "profit_factor": 0.0,
+        "drawdown_pct": 0.0,
+        "profit_total": 0.0
+      },
+      "is_profitable": false,
+      "raw_metrics": {
+        "profit_total": 0.0,
+        "total_trades": 0,
+        "profit_factor": 0.0,
+        "max_drawdown_account": 0.0,
+        "best_epoch": 0,
+        "success": true
+      }
+    },
+    {
+      "iteration": 13,
+      "status": "completed",
+      "config": {
+        "strategy": "IntradayBasic_v1",
+        "timeframe": "5m",
+        "timerange": "20251222-20260620",
+        "pairs": [
+          "AXS/USDT",
+          "FIL/USDT",
+          "WIF/USDT"
+        ],
+        "hyperopt_loss": "ProfitLockinHyperOptLoss",
+        "epochs": 400
+      },
+      "metrics": {
+        "profit_pct": 0.0,
+        "total_trades": 0,
+        "trades_per_day": 0.0,
+        "profit_factor": 0.0,
+        "drawdown_pct": 0.0,
+        "profit_total": 0.0
+      },
+      "is_profitable": false,
+      "raw_metrics": {
+        "profit_total": 0.0,
+        "total_trades": 0,
+        "profit_factor": 0.0,
+        "max_drawdown_account": 0.0,
+        "best_epoch": 0,
+        "success": true
+      }
+    },
+    {
+      "iteration": 14,
+      "status": "completed",
+      "config": {
+        "strategy": "IntradayMomentum_v1",
+        "timeframe": "15m",
+        "timerange": "20251222-20260620",
+        "pairs": [
+          "AXS/USDT",
+          "FIL/USDT",
+          "WIF/USDT"
+        ],
+        "hyperopt_loss": "OnlyProfitHyperOptLoss",
+        "epochs": 425
+      },
+      "metrics": {
+        "profit_pct": 0.0,
+        "total_trades": 0,
+        "trades_per_day": 0.0,
+        "profit_factor": 0.0,
+        "drawdown_pct": 0.0,
+        "profit_total": 0.0
+      },
+      "is_profitable": false,
+      "raw_metrics": {
+        "profit_total": 0.0,
+        "total_trades": 0,
+        "profit_factor": 0.0,
+        "max_drawdown_account": 0.0,
+        "best_epoch": 0,
+        "success": true
+      }
+    },
+    {
+      "iteration": 15,
+      "status": "completed",
+      "config": {
+        "strategy": "IntradayOmni_v1",
+        "timeframe": "1h",
+        "timerange": "20251222-20260620",
+        "pairs": [
+          "AXS/USDT",
+          "FIL/USDT",
+          "WIF/USDT"
+        ],
+        "hyperopt_loss": "SharpeHyperOptLoss",
+        "epochs": 450
+      },
+      "metrics": {
+        "profit_pct": 0.0,
+        "total_trades": 0,
+        "trades_per_day": 0.0,
+        "profit_factor": 0.0,
+        "drawdown_pct": 0.0,
+        "profit_total": 0.0
+      },
+      "is_profitable": false,
+      "raw_metrics": {
+        "profit_total": 0.0,
+        "total_trades": 0,
+        "profit_factor": 0.0,
+        "max_drawdown_account": 0.0,
+        "best_epoch": 0,
+        "success": true
+      }
+    }
+  ]
+}

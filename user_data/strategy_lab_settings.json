@@ -10,5 +10,10 @@
   "network_mode": "local",
   "hyperopt_workers": 4,
   "ollama_self_healing_enabled": false,
-  "ollama_timeout": 120
+  "ollama_timeout": 120,
+  "discord_enabled": true,
+  "discord_bot_token": "MTM4ODY5NTI3MDAwMjUyNDI0MA.G_Q2pR.fS0BHf_BY-M1IT42tTX7v9WZOTe0kkdXv4kxI4",
+  "discord_server_id": "1396879195950289146",
+  "discord_user_id": "1379518723756527646",
+  "discord_notification_channel_id": null
 }

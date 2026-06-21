@@ -62,6 +62,13 @@ class SettingsModel(StrictModel):
     ollama_model_strategylab: str = ""
     ollama_model_optimizer: str = ""
 
+    # Discord integration
+    discord_enabled: bool = False
+    discord_bot_token: str = ""
+    discord_server_id: str = ""
+    discord_user_id: str = ""
+    discord_notification_channel_id: str | None = None
+
 
 class RunRequest(StrictModel):
     """Backend data type for `RunRequest`."""

@@ -723,6 +723,79 @@ export default function SettingsTab() {
               </div>
             </div>
 
+            {/* ── Discord Integration ── */}
+            <SectionDivider label="DISCORD INTEGRATION" />
+
+            <div className="space-y-4">
+              <div className="flex items-start gap-2 text-xs text-base-content/50 bg-base-300/30 rounded-lg px-3 py-2.5 border border-base-300">
+                <span className="text-base leading-none mt-0.5 shrink-0">💬</span>
+                <span>
+                  Enable Discord bot for notifications and commands. The bot will send alerts for AutoQuant pipeline events,
+                  strategy results, and system health issues to your Discord server.
+                </span>
+              </div>
+
+              {/* Enable Discord */}
+              <div className="form-control">
+                <label className="label cursor-pointer justify-start gap-3 py-2">
+                  <input
+                    type="checkbox"
+                    className="toggle toggle-sm toggle-primary"
+                    checked={settings.discord_enabled ?? false}
+                    onChange={e => update("discord_enabled", e.target.checked)}
+                    disabled={saving}
+                  />
+                  <div className="flex flex-col">
+                    <span className="label-text font-medium text-sm">Enable Discord Integration</span>
+                    <span className="label-text-alt text-base-content/50 text-xs">
+                      Connect Discord bot for notifications and commands
+                    </span>
+                  </div>
+                </label>
+              </div>
+
+              {settings.discord_enabled && (
+                <div className="space-y-4 pl-4 border-l-2 border-base-300">
+                  <InputRow
+                    label="Bot Token"
+                    sub="Discord bot token from Discord Developer Portal"
+                    value={settings.discord_bot_token || ""}
+                    onChange={v => update("discord_bot_token", v)}
+                    disabled={saving}
+                    type="password"
+                    placeholder="MTM4ODY5NTI3MDAwMjUyNDI0MA..."
+                  />
+
+                  <InputRow
+                    label="Server ID"
+                    sub="Your Discord server ID (right-click server → Copy ID)"
+                    value={settings.discord_server_id || ""}
+                    onChange={v => update("discord_server_id", v)}
+                    disabled={saving}
+                    placeholder="1396879195950289146"
+                  />
+
+                  <InputRow
+                    label="User ID"
+                    sub="Your Discord user ID for admin commands (right-click user → Copy ID)"
+                    value={settings.discord_user_id || ""}
+                    onChange={v => update("discord_user_id", v)}
+                    disabled={saving}
+                    placeholder="1379518723756527646"
+                  />
+
+                  <InputRow
+                    label="Notification Channel ID"
+                    sub="Default channel for notifications (right-click channel → Copy ID)"
+                    value={settings.discord_notification_channel_id || ""}
+                    onChange={v => update("discord_notification_channel_id", v)}
+                    disabled={saving}
+                    placeholder="Optional - leave empty to use server default"
+                  />
+                </div>
+              )}
+            </div>
+
             {/* ── Danger Zone ── */}
             <SectionDivider label="DANGER ZONE" danger />
             <div className="card bg-error/5 border border-error/20 p-4">

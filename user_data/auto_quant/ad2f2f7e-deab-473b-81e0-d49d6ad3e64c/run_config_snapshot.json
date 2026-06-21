@@ -1,0 +1,83 @@
+{
+  "strategy": "GAProfitableStrategy",
+  "strategy_source": "existing",
+  "trading_style": "swing",
+  "risk_profile": "balanced",
+  "analysis_depth": "standard",
+  "uploaded_strategy_id": null,
+  "advanced_overrides": {},
+  "timeframe": "1h",
+  "configured_timeframes": [
+    "1h",
+    "4h",
+    "1d"
+  ],
+  "unsupported_timeframes": [],
+  "in_sample_range": "20230101-20240101",
+  "out_sample_range": "20240101-20241201",
+  "exchange": "binance",
+  "config_file": "user_data/config.json",
+  "pair": null,
+  "pair_universe": [
+    "BTC/USDT",
+    "ETH/USDT",
+    "BNB/USDT",
+    "SOL/USDT",
+    "XRP/USDT",
+    "ADA/USDT",
+    "DOGE/USDT",
+    "LINK/USDT",
+    "AVAX/USDT",
+    "SUI/USDT",
+    "LTC/USDT",
+    "TRX/USDT"
+  ],
+  "selected_pair_universe": [
+    "BTC/USDT",
+    "ETH/USDT",
+    "BNB/USDT",
+    "SOL/USDT",
+    "XRP/USDT",
+    "ADA/USDT",
+    "DOGE/USDT",
+    "LINK/USDT",
+    "AVAX/USDT",
+    "SUI/USDT",
+    "LTC/USDT",
+    "TRX/USDT"
+  ],
+  "thresholds": {
+    "min_profit_factor": 1.0,
+    "max_drawdown": 0.3,
+    "min_trades": 100,
+    "min_expectancy": 0.0008,
+    "min_win_rate": 0.4,
+    "min_pair_pass_rate": 0.6,
+    "min_oos_retention": 0.5,
+    "min_sharpe": 0.5,
+    "min_oos_profit": 0.0,
+    "monte_carlo_threshold": 0.35
+  },
+  "hyperopt_loss": "SharpeHyperOptLoss",
+  "hyperopt_spaces": [
+    "buy",
+    "sell",
+    "stoploss",
+    "roi"
+  ],
+  "hyperopt_epochs": 150,
+  "wfo_enabled": false,
+  "wfo_is_months": 3,
+  "wfo_oos_months": 1,
+  "wfo_recency_weight": 1.0,
+  "ensemble_enabled": false,
+  "validation_notes": [],
+  "policy_versions": {
+    "timeframes": "timeframes_v1",
+    "risk_profiles": "risk_profiles_v1",
+    "pair_universe": "pair_universe_v1",
+    "score_weights": "robustness_score_v1",
+    "readiness_labels": "readiness_labels_v1",
+    "thresholds": "intraday:legacy,position:legacy,scalping:legacy,swing:legacy"
+  }
+}

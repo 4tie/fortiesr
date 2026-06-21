@@ -14,6 +14,7 @@ import PairExplorerTab from "../PairExplorerTab.jsx";
 import AutoQuantTab from "../AutoQuantTab.jsx";
 import StrategyLabTab from "../StrategyLabTab.jsx";
 import AssistantTab from "../AssistantTab.jsx";
+import QuantTab from "../QuantTab.jsx";
 
 export const TAB_REGISTRY = {
   backtest: {
@@ -106,6 +107,15 @@ export const TAB_REGISTRY = {
     id: "ai-assistant",
     label: "AI Assistant",
     component: AssistantTab,
+    requiresStrategies: false,
+    requiresPairs: false,
+    requiresSharedState: false,
+    askAiEnabled: false,
+  },
+  quant: {
+    id: "quant",
+    label: "Quant",
+    component: QuantTab,
     requiresStrategies: false,
     requiresPairs: false,
     requiresSharedState: false,

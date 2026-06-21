@@ -1,0 +1,12 @@
+{
+  "original_strategy": "GAProfitableStrategy",
+  "original_strategy_hash": "3088b79b2688d4f4711ff3c035daa1918ffd7d2250cd8a3bc21cb3ae43844e6f",
+  "variants": [
+    {
+      "role": "working",
+      "strategy_name": "GAProfitableStrategy",
+      "path": "user_data/auto_quant/fefc2edf-1a31-4b37-a8d8-8c72b7208038/strategies/GAProfitableStrategy.py",
+      "source": "user_data/strategies/GAProfitableStrategy.py"
+    }
+  ]
+}

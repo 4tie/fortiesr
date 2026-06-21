@@ -43,7 +43,8 @@ export default function NavPanel({ activeItem, onChange, resultsCount }) {
         <NavItem icon="🧬" label="Strategy Lab" active={activeItem === "strategy-lab"} onClick={() => onChange("strategy-lab")} />
 
         <SectionLabel>Analytics</SectionLabel>
-        <NavItem icon="📈" label="Performance"     active={activeItem === "performance"}     onClick={() => onChange("performance")} />
+        <NavItem icon="�" label="Quant"           active={activeItem === "quant"}           onClick={() => onChange("quant")} />
+        <NavItem icon="�📈" label="Performance"     active={activeItem === "performance"}     onClick={() => onChange("performance")} />
         <NavItem icon="✨" label="AI Assistant"    active={activeItem === "ai-assistant"}   onClick={() => onChange("ai-assistant")} />
         <NavItem icon="⚙️" label="Settings"        active={activeItem === "settings"}        onClick={() => onChange("settings")} />
       </nav>

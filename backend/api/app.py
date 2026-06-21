@@ -34,7 +34,7 @@ from ..core.errors import BackendError
 from ..runtime import create_services
 from .log_broadcaster import LogBroadcaster, wire_service_callbacks
 from .session_store import SessionStore
-from .routers import data, backtest, stress_lab, temporal_stress_lab, session, settings, logs, strategies, pairs, shared_state, results, results_list, system_health, optimizer, performance, ai_assistant, pair_explorer, auto_quant, agent, ai_agent, candidate, charts
+from .routers import data, backtest, stress_lab, temporal_stress_lab, session, settings, logs, strategies, pairs, shared_state, results, results_list, system_health, optimizer, performance, ai_assistant, pair_explorer, auto_quant, agent, ai_agent, candidate, charts, discord, quant
 from ..services.auto_quant import pipeline as _aq_pipeline
 
 
@@ -85,6 +85,15 @@ async def _lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             "Failed to start Ollama health monitor during startup"
         )
 
+    # Start Discord bot if enabled
+    try:
+        await services.discord_service.start()
+    except Exception:
+        import logging as _logging
+        _logging.getLogger("discord_service").exception(
+            "Failed to start Discord bot during startup"
+        )
+
     yield
 
     # Cleanup health monitor during shutdown
@@ -102,6 +111,13 @@ async def _lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception:
         import logging as _logging
         _logging.getLogger("ai_service").exception("AI service cleanup failed during shutdown")
+
+    # Cleanup Discord bot during shutdown
+    try:
+        await services.discord_service.stop()
+    except Exception:
+        import logging as _logging
+        _logging.getLogger("discord_service").exception("Discord bot cleanup failed during shutdown")
 
 
 def create_app(root_dir: Path | None = None) -> FastAPI:
@@ -187,6 +203,8 @@ def create_app(root_dir: Path | None = None) -> FastAPI:
     app.include_router(ai_agent.router)
     app.include_router(candidate.router)
     app.include_router(charts.router)
+    app.include_router(discord.router)
+    app.include_router(quant.router)
 
     @app.get("/health", tags=["Health"])
     async def health() -> dict:
