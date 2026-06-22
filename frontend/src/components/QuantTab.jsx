@@ -1,26 +1,30 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 export default function QuantTab() {
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedReport, setSelectedReport] = useState(null);
 
-  useEffect(() => {
-    fetchReports();
-  }, []);
-
-  const fetchReports = async () => {
-    setLoading(true);
+  const fetchReports = useCallback(async () => {
     try {
       const res = await fetch("/api/quant/reports");
       const data = await res.json();
       setReports(data.reports || []);
     } catch (e) {
       console.error("Failed to fetch reports:", e);
-    } finally {
-      setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    const load = async () => {
+      setLoading(true);
+      await fetchReports();
+      if (isMounted) setLoading(false);
+    };
+    load();
+    return () => { isMounted = false; };
+  }, [fetchReports]);
 
   const viewReport = async (reportName) => {
     try {

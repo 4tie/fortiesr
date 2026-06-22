@@ -9,7 +9,7 @@ function ResultsTabContent({ activeResult, clearActiveResult, handleLoadResult }
       {activeResult ? (
         <div className="py-6">
           <div className="mx-auto w-full max-w-5xl px-6 mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold tracking-tight">Result Details</h2>
+            <h2 className="text-lg font-semibold tracking-tight font-heading">Result Details</h2>
             <button className="btn btn-sm btn-ghost" onClick={clearActiveResult}>
               &larr; Back to list
             </button>

@@ -4,19 +4,19 @@ import { useStrategies } from "./hooks/useStrategies.js";
 import { usePairs } from "./hooks/usePairs.js";
 import { useTheme } from "./hooks/useTheme.js";
 import { useAgentUiState } from "./hooks/useAgentUiState.js";
-import NavPanel from "./components/NavPanel.jsx";
+import TopNav from "./components/TopNav.jsx";
 import ErrorBoundary from "./components/ErrorBoundary.jsx";
 import { ToastProvider } from "./components/Toast.jsx";
-import AppHeader from "./components/appShell/AppHeader.jsx";
 import AssistantDrawer from "./components/appShell/AssistantDrawer.jsx";
 import TabContentRenderer from "./components/appShell/TabContentRenderer.jsx";
 import UnsavedChangesDialog from "./components/appShell/UnsavedChangesDialog.jsx";
 import { buildAgentContext } from "./components/appShell/agentContext.js";
+import { getNavTabForSubTab, NAV_TABS } from "./components/tabs/registry.js";
 
 function App() {
-  const [activeTab,    setActiveTab]    = useState("backtest");
+  const [activeNavTab, setActiveNavTab] = useState("overview");
+  const [activeTab,    setActiveTab]    = useState("overview");
   const [activeResult, setActiveResult] = useState(null);
-  const [editorDirty,  setEditorDirty]  = useState(false);
   const [pendingTab,   setPendingTab]   = useState(null);
   const [backendOnline, setBackendOnline] = useState(true);
   const [agentTabContext, setAgentTabContext] = useState({});
@@ -45,6 +45,7 @@ function App() {
   const handleLoadResult = (res) => {
     setActiveResult(res);
     setActiveTab("results");
+    setActiveNavTab("content");
   };
 
   const clearActiveResult = () => setActiveResult(null);
@@ -60,25 +61,21 @@ function App() {
     syncAgentUiState(overrides);
   }, [currentAgentOverrides, syncAgentUiState]);
 
-  const handleTabChange = useCallback((tab) => {
-    if (activeTab === "strategy-editor" && editorDirty && tab !== "strategy-editor") {
-      setPendingTab(tab);
-      return;
+  const handleNavTabChange = useCallback((navTab) => {
+    setActiveNavTab(navTab);
+    // Set first sub-tab as default when switching nav tabs
+    const navTabConfig = Object.values(NAV_TABS).find(t => t.id === navTab);
+    if (navTabConfig && navTabConfig.subTabs.length > 0) {
+      setActiveTab(navTabConfig.subTabs[0]);
     }
-    setAgentTabContext({});
-    setActiveTab(tab);
-    if (tab !== "results") setActiveResult(null);
-    if (tab !== "strategy-editor") {
-      setEditorDirty(false);
-    }
-  }, [activeTab, editorDirty]);
+  }, []);
 
   const confirmLeave = () => {
     const dest = pendingTab;
     setPendingTab(null);
-    setEditorDirty(false);
     setAgentTabContext({});
     setActiveTab(dest);
+    setActiveNavTab(getNavTabForSubTab(dest));
     if (dest !== "results") setActiveResult(null);
   };
 
@@ -92,35 +89,34 @@ function App() {
     <ToastProvider>
       <ErrorBoundary tabName="App">
         <div className="h-screen flex flex-col bg-base-100 text-base-content overflow-hidden">
-          <AppHeader
-            activeTab={activeTab}
+          <div className="bg-orbs" />
+          <div className="bg-dot-grid" />
+          
+          <TopNav
+            activeTab={activeNavTab}
+            onChange={handleNavTabChange}
             backendOnline={backendOnline}
-            onAskAi={openAssistant}
           />
 
-          <div className="flex flex-1 min-h-0 overflow-hidden">
-            <NavPanel activeItem={activeTab} onChange={handleTabChange} />
-
-            <main className="flex-1 min-w-0 overflow-y-auto bg-base-100">
-              <TabContentRenderer
-                activeTab={activeTab}
-                tabProps={{
-                  strategies,
-                  strategiesLoading,
-                  availablePairs,
-                  searchPairs,
-                  sharedState,
-                  sharedLoading,
-                  syncSharedState,
-                  activeResult,
-                  clearActiveResult,
-                  handleLoadResult,
-                  onAgentContextChange: setAgentTabContext,
-                  onDirtyChange: setEditorDirty,
-                }}
-              />
-            </main>
-          </div>
+          <main className="flex-1 min-w-0 overflow-y-auto pt-20 px-6 pb-6">
+            <TabContentRenderer
+              activeTab={activeTab}
+              tabProps={{
+                strategies,
+                strategiesLoading,
+                availablePairs,
+                searchPairs,
+                sharedState,
+                sharedLoading,
+                syncSharedState,
+                activeResult,
+                clearActiveResult,
+                handleLoadResult,
+                onAgentContextChange: setAgentTabContext,
+                onAskAi: openAssistant,
+              }}
+            />
+          </main>
 
           {assistantOpen && (
             <AssistantDrawer

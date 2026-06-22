@@ -1,0 +1,18 @@
+{
+  "strategy_name": "GAProfitableStrategy",
+  "params": {
+    "buy": {},
+    "sell": {},
+    "roi": {
+      "0": 0.05,
+      "120": 0.03,
+      "240": 0.01
+    },
+    "stoploss": {
+      "stoploss": -0.06
+    },
+    "trailing": {
+      "trailing_stop": false
+    }
+  }
+}

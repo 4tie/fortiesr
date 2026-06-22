@@ -34,7 +34,7 @@ from ..core.errors import BackendError
 from ..runtime import create_services
 from .log_broadcaster import LogBroadcaster, wire_service_callbacks
 from .session_store import SessionStore
-from .routers import data, backtest, stress_lab, temporal_stress_lab, session, settings, logs, strategies, pairs, shared_state, results, results_list, system_health, optimizer, performance, ai_assistant, pair_explorer, auto_quant, agent, ai_agent, candidate, charts, discord, quant
+from .routers import data, backtest, stress_lab, temporal_stress_lab, session, settings, logs, strategies, pairs, shared_state, results, results_list, system_health, optimizer, performance, ai_assistant, pair_explorer, auto_quant, agent, ai_agent, candidate, charts, discord, quant, events
 from ..services.auto_quant import pipeline as _aq_pipeline
 
 
@@ -205,6 +205,7 @@ def create_app(root_dir: Path | None = None) -> FastAPI:
     app.include_router(charts.router)
     app.include_router(discord.router)
     app.include_router(quant.router)
+    app.include_router(events.router)
 
     @app.get("/health", tags=["Health"])
     async def health() -> dict:

@@ -1,5 +1,5 @@
 {
-  "active_tab": "backtest",
+  "active_tab": "overview",
   "active_panel": null,
   "strategy_name": null,
   "auto_quant_run_id": null,
@@ -7,6 +7,6 @@
   "backtest_run_id": null,
   "api_session_id": null,
   "schema_version": "agent_ui_state_v1",
-  "updated_at": "2026-06-21T11:37:42.853714+00:00",
+  "updated_at": "2026-06-22T03:37:04.086608+00:00",
   "optimizer_trial_number": null
 }

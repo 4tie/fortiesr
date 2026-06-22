@@ -19,7 +19,6 @@ from services.auto_quant.genetic.strategy_dna import get_default_indicator_names
 
 async def freqtrade_backtest(dna):
     """Run actual Freqtrade backtest with DNA parameters."""
-    
     # Extract parameters from DNA
     buy_thresholds = dna.buy_thresholds
     sell_thresholds = dna.sell_thresholds

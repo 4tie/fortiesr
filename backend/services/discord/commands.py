@@ -37,7 +37,7 @@ class DiscordCommandHandlers:
         tree.command(name="status", description="Get system health status")(self.cmd_status)
         tree.command(name="list_strategies", description="List available strategies")(self.cmd_list_strategies)
         tree.command(name="autoquant_status", description="Get AutoQuant pipeline status")(self.cmd_autoquant_status)
-        tree.command(name="help", description="Show available commands")(self.cmd_help)
+        tree.command(name="help", description="Show available commands and instructions")(self.cmd_help)
 
     async def cmd_status(self, interaction: discord.Interaction) -> None:
         """Handle /status command - Get system health status."""
@@ -182,31 +182,67 @@ class DiscordCommandHandlers:
 
     async def cmd_help(self, interaction: discord.Interaction) -> None:
         """Handle /help command - Show available commands."""
+        help_text = """🤖 **Strategy Lab Discord Bot**
+
+**System Commands:**
+
+`/status` - Get system health status (admin only)
+  • Checks Freqtrade CLI availability
+  • Verifies critical directories
+  • Shows overall system health
+
+`/list_strategies` - List all available strategies
+  • Shows all registered strategies
+  • Displays strategy metadata
+
+`/autoquant_status` - Get AutoQuant pipeline status
+  • Shows active pipeline runs
+  • Displays run status and progress
+
+**Quant Agent Commands:**
+
+`/backtest <strategy> [timeframe] [timerange]` - Run a backtest
+  • strategy: Strategy name (required)
+  • timeframe: 1h, 4h, 1d (default: 1h)
+  • timerange: 20240101-20240601 (default: 20240101-20240601)
+
+`/download <pairs> [timeframe] [timerange]` - Download market data
+  • pairs: BTC/USDT,ETH/USDT (comma-separated, required)
+
+`/hyperopt <strategy> [timeframe] [timerange] [epochs]` - Run hyperopt
+  • strategy: Strategy name (required)
+  • epochs: Number of epochs (default: 100)
+
+`/compare <strategies> [timeframe] [timerange]` - Compare strategies
+  • strategies: StrategyA,StrategyB (comma-separated, required)
+
+`/report [report_type]` - List available reports
+  • report_type: backtest, comparison (default: backtest)
+
+`/quant <step> [strategy] [timeframe] [timerange]` - Run workflow step
+  • step: backtest, download, hyperopt, compare, report (required)
+
+`/quant_help` - Show detailed Quant agent instructions
+
+**Error Handling:**
+• Admin commands require permission
+• Invalid parameters show specific errors
+• Failed operations display error details
+• All errors are logged for debugging
+
+**Notes:**
+• Live trading is disabled for safety
+• Use `/quant_help` for detailed Quant instructions
+• Reports are saved to `/data/quant_reports/`
+• Bot auto-starts with backend server"""
+
         embed = discord.Embed(
             title="🤖 Strategy Lab Discord Bot Commands",
-            description="Available slash commands for interacting with Strategy Lab",
+            description="Complete guide for using the Strategy Lab Discord bot",
             color=0x00AAFF,
         )
 
-        embed.add_field(
-            name="/status",
-            value="Get system health status (admin only)",
-            inline=False,
-        )
-        embed.add_field(
-            name="/list_strategies",
-            value="List all available strategies",
-            inline=False,
-        )
-        embed.add_field(
-            name="/autoquant_status",
-            value="Get AutoQuant pipeline status",
-            inline=False,
-        )
-        embed.add_field(
-            name="/help",
-            value="Show this help message",
-            inline=False,
-        )
+        embed.add_field(name="Commands", value=help_text, inline=False)
+        embed.set_footer(text="Strategy Lab v1.0 | Use /quant_help for detailed Quant instructions")
 
-        await interaction.response.send_message(embed=embed)
+        await interaction.response.send_message(embed=embed, ephemeral=False)
