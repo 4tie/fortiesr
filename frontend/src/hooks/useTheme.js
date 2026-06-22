@@ -1,15 +1,13 @@
 import { useState, useEffect } from "react";
 
 export const THEMES = [
-  { id: "cold-black",   label: "Cold Black",   icon: "🌑", description: "Pure monochromatic dark" },
-  { id: "neon-cyber",   label: "Neon Cyber",   icon: "⚡", description: "Deep dark with neon accents" },
-  { id: "nordic-light", label: "Nordic Light", icon: "☀️", description: "Clean ice-white mode" },
+  { id: "glassmorphism", label: "Glassmorphism", icon: "🔮", description: "Dark glassmorphism with violet/cyan accents" },
 ];
 
 export function useTheme() {
   const [theme, setTheme] = useState(() => {
-    try { return localStorage.getItem("sl-theme") || "cold-black"; }
-    catch { return "cold-black"; }
+    try { return localStorage.getItem("sl-theme") || "glassmorphism"; }
+    catch { return "glassmorphism"; }
   });
 
   useEffect(() => {

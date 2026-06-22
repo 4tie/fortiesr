@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import { ClockIcon, CpuChipIcon, BeakerIcon, ChartBarIcon, ShieldCheckIcon, FunnelIcon } from "@heroicons/react/24/outline";
-import animations from "../../animations";
 
 const SEVERITY_COLORS = {
   info: "text-info border-info/30 bg-info/10",

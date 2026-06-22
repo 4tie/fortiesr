@@ -168,7 +168,6 @@ function PortfolioBaselineReview({ data, onResume }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  const portfolioSummary = data.portfolio_summary || {};
   const perPair = data.per_pair || [];
   const portfolioProfit = data.portfolio_profit ?? 0;
   const portfolioMaxDd = data.portfolio_max_dd ?? 0;

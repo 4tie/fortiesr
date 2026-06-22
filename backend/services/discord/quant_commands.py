@@ -40,6 +40,7 @@ class QuantCommandHandlers:
         tree.command(name="compare", description="Compare multiple strategies")(self.cmd_compare)
         tree.command(name="report", description="Generate a report")(self.cmd_report)
         tree.command(name="quant", description="Run Quant workflow step")(self.cmd_quant)
+        tree.command(name="quant_help", description="Show Quant agent instructions")(self.cmd_quant_help)
 
     async def cmd_backtest(
         self,
@@ -372,3 +373,68 @@ class QuantCommandHandlers:
                 f"❌ Error running step {step}: {str(e)}",
                 ephemeral=True,
             )
+
+    async def cmd_quant_help(self, interaction: discord.Interaction) -> None:
+        """Handle /quant_help command - Show complete instructions."""
+        help_text = """📊 **Quant Agent Help**
+
+**Available Commands:**
+
+`/backtest <strategy> [timeframe] [timerange]` - Run a backtest for a strategy
+  • strategy: Strategy name (required)
+  • timeframe: Timeframe like 1h, 4h, 1d (default: 1h)
+  • timerange: Date range like 20240101-20240601 (default: 20240101-20240601)
+
+`/download <pairs> [timeframe] [timerange]` - Download market data
+  • pairs: Comma-separated pairs like BTC/USDT,ETH/USDT (required)
+  • timeframe: Timeframe (default: 1h)
+  • timerange: Date range (default: 20240101-20240601)
+
+`/hyperopt <strategy> [timeframe] [timerange] [epochs]` - Run hyperopt optimization
+  • strategy: Strategy name (required)
+  • timeframe: Timeframe (default: 1h)
+  • timerange: Date range (default: 20240101-20240601)
+  • epochs: Number of optimization epochs (default: 100)
+
+`/compare <strategies> [timeframe] [timerange]` - Compare multiple strategies
+  • strategies: Comma-separated strategy names (required)
+  • timeframe: Timeframe (default: 1h)
+  • timerange: Date range (default: 20240101-20240601)
+
+`/report [report_type]` - List available reports
+  • report_type: Type of report to filter (default: backtest)
+
+`/quant <step> [strategy] [timeframe] [timerange]` - Run a specific workflow step
+  • step: One of: backtest, download, hyperopt, compare, report (required)
+  • strategy: Strategy name (required for backtest/hyperopt/compare)
+  • timeframe: Timeframe (default: 1h)
+  • timerange: Date range (default: 20240101-20240601)
+
+**Examples:**
+• `/backtest MyStrategy 4h 20240101-20240601`
+• `/download BTC/USDT,ETH/USDT 1h 20240101-20240601`
+• `/hyperopt MyStrategy 1h 20240101-20240601 200`
+• `/compare StrategyA,StrategyB,StrategyC`
+• `/quant run --step backtest --strategy MyStrategy`
+
+**Error Handling:**
+• All commands require admin permission
+• Invalid parameters will show specific error messages
+• Failed operations will display error details
+• Reports are saved to `/data/quant_reports/`
+
+**Notes:**
+• Live trading is disabled for safety
+• All operations are logged
+• Reports are generated in Markdown format
+• Use the Quant tab in the dashboard to view reports"""
+
+        embed = discord.Embed(
+            title="📊 Quant Agent Instructions",
+            description="Complete guide for using the Quant agent",
+            color=0x00AAFF,
+        )
+        embed.add_field(name="Commands", value=help_text, inline=False)
+        embed.set_footer(text="Strategy Lab Quant Agent v1.0")
+
+        await interaction.response.send_message(embed=embed, ephemeral=False)
