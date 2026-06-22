@@ -11,65 +11,62 @@ import OptimizerTab from "../OptimizerTab.jsx";
 import StrategyEditorTab from "../StrategyEditorTab.jsx";
 import PerformanceTab from "../PerformanceTab.jsx";
 import PairExplorerTab from "../PairExplorerTab.jsx";
-import AutoQuantControlCenter from "../AutoQuantControlCenter.jsx";
+import AutoQuantOverview from "../AutoQuantOverview.jsx";
 import StrategyLabTab from "../StrategyLabTab.jsx";
 import AssistantTab from "../AssistantTab.jsx";
 import QuantTab from "../QuantTab.jsx";
-import OverviewTab from "../OverviewTab.jsx";
 import AgentsTab from "../AgentsTab.jsx";
 import TasksTab from "../TasksTab.jsx";
 import ScheduleTab from "../ScheduleTab.jsx";
 import ContentTab from "../ContentTab.jsx";
 
-// Navigation tab mapping - maps 5 main nav tabs to sub-tabs
+// Navigation tab mapping - flat structure matching TopNav
 export const NAV_TABS = {
-  overview: {
-    id: "overview",
-    label: "Overview",
-    subTabs: ["overview"],
-  },
   agents: {
     id: "agents",
     label: "Agents",
-    subTabs: ["agents", "ai-assistant", "auto-quant"],
   },
   tasks: {
     id: "tasks",
     label: "Tasks",
-    subTabs: ["tasks", "backtest", "optimizer", "stress-test"],
   },
   schedule: {
     id: "schedule",
     label: "Schedule",
-    subTabs: ["schedule", "strategy-lab", "strategy-editor"],
   },
   content: {
     id: "content",
     label: "Content",
-    subTabs: ["content", "results", "performance", "pair-explorer", "quant", "settings"],
+  },
+  "auto-quant": {
+    id: "auto-quant",
+    label: "AutoQuant",
+  },
+  optimizer: {
+    id: "optimizer",
+    label: "Optimizer",
+  },
+  backtest: {
+    id: "backtest",
+    label: "Backtest",
+  },
+  results: {
+    id: "results",
+    label: "Results",
+  },
+  "pair-explorer": {
+    id: "pair-explorer",
+    label: "Pair Explorer",
   },
 };
 
-// Helper to find which nav tab a sub-tab belongs to
+// Helper to find which nav tab a sub-tab belongs to (no longer needed with flat structure)
 export const getNavTabForSubTab = (subTabId) => {
-  for (const [navTabId, navTab] of Object.entries(NAV_TABS)) {
-    if (navTab.subTabs.includes(subTabId)) {
-      return navTabId;
-    }
-  }
-  return "overview"; // Default
+  // With flat navigation, each tab is its own nav tab
+  return NAV_TABS[subTabId] ? subTabId : "agents";
 };
 
 export const TAB_REGISTRY = {
-  overview: {
-    id: "overview",
-    label: "Overview",
-    component: OverviewTab,
-    requiresStrategies: false,
-    requiresPairs: false,
-    requiresSharedState: false,
-    askAiEnabled: false,
-  },
   agents: {
     id: "agents",
     label: "Agents",
@@ -154,8 +151,8 @@ export const TAB_REGISTRY = {
   },
   "auto-quant": {
     id: "auto-quant",
-    label: "Auto-Quant Control Center",
-    component: AutoQuantControlCenter,
+    label: "Auto-Quant",
+    component: AutoQuantOverview,
     requiresStrategies: true,
     requiresPairs: false,
     requiresSharedState: false,
