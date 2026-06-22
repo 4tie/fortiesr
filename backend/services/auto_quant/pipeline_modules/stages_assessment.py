@@ -531,6 +531,12 @@ async def _stage_delivery(
               f"Stage 6 | Could not read base config {state.config_file} — starting from empty dict")
         base_config = {}
 
+    # Ensure critical fields from pipeline state are set in config
+    if state.timeframe:
+        base_config["timeframe"] = state.timeframe
+    if state.exchange:
+        base_config.setdefault("exchange", {})["name"] = state.exchange
+
     # Inject optimized params into config
     params_dict = best_params.get("params_dict", {})
     if "minimal_roi" in params_dict:

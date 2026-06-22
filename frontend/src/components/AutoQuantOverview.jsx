@@ -17,10 +17,10 @@ const AGENT_COLORS = {
   Dev: "#A78BFA",
 };
 
-function Eyebrow() {
+function Eyebrow({ isRunning }) {
   return (
     <div className="flex items-center gap-3 mb-6">
-      <div className="w-2 h-2 rounded-full bg-mint pulse-mint" />
+      <div className={`w-2 h-2 rounded-full bg-mint ${isRunning ? "pulse-mint" : ""}`} />
       <div className="h-px flex-1 bg-white/10" />
       <span className="font-mono text-xs text-mint tracking-wider">4TIE</span>
       <div className="h-px flex-1 bg-white/10" />
@@ -66,21 +66,18 @@ function PipelineStatsStrip({ pipelineState }) {
   ];
 
   return (
-    <div className="grid grid-cols-5 gap-4 mb-6">
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
       {statsArray.map((stat) => (
         <div
           key={stat.label}
-          className="glass-card p-4"
-          style={{ borderTopColor: `var(--${stat.color})`, borderTopWidth: '2px' }}
+          className="bg-base-100 border border-base-200 rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow"
+          style={{ borderTop: `2px solid var(--${stat.color})` }}
         >
-          <div className="font-mono text-[10px] text-muted mb-2">{stat.label}</div>
-          <div
-            className="font-medium"
-            style={{ fontSize: 'clamp(24px, 2.4vw, 34px)', fontWeight: 500 }}
-          >
+          <div className="text-[10px] font-semibold text-base-content/60 uppercase tracking-wider mb-1">{stat.label}</div>
+          <div className="text-lg font-semibold text-base-content" style={{ fontWeight: 600 }}>
             {stat.value}
           </div>
-          <div className="font-mono text-[10px] text-muted mt-1">{stat.subtext}</div>
+          <div className="text-[9px] text-base-content/50 font-mono mt-1">{stat.subtext}</div>
         </div>
       ))}
     </div>
@@ -89,6 +86,7 @@ function PipelineStatsStrip({ pipelineState }) {
 
 function PipelineProgress({ pipelineState }) {
   const canvasRef = useRef(null);
+  const containerRef = useRef(null);
   const [progressData, setProgressData] = useState([]);
 
   useEffect(() => {
@@ -97,7 +95,6 @@ function PipelineProgress({ pipelineState }) {
       return;
     }
 
-    // Convert stage progress to data points
     const data = pipelineState.stages.map(stage => {
       if (stage.status === 'completed') return 1.0;
       if (stage.status === 'running') return 0.5;
@@ -109,6 +106,24 @@ function PipelineProgress({ pipelineState }) {
 
   useEffect(() => {
     const canvas = canvasRef.current;
+    const container = containerRef.current;
+    if (!canvas || !container) return;
+
+    const resizeCanvas = () => {
+      const rect = container.getBoundingClientRect();
+      canvas.width = rect.width * window.devicePixelRatio;
+      canvas.height = 80 * window.devicePixelRatio;
+      canvas.style.width = `${rect.width}px`;
+      canvas.style.height = '80px';
+    };
+
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+    return () => window.removeEventListener('resize', resizeCanvas);
+  }, []);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
@@ -117,33 +132,33 @@ function PipelineProgress({ pipelineState }) {
 
     const draw = () => {
       ctx.clearRect(0, 0, width, height);
+      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
 
       const data = progressData.length > 0 ? progressData : Array.from({ length: 7 }, () => 0);
       const maxVal = 1.0;
+      const displayWidth = width / window.devicePixelRatio;
+      const displayHeight = height / window.devicePixelRatio;
 
-      // Create gradient
-      const gradient = ctx.createLinearGradient(0, 0, 0, height);
+      const gradient = ctx.createLinearGradient(0, 0, 0, displayHeight);
       gradient.addColorStop(0, 'rgba(139, 92, 246, 0.3)');
       gradient.addColorStop(1, 'rgba(125, 211, 252, 0.1)');
 
-      // Draw filled area
       ctx.beginPath();
-      ctx.moveTo(0, height);
+      ctx.moveTo(0, displayHeight);
       data.forEach((val, i) => {
-        const x = (i / (data.length - 1)) * width;
-        const y = height - (val / maxVal) * height * 0.8;
+        const x = (i / (data.length - 1)) * displayWidth;
+        const y = displayHeight - (val / maxVal) * displayHeight * 0.8;
         ctx.lineTo(x, y);
       });
-      ctx.lineTo(width, height);
+      ctx.lineTo(displayWidth, displayHeight);
       ctx.closePath();
       ctx.fillStyle = gradient;
       ctx.fill();
 
-      // Draw line
       ctx.beginPath();
       data.forEach((val, i) => {
-        const x = (i / (data.length - 1)) * width;
-        const y = height - (val / maxVal) * height * 0.8;
+        const x = (i / (data.length - 1)) * displayWidth;
+        const y = displayHeight - (val / maxVal) * displayHeight * 0.8;
         if (i === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
       });
@@ -151,15 +166,13 @@ function PipelineProgress({ pipelineState }) {
       ctx.lineWidth = 2;
       ctx.stroke();
 
-      // Draw dots at each stage
       data.forEach((val, i) => {
-        const x = (i / (data.length - 1)) * width;
-        const y = height - (val / maxVal) * height * 0.8;
+        const x = (i / (data.length - 1)) * displayWidth;
+        const y = displayHeight - (val / maxVal) * displayHeight * 0.8;
         
         ctx.beginPath();
         ctx.arc(x, y, 4, 0, Math.PI * 2);
         
-        // Color based on stage status
         if (pipelineState?.stages?.[i]?.status === 'completed') {
           ctx.fillStyle = '#7DD3FC';
         } else if (pipelineState?.stages?.[i]?.status === 'running') {
@@ -176,6 +189,8 @@ function PipelineProgress({ pipelineState }) {
         ctx.fill();
         ctx.shadowBlur = 0;
       });
+
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
     };
 
     draw();
@@ -187,127 +202,121 @@ function PipelineProgress({ pipelineState }) {
     return () => clearInterval(interval);
   }, [progressData, pipelineState]);
 
-  const completedStages = pipelineState?.stages?.filter(s => s.status === 'completed').length || 0;
+  const completedStages = pipelineState?.status === 'completed' 
+    ? (pipelineState?.stages?.length || 7)
+    : (pipelineState?.stages?.filter(s => s.status === 'completed').length || 0);
   const totalStages = pipelineState?.stages?.length || 7;
 
   return (
-    <div className="glass-card p-6">
-      <div className="flex items-baseline gap-4 mb-4">
-        <div
-          className="font-bold text-cyan"
-          style={{ fontSize: 'clamp(34px, 4vw, 56px)', fontWeight: 700 }}
-        >
-          {completedStages}/{totalStages}
+    <div className="bg-base-100 border border-base-200 rounded-xl p-4 shadow-sm">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-baseline gap-2">
+          <div className="text-2xl font-bold text-primary">{completedStages}/{totalStages}</div>
+          <span className="text-xs text-base-content/60">stages completed</span>
         </div>
-        <span className="text-muted text-[18px]">stages completed</span>
+        <span className={`badge badge-sm ${
+          pipelineState?.status === 'completed' ? 'badge-success' :
+          pipelineState?.status === 'running' ? 'badge-info' :
+          pipelineState?.status === 'failed' ? 'badge-error' : 'badge-ghost'
+        }`}>
+          {pipelineState?.status ? pipelineState.status.toUpperCase() : 'IDLE'}
+        </span>
       </div>
-      <canvas ref={canvasRef} width={400} height={100} className="w-full mb-2" />
-      <div className="font-mono text-[10px] text-mint">
-        {pipelineState?.status ? pipelineState.status.toUpperCase() : 'IDLE'}
+      <div ref={containerRef} className="w-full">
+        <canvas ref={canvasRef} className="w-full rounded-lg" style={{ height: '80px' }} />
       </div>
     </div>
   );
 }
 
-function PipelineEvents({ pipelineState }) {
-  const [displayEvents, setDisplayEvents] = useState([]);
-  const [currentTime, setCurrentTime] = useState(() => Date.now());
-
-  const getAgentForStage = (stageIndex) => {
-    const agentMapping = {
-      0: 'Scout',
-      1: 'Dev',
-      2: 'Dev',
-      3: 'Reach',
-      4: 'Scout',
-      5: 'Orchestrator',
-      6: 'Scribe'
-    };
-    return agentMapping[stageIndex] || 'Orchestrator';
+function ResultsCard({ pipelineState }) {
+  const report = pipelineState?.report;
+  const portfolioBaseline = pipelineState?.portfolio_baseline_result || {};
+  
+  const getMetricValue = (value, fallback = '-', suffix = '') => {
+    if (value === null || value === undefined) return fallback;
+    return `${value}${suffix}`;
   };
 
-  useEffect(() => {
-    const timeInterval = setInterval(() => {
-      setCurrentTime(Date.now());
-    }, 1000);
-
-    return () => clearInterval(timeInterval);
-  }, []);
-
-  useEffect(() => {
-    if (!pipelineState || !pipelineState.stages) {
-      setTimeout(() => setDisplayEvents([]), 0);
-      return;
+  const getMetricTone = (value, type = 'neutral') => {
+    if (value === null || value === undefined) return 'neutral';
+    if (type === 'higher_is_better') {
+      return value > 0 ? 'success' : value < 0 ? 'error' : 'neutral';
     }
-
-    // Convert stage events to display format
-    const events = pipelineState.stages
-      .filter(stage => stage.status !== 'pending')
-      .map((stage, index) => ({
-        agent: getAgentForStage(index),
-        task: STAGE_NAMES[index],
-        status: stage.status,
-        timestamp: Date.now() - (pipelineState.stages.length - index) * 60000
-      }))
-      .reverse()
-      .slice(0, 8);
-
-    setTimeout(() => setDisplayEvents(events), 0);
-  }, [pipelineState]);
-
-  const formatTime = (timestamp) => {
-    const diff = currentTime - timestamp;
-    const minutes = Math.floor(diff / 60000);
-    if (minutes < 1) return 'Just now';
-    if (minutes < 60) return `${minutes}m ago`;
-    const hours = Math.floor(minutes / 60);
-    return `${hours}h ago`;
+    if (type === 'lower_is_better') {
+      return value < 10 ? 'success' : value < 20 ? 'warning' : 'error';
+    }
+    return 'neutral';
   };
+
+  const metrics = [
+    { label: 'Total Profit', value: getMetricValue(report?.profit ?? portfolioBaseline?.profit, '-', '%'), tone: getMetricTone(report?.profit ?? portfolioBaseline?.profit, 'higher_is_better') },
+    { label: 'Profit Factor', value: getMetricValue(report?.profit_factor ?? portfolioBaseline?.profit_factor, '-'), tone: getMetricTone(report?.profit_factor ?? portfolioBaseline?.profit_factor, 'higher_is_better') },
+    { label: 'Max Drawdown', value: getMetricValue(report?.max_drawdown ?? portfolioBaseline?.max_drawdown, '-', '%'), tone: getMetricTone(report?.max_drawdown ?? portfolioBaseline?.max_drawdown, 'lower_is_better') },
+    { label: 'Sharpe Ratio', value: getMetricValue(report?.sharpe ?? portfolioBaseline?.sharpe, '-'), tone: getMetricTone(report?.sharpe ?? portfolioBaseline?.sharpe, 'higher_is_better') },
+    { label: 'Win Rate', value: getMetricValue(report?.win_rate ?? portfolioBaseline?.win_rate, '-', '%'), tone: getMetricTone(report?.win_rate ?? portfolioBaseline?.win_rate, 'higher_is_better') },
+    { label: 'Total Trades', value: getMetricValue(report?.total_trades ?? portfolioBaseline?.total_trades, '-') },
+  ];
 
   return (
-    <div className="glass-card p-6">
-      <div className="font-mono text-[10px] text-muted mb-4">PIPELINE EVENTS</div>
-      <div className="space-y-3">
-        {displayEvents.map((event, index) => (
-          <div
-            key={index}
-            className="flex items-center gap-3 text-sm transition-all duration-300"
-            style={{
-              opacity: 1 - index * 0.1,
-              transform: `translateY(${index * 2}px)`,
-            }}
-          >
-            <span
-              className="font-mono text-[10px] px-2 py-0.5 rounded"
-              style={{
-                backgroundColor: `${AGENT_COLORS[event.agent]}20`,
-                color: AGENT_COLORS[event.agent],
-              }}
-            >
-              {event.agent}
-            </span>
-            <span className="text-text/80 flex-1 truncate">{event.task}</span>
-            <span className={`font-mono text-[10px] ${
-              event.status === 'completed' ? 'text-mint' : 
-              event.status === 'running' ? 'text-cyan' : 
-              event.status === 'failed' ? 'text-red' : 'text-muted'
-            }`}>
-              {event.status}
-            </span>
-            <span className="font-mono text-[10px] text-muted ml-auto">
-              {formatTime(event.timestamp)}
-            </span>
-          </div>
-        ))}
-        {displayEvents.length === 0 && (
-          <div className="text-muted text-sm">No pipeline events yet</div>
+    <div className="bg-base-100 border border-base-200 rounded-xl p-4 shadow-sm">
+      <div className="flex items-center justify-between mb-3">
+        <h4 className="text-xs font-semibold text-base-content/70 uppercase tracking-wider">Results Summary</h4>
+        {pipelineState?.status === 'completed' && (
+          <span className="badge badge-success badge-xs">Complete</span>
         )}
       </div>
+      
+      {pipelineState?.status === 'completed' && (report || portfolioBaseline) ? (
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            {metrics.map((metric, index) => (
+              <div
+                key={index}
+                className={`p-2 rounded-lg border ${
+                  metric.tone === 'success' ? 'border-success/30 bg-success/5' :
+                  metric.tone === 'warning' ? 'border-warning/30 bg-warning/5' :
+                  metric.tone === 'error' ? 'border-error/30 bg-error/5' :
+                  'border-base-200 bg-base-50'
+                }`}
+              >
+                <div className="text-[9px] font-semibold text-base-content/50 uppercase tracking-wider mb-1">{metric.label}</div>
+                <div className={`text-sm font-bold font-mono ${
+                  metric.tone === 'success' ? 'text-success' :
+                  metric.tone === 'warning' ? 'text-warning' :
+                  metric.tone === 'error' ? 'text-error' :
+                  'text-base-content'
+                }`}>
+                  {metric.value}
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          {pipelineState?.selected_pairs && pipelineState.selected_pairs.length > 0 && (
+            <div className="pt-2 border-t border-base-200">
+              <div className="text-[9px] font-semibold text-base-content/50 uppercase tracking-wider mb-2">Selected Pairs</div>
+              <div className="flex flex-wrap gap-1">
+                {pipelineState.selected_pairs.slice(0, 6).map((pair, index) => (
+                  <span key={index} className="badge badge-ghost badge-xs font-mono">{String(pair)}</span>
+                ))}
+                {pipelineState.selected_pairs.length > 6 && (
+                  <span className="badge badge-ghost badge-xs">+{pipelineState.selected_pairs.length - 6}</span>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="text-center py-6 text-sm text-base-content/40">
+          {pipelineState?.status === 'running' ? 'Results will appear after pipeline completes' : 'No results available'}
+        </div>
+      )}
     </div>
   );
 }
 
-export default function AutoQuantOverview({ strategies = [], strategiesLoading = false, onAgentContextChange = null, pipelineState: initialPipelineState = null }) {
+export default function AutoQuantOverview({ strategies = [], strategiesLoading = false, onAgentContextChange = null, pipelineState: initialPipelineState = null, syncSharedState = null }) {
   const formState = useAutoQuantForm();
   const pipeline = useAutoQuantPipeline(initialPipelineState);
   const strategyGen = useAutoQuantStrategyGen(strategies);
@@ -342,6 +351,13 @@ export default function AutoQuantOverview({ strategies = [], strategiesLoading =
       api_session_id: null,
     });
   }, [form.strategy, onAgentContextChange, pipelineState?.current_stage, pipelineState?.strategy, runId]);
+
+  useEffect(() => {
+    if (!syncSharedState) return;
+    const activeStatuses = new Set(["pending", "running", "awaiting_user_approval"]);
+    const isRunning = pipelineState?.status && activeStatuses.has(pipelineState.status);
+    syncSharedState({ isWorkRunning: isRunning });
+  }, [syncSharedState, pipelineState?.status]);
 
   const handleStart = async () => {
     if (!form.strategy) return;
@@ -410,8 +426,8 @@ export default function AutoQuantOverview({ strategies = [], strategiesLoading =
           STAGE_NAMES.map((name, i) => ({
             index: i + 1,
             name,
-            status: "pending",
-            message: "",
+            status: run.status === "completed" ? "completed" : "pending",
+            message: run.status === "completed" ? "Completed" : "",
             data: {},
           })),
         error: run.error || null,
@@ -440,10 +456,12 @@ export default function AutoQuantOverview({ strategies = [], strategiesLoading =
   );
 
   const hasActiveRun = Boolean(pipelineState);
+  const activeStatuses = new Set(["pending", "running", "awaiting_user_approval"]);
+  const isRunning = pipelineState?.status && activeStatuses.has(pipelineState.status);
 
   return (
     <div className="space-y-6">
-      <Eyebrow />
+      <Eyebrow isRunning={isRunning} />
       <PipelineStatsStrip pipelineState={pipelineState} />
       
       {!hasActiveRun && (
@@ -487,7 +505,7 @@ export default function AutoQuantOverview({ strategies = [], strategiesLoading =
 
       <div className="grid grid-cols-[1.2fr_1fr] gap-6">
         <PipelineProgress pipelineState={pipelineState} />
-        <PipelineEvents pipelineState={pipelineState} />
+        <ResultsCard pipelineState={pipelineState} />
       </div>
     </div>
   );

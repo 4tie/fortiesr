@@ -1,15 +1,18 @@
 import { useState, useEffect } from "react";
 
 const NAV_TABS = [
-  { id: "agents", label: "Agents" },
-  { id: "tasks", label: "Tasks" },
-  { id: "schedule", label: "Schedule" },
-  { id: "content", label: "Content" },
   { id: "auto-quant", label: "AutoQuant" },
   { id: "optimizer", label: "Optimizer" },
   { id: "backtest", label: "Backtest" },
   { id: "results", label: "Results" },
   { id: "pair-explorer", label: "Pair Explorer" },
+  { id: "settings", label: "Settings" },
+  { id: "strategy-lab", label: "Strategy Lab" },
+  { id: "quant", label: "Quant" },
+  { id: "performance", label: "Performance" },
+  { id: "ai-assistant", label: "AI Assistant" },
+  { id: "strategy-editor", label: "Strategy Editor" },
+  { id: "stress-test", label: "Stress Test" },
 ];
 
 function LiveClock() {
@@ -28,13 +31,19 @@ function LiveClock() {
   return <span className="font-mono text-xs">{time}</span>;
 }
 
-function BrandMark() {
+function BrandMark({ backendOnline, isWorkRunning }) {
+  const getDotClass = () => {
+    if (!backendOnline) return "bg-red pulse-red";
+    if (isWorkRunning) return "bg-mint pulse-mint";
+    return "bg-mint";
+  };
+
   return (
     <div className="flex items-center gap-2">
       <div className="relative w-8 h-8 flex items-center justify-center">
         <div className="absolute inset-0 rounded-full bg-gradient-to-br from-violet to-cyan opacity-80" />
         <div className="absolute inset-0 rounded-full border-2 border-white/20" />
-        <div className="relative w-2 h-2 rounded-full bg-mint pulse-mint" />
+        <div className={`relative w-2 h-2 rounded-full ${getDotClass()}`} />
       </div>
       <div className="flex flex-col">
         <span className="font-mono text-sm font-medium tracking-wider">4TIE</span>
@@ -44,38 +53,44 @@ function BrandMark() {
   );
 }
 
-function StatusPill({ online }) {
+function StatusPill() {
   return (
     <div className="glass-card px-3 py-1.5 flex items-center gap-2">
-      <div className={`w-1.5 h-1.5 rounded-full ${online ? "bg-mint pulse-mint" : "bg-red"}`} />
-      <span className="text-xs text-text/80">All systems operational</span>
       <LiveClock />
     </div>
   );
 }
 
-export default function TopNav({ activeTab, onChange, backendOnline }) {
+export default function TopNav({ activeTab, onChange, backendOnline, isWorkRunning }) {
+  const activeTabLabel = NAV_TABS.find(tab => tab.id === activeTab)?.label || activeTab;
+
   return (
     <nav className="fixed top-0 left-0 right-0 h-16 glass-card border-b border-white/10 z-50 px-6 flex items-center justify-between">
-      <BrandMark />
-      
-      <div className="flex items-center gap-1 bg-white/5 rounded-full p-1">
+      <BrandMark backendOnline={backendOnline} isWorkRunning={isWorkRunning} />
+
+      <div className="flex items-center gap-1 bg-white/5 rounded-full p-1 overflow-x-auto max-w-[70vw] scrollbar-hide">
         {NAV_TABS.map((tab) => (
           <button
             key={tab.id}
             onClick={() => onChange(tab.id)}
-            className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+            className={`px-3 py-2 rounded-full text-xs font-medium transition-all whitespace-nowrap ${
               activeTab === tab.id
-                ? "bg-white text-base-100"
+                ? "bg-white text-base-100 shadow-lg shadow-white/10"
                 : "text-text/60 hover:text-text hover:bg-white/5"
             }`}
+            title={tab.label}
           >
             {tab.label}
           </button>
         ))}
       </div>
-      
-      <StatusPill online={backendOnline} />
+
+      <div className="flex items-center gap-4">
+        <div className="hidden md:flex text-xs font-mono text-muted">
+          {activeTabLabel}
+        </div>
+        <StatusPill />
+      </div>
     </nav>
   );
 }

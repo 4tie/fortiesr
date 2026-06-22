@@ -38,6 +38,7 @@ function App() {
   }, []);
 
   const { state: sharedState, loading: sharedLoading, sync: syncSharedState } = useSharedState();
+  const isWorkRunning = sharedState?.isWorkRunning || false;
   const { strategies, loading: strategiesLoading } = useStrategies();
   const { availablePairs, searchPairs } = usePairs();
 
@@ -92,6 +93,7 @@ function App() {
             activeTab={activeNavTab}
             onChange={handleNavTabChange}
             backendOnline={backendOnline}
+            isWorkRunning={isWorkRunning}
           />
 
           <main className="flex-1 min-w-0 overflow-y-auto pt-20 px-6 pb-6">

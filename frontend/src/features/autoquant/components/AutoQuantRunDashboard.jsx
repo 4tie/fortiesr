@@ -786,7 +786,13 @@ export default function AutoQuantRunDashboard({
             <h3 className="text-[10px] font-semibold text-base-content/50 uppercase tracking-widest mb-4">
               Results &amp; Downloads
             </h3>
-            <AutoQuantFinalReport report={report} runId={runId} strategy={pipelineState?.strategy || form.strategy} />
+            <AutoQuantFinalReport 
+              report={report} 
+              runId={runId} 
+              strategy={pipelineState?.strategy || form.strategy} 
+              expectedPairs={form.pair_universe}
+              expectedTimeframe={form.timeframe}
+            />
           </div>
         </div>
       )}

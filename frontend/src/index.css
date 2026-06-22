@@ -129,6 +129,20 @@
   animation: pulse-mint 2s ease-in-out infinite;
 }
 
+/* Pulsing red dot animation */
+@keyframes pulse-red {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
+  }
+}
+
+.pulse-red {
+  animation: pulse-red 2s ease-in-out infinite;
+}
+
 /* Typography classes */
 .font-heading {
   font-family: 'Inter Tight', sans-serif;
@@ -210,4 +224,14 @@ html { color-scheme: dark; }
 html, body, #root {
   height: 100%;
   overflow: hidden;
+}
+
+/* Scrollbar hide utility */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }

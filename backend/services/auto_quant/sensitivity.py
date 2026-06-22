@@ -147,7 +147,7 @@ async def run_sensitivity_check(
         # Check for negative baseline BEFORE running neighbor math
         # Only flag as FAIL_NEGATIVE_BASELINE if profit is significantly negative (< -10%)
         # Small negative profits (-10% to 0%) are allowed to proceed for further optimization
-        if p_best is not None and p_best < -10.0:
+        if p_best is not None and p_best < -0.10:
             logger.warning(
                 "[%s] Sensitivity | NEGATIVE BASELINE DETECTED: p_best=%s — "
                 "flagging as FAIL_NEGATIVE_BASELINE instead of running neighbor math",

@@ -8,7 +8,7 @@ import AutoQuantRobustnessBadge from "./AutoQuantRobustnessBadge";
 import AutoQuantEquityCurveChart from "./AutoQuantEquityCurveChart";
 import AutoQuantPerPairProfitChart from "./AutoQuantPerPairProfitChart";
 
-export default function AutoQuantFinalReport({ report, runId }) {
+export default function AutoQuantFinalReport({ report, runId, strategy, expectedPairs, expectedTimeframe }) {
   const risk = report?.risk || {};
   const oos = report?.oos_validation || {};
   const sanity = report?.sanity_backtest || {};
@@ -20,6 +20,31 @@ export default function AutoQuantFinalReport({ report, runId }) {
   const ensembleWeights = report?.ensemble_weights ?? null;
   const sensitivity = report?.sensitivity ?? null;
   const isEnsemble = report?.ensemble_enabled === true || (ensembleWeights && Object.keys(ensembleWeights).length > 0);
+
+  // Validate pairs and timeframe match the last selected values
+  const reportPairs = report?.selected_pair_universe || report?.pair_universe || [];
+  const reportTimeframe = report?.selected_timeframe || report?.timeframe;
+  
+  // Normalize pairs to arrays for comparison
+  const normalizePairs = (pairs) => {
+    if (!pairs) return [];
+    if (Array.isArray(pairs)) return pairs;
+    if (typeof pairs === 'string') {
+      // Split by space or comma and filter empty strings
+      return pairs.split(/[\s,]+/).filter(p => p.trim());
+    }
+    return [];
+  };
+  
+  const normalizedExpectedPairs = normalizePairs(expectedPairs);
+  const normalizedReportPairs = normalizePairs(reportPairs);
+  
+  const pairsMatch = expectedPairs && reportPairs && 
+    JSON.stringify(normalizedReportPairs.sort()) === JSON.stringify(normalizedExpectedPairs.sort());
+  const timeframeMatch = expectedTimeframe && reportTimeframe && 
+    expectedTimeframe === reportTimeframe;
+  
+  const showValidationWarning = (expectedPairs && !pairsMatch) || (expectedTimeframe && !timeframeMatch);
 
   // Use dynamic thresholds from the report; fall back to defaults
   const maxDrawdownThreshold = thresholds.max_drawdown ?? 30;
@@ -62,6 +87,32 @@ export default function AutoQuantFinalReport({ report, runId }) {
           </p>
         </div>
       </div>
+
+      {/* Validation warning for pairs/timeframe mismatch */}
+      {showValidationWarning && (
+        <div className="rounded-lg bg-warning/10 border border-warning/30 p-3">
+          <div className="flex items-start gap-2">
+            <span className="text-warning text-lg">⚠️</span>
+            <div className="flex-1">
+              <h4 className="text-xs font-semibold text-warning uppercase tracking-wider mb-1">
+                Configuration Mismatch Detected
+              </h4>
+              <div className="text-xs text-base-content/70 space-y-1">
+                {!pairsMatch && (
+                  <div>
+                    <span className="font-medium text-base-content/80">Pairs:</span> Report uses {Array.isArray(reportPairs) ? reportPairs.join(", ") : reportPairs} but expected {Array.isArray(expectedPairs) ? expectedPairs.join(", ") : expectedPairs}
+                  </div>
+                )}
+                {!timeframeMatch && (
+                  <div>
+                    <span className="font-medium text-base-content/80">Timeframe:</span> Report uses {reportTimeframe} but expected {expectedTimeframe}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Active thresholds badge */}
       <div className="flex flex-wrap gap-1.5">

@@ -736,9 +736,6 @@ export default function AutoQuantConfigPanel({
               <ChartBarIcon className="h-4 w-4 text-primary" />
               <h2 className="text-sm font-semibold">Run History</h2>
             </div>
-            <p className="text-xs leading-relaxed text-base-content/50">
-              Reconnect to running reviews, inspect completed exports, or load previous reports into the cockpit.
-            </p>
             <RunHistoryDashboard ref={runHistoryRef} onLoad={onLoadRun} />
           </div>
         </div>

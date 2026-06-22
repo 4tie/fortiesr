@@ -122,3 +122,34 @@ class RunRepository(IRunRepository):
             ),
             artifacts=artifacts,
         )
+
+    def load_trades(self, run_id: str):
+        """load_trades implements function-level backend logic."""
+        try:
+            run_dir = self.find_run_dir(run_id)
+        except BackendError:
+            # Try to find in AutoQuant directory
+            autoquant_root = self.backtest_results_root.parent / "auto_quant"
+            autoquant_run_dir = autoquant_root / run_id
+            if autoquant_run_dir.exists():
+                run_dir = autoquant_run_dir
+            else:
+                raise
+
+        # First try to load from trades.json (standard backtest format)
+        trades_json = run_dir / "trades.json"
+        if trades_json.exists():
+            trades_data = read_json(trades_json, default=[]) or []
+            return trades_data
+
+        # Try to load from AutoQuant stage2_result.json
+        stage2_result = run_dir / "stage2_result.json"
+        if stage2_result.exists():
+            stage2_data = read_json(stage2_result, default={}) or {}
+            # Extract trades from the result structure
+            if "strategy" in stage2_data:
+                for strategy_name, strategy_data in stage2_data["strategy"].items():
+                    if "trades" in strategy_data:
+                        return strategy_data["trades"]
+
+        return []

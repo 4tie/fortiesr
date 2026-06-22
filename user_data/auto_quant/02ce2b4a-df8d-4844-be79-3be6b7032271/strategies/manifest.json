@@ -1,0 +1,142 @@
+{
+  "original_strategy": "AIStrategy",
+  "original_strategy_hash": "dcf0b8aefd26a0974d3b9bd1d6969874a8050e74c3fd554bd39e3d53a000a7f3",
+  "variants": [
+    {
+      "role": "working",
+      "strategy_name": "AIStrategy",
+      "path": "/home/mohs/Desktop/fictional-octo-guide/user_data/auto_quant/02ce2b4a-df8d-4844-be79-3be6b7032271/strategies/AIStrategy.py",
+      "source": "/home/mohs/Desktop/fictional-octo-guide/user_data/strategies/AIStrategy.py"
+    },
+    {
+      "role": "sensitivity",
+      "strategy_name": "AIStrategy_SensBest",
+      "path": "/home/mohs/Desktop/fictional-octo-guide/user_data/auto_quant/02ce2b4a-df8d-4844-be79-3be6b7032271/strategies/AIStrategy_SensBest_sensitivity_v1.py"
+    },
+    {
+      "role": "sensitivity",
+      "strategy_name": "AIStrategy_SensBest",
+      "path": "/home/mohs/Desktop/fictional-octo-guide/user_data/auto_quant/02ce2b4a-df8d-4844-be79-3be6b7032271/strategies/AIStrategy_SensBest.py"
+    },
+    {
+      "role": "sensitivity",
+      "strategy_name": "AIStrategy_SensPlus",
+      "path": "/home/mohs/Desktop/fictional-octo-guide/user_data/auto_quant/02ce2b4a-df8d-4844-be79-3be6b7032271/strategies/AIStrategy_SensPlus_sensitivity_v1.py"
+    },
+    {
+      "role": "sensitivity",
+      "strategy_name": "AIStrategy_SensPlus",
+      "path": "/home/mohs/Desktop/fictional-octo-guide/user_data/auto_quant/02ce2b4a-df8d-4844-be79-3be6b7032271/strategies/AIStrategy_SensPlus.py"
+    },
+    {
+      "role": "sensitivity",
+      "strategy_name": "AIStrategy_SensMinus",
+      "path": "/home/mohs/Desktop/fictional-octo-guide/user_data/auto_quant/02ce2b4a-df8d-4844-be79-3be6b7032271/strategies/AIStrategy_SensMinus_sensitivity_v1.py"
+    },
+    {
+      "role": "sensitivity",
+      "strategy_name": "AIStrategy_SensMinus",
+      "path": "/home/mohs/Desktop/fictional-octo-guide/user_data/auto_quant/02ce2b4a-df8d-4844-be79-3be6b7032271/strategies/AIStrategy_SensMinus.py"
+    },
+    {
+      "role": "sensitivity",
+      "strategy_name": "AIStrategy_SensBest",
+      "path": "/home/mohs/Desktop/fictional-octo-guide/user_data/auto_quant/02ce2b4a-df8d-4844-be79-3be6b7032271/strategies/AIStrategy_SensBest_sensitivity_v2.py"
+    },
+    {
+      "role": "sensitivity",
+      "strategy_name": "AIStrategy_SensPlus",
+      "path": "/home/mohs/Desktop/fictional-octo-guide/user_data/auto_quant/02ce2b4a-df8d-4844-be79-3be6b7032271/strategies/AIStrategy_SensPlus_sensitivity_v2.py"
+    },
+    {
+      "role": "sensitivity",
+      "strategy_name": "AIStrategy_SensMinus",
+      "path": "/home/mohs/Desktop/fictional-octo-guide/user_data/auto_quant/02ce2b4a-df8d-4844-be79-3be6b7032271/strategies/AIStrategy_SensMinus_sensitivity_v2.py"
+    },
+    {
+      "role": "sensitivity",
+      "strategy_name": "AIStrategy_SensBest",
+      "path": "/home/mohs/Desktop/fictional-octo-guide/user_data/auto_quant/02ce2b4a-df8d-4844-be79-3be6b7032271/strategies/AIStrategy_SensBest_sensitivity_v3.py"
+    },
+    {
+      "role": "sensitivity",
+      "strategy_name": "AIStrategy_SensPlus",
+      "path": "/home/mohs/Desktop/fictional-octo-guide/user_data/auto_quant/02ce2b4a-df8d-4844-be79-3be6b7032271/strategies/AIStrategy_SensPlus_sensitivity_v3.py"
+    },
+    {
+      "role": "sensitivity",
+      "strategy_name": "AIStrategy_SensMinus",
+      "path": "/home/mohs/Desktop/fictional-octo-guide/user_data/auto_quant/02ce2b4a-df8d-4844-be79-3be6b7032271/strategies/AIStrategy_SensMinus_sensitivity_v3.py"
+    },
+    {
+      "role": "sensitivity",
+      "strategy_name": "AIStrategy_SensBest",
+      "path": "/home/mohs/Desktop/fictional-octo-guide/user_data/auto_quant/02ce2b4a-df8d-4844-be79-3be6b7032271/strategies/AIStrategy_SensBest_sensitivity_v4.py"
+    },
+    {
+      "role": "sensitivity",
+      "strategy_name": "AIStrategy_SensPlus",
+      "path": "/home/mohs/Desktop/fictional-octo-guide/user_data/auto_quant/02ce2b4a-df8d-4844-be79-3be6b7032271/strategies/AIStrategy_SensPlus_sensitivity_v4.py"
+    },
+    {
+      "role": "sensitivity",
+      "strategy_name": "AIStrategy_SensMinus",
+      "path": "/home/mohs/Desktop/fictional-octo-guide/user_data/auto_quant/02ce2b4a-df8d-4844-be79-3be6b7032271/strategies/AIStrategy_SensMinus_sensitivity_v4.py"
+    },
+    {
+      "role": "sensitivity",
+      "strategy_name": "AIStrategy_SensBest",
+      "path": "/home/mohs/Desktop/fictional-octo-guide/user_data/auto_quant/02ce2b4a-df8d-4844-be79-3be6b7032271/strategies/AIStrategy_SensBest_sensitivity_v5.py"
+    },
+    {
+      "role": "sensitivity",
+      "strategy_name": "AIStrategy_SensPlus",
+      "path": "/home/mohs/Desktop/fictional-octo-guide/user_data/auto_quant/02ce2b4a-df8d-4844-be79-3be6b7032271/strategies/AIStrategy_SensPlus_sensitivity_v5.py"
+    },
+    {
+      "role": "sensitivity",
+      "strategy_name": "AIStrategy_SensMinus",
+      "path": "/home/mohs/Desktop/fictional-octo-guide/user_data/auto_quant/02ce2b4a-df8d-4844-be79-3be6b7032271/strategies/AIStrategy_SensMinus_sensitivity_v5.py"
+    },
+    {
+      "role": "sensitivity",
+      "strategy_name": "AIStrategy_SensBest",
+      "path": "/home/mohs/Desktop/fictional-octo-guide/user_data/auto_quant/02ce2b4a-df8d-4844-be79-3be6b7032271/strategies/AIStrategy_SensBest_sensitivity_v6.py"
+    },
+    {
+      "role": "sensitivity",
+      "strategy_name": "AIStrategy_SensPlus",
+      "path": "/home/mohs/Desktop/fictional-octo-guide/user_data/auto_quant/02ce2b4a-df8d-4844-be79-3be6b7032271/strategies/AIStrategy_SensPlus_sensitivity_v6.py"
+    },
+    {
+      "role": "sensitivity",
+      "strategy_name": "AIStrategy_SensMinus",
+      "path": "/home/mohs/Desktop/fictional-octo-guide/user_data/auto_quant/02ce2b4a-df8d-4844-be79-3be6b7032271/strategies/AIStrategy_SensMinus_sensitivity_v6.py"
+    },
+    {
+      "role": "sensitivity",
+      "strategy_name": "AIStrategy_SensBest",
+      "path": "/home/mohs/Desktop/fictional-octo-guide/user_data/auto_quant/02ce2b4a-df8d-4844-be79-3be6b7032271/strategies/AIStrategy_SensBest_sensitivity_v7.py"
+    },
+    {
+      "role": "sensitivity",
+      "strategy_name": "AIStrategy_SensPlus",
+      "path": "/home/mohs/Desktop/fictional-octo-guide/user_data/auto_quant/02ce2b4a-df8d-4844-be79-3be6b7032271/strategies/AIStrategy_SensPlus_sensitivity_v7.py"
+    },
+    {
+      "role": "sensitivity",
+      "strategy_name": "AIStrategy_SensMinus",
+      "path": "/home/mohs/Desktop/fictional-octo-guide/user_data/auto_quant/02ce2b4a-df8d-4844-be79-3be6b7032271/strategies/AIStrategy_SensMinus_sensitivity_v7.py"
+    },
+    {
+      "role": "validation",
+      "strategy_name": "AIStrategy_Optimized",
+      "path": "/home/mohs/Desktop/fictional-octo-guide/user_data/auto_quant/02ce2b4a-df8d-4844-be79-3be6b7032271/strategies/AIStrategy_Optimized_validation_v1.py"
+    },
+    {
+      "role": "validation",
+      "strategy_name": "AIStrategy_Optimized",
+      "path": "/home/mohs/Desktop/fictional-octo-guide/user_data/auto_quant/02ce2b4a-df8d-4844-be79-3be6b7032271/strategies/AIStrategy_Optimized.py"
+    }
+  ]
+}

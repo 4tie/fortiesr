@@ -46,3 +46,8 @@ class IRunRepository(ABC):
     def load_detail(self, run_id: str) -> RunDetail:
         """Load full details for a specific run."""
         pass
+    
+    @abstractmethod
+    def load_trades(self, run_id: str):
+        """Load trades data for a specific run."""
+        pass

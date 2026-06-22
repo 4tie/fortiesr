@@ -48,10 +48,19 @@ async def get_backtest_candlestick(
         trades_data = run_repo.load_trades(run_id)
         
         if not trades_data:
-            raise HTTPException(
-                status_code=404,
-                detail=f"No trades found for backtest run {run_id}",
-            )
+            # Return empty chart data instead of 404 error
+            empty_chart = {
+                "candlestick": {
+                    "timestamps": [],
+                    "open": [],
+                    "high": [],
+                    "low": [],
+                    "close": [],
+                    "volume": []
+                },
+                "indicators": {}
+            }
+            return ChartDataResponse(**empty_chart)
         
         # Convert trades to list of dicts
         trades = [trade.model_dump() if hasattr(trade, 'model_dump') else trade for trade in trades_data]
@@ -100,10 +109,19 @@ async def get_autoquant_candlestick(
         trades_data = run_repo.load_trades(run_id)
         
         if not trades_data:
-            raise HTTPException(
-                status_code=404,
-                detail=f"No trades found for AutoQuant run {run_id}",
-            )
+            # Return empty chart data instead of 404 error
+            empty_chart = {
+                "candlestick": {
+                    "timestamps": [],
+                    "open": [],
+                    "high": [],
+                    "low": [],
+                    "close": [],
+                    "volume": []
+                },
+                "indicators": {}
+            }
+            return ChartDataResponse(**empty_chart)
         
         # Convert trades to list of dicts
         trades = [trade.model_dump() if hasattr(trade, 'model_dump') else trade for trade in trades_data]
