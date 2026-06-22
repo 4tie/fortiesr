@@ -58,6 +58,34 @@ export const NAV_TABS = {
     id: "pair-explorer",
     label: "Pair Explorer",
   },
+  settings: {
+    id: "settings",
+    label: "Settings",
+  },
+  "strategy-lab": {
+    id: "strategy-lab",
+    label: "Strategy Lab",
+  },
+  quant: {
+    id: "quant",
+    label: "Quant",
+  },
+  performance: {
+    id: "performance",
+    label: "Performance",
+  },
+  "ai-assistant": {
+    id: "ai-assistant",
+    label: "AI Assistant",
+  },
+  "strategy-editor": {
+    id: "strategy-editor",
+    label: "Strategy Editor",
+  },
+  "stress-test": {
+    id: "stress-test",
+    label: "Stress Test",
+  },
 };
 
 // Helper to find which nav tab a sub-tab belongs to (no longer needed with flat structure)
@@ -155,7 +183,7 @@ export const TAB_REGISTRY = {
     component: AutoQuantOverview,
     requiresStrategies: true,
     requiresPairs: false,
-    requiresSharedState: false,
+    requiresSharedState: true,
     askAiEnabled: true,
     supportsAgentContext: true,
   },
