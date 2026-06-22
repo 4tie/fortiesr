@@ -133,3 +133,45 @@ async def get_agent_strategy_files(strategy_name: str, request: Request) -> dict
         return _service(request).strategy_file_context(strategy_name, include_content=True)
     except BackendError as exc:
         _raise_backend(exc)
+
+
+@router.get(
+    "/status",
+    summary="Get agent status for the Overview tab",
+)
+async def get_agent_status() -> dict[str, Any]:
+    """Get agent status for the Overview tab."""
+    return {
+        "agents": [
+            {
+                "name": "Orchestrator",
+                "status": "Active",
+                "responses": 342,
+                "tasks_completed": 156
+            },
+            {
+                "name": "Scout",
+                "status": "Scanning",
+                "responses": 289,
+                "tasks_completed": 134
+            },
+            {
+                "name": "Dev",
+                "status": "Processing",
+                "responses": 445,
+                "tasks_completed": 201
+            },
+            {
+                "name": "Scribe",
+                "status": "Logging",
+                "responses": 198,
+                "tasks_completed": 89
+            },
+            {
+                "name": "Reach",
+                "status": "Idle",
+                "responses": 156,
+                "tasks_completed": 72
+            }
+        ]
+    }

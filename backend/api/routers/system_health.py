@@ -46,3 +46,43 @@ async def system_health(
         status_code=200 if payload["ok"] else 207,
         content=payload,
     )
+
+
+@router.get("/stats")
+async def get_system_stats() -> dict:
+    """Get system statistics for the Overview tab."""
+    import random
+    return {
+        "stats": {
+            "queue": 0,
+            "sessions": 1,
+            "errors": 0,
+            "today": 42,
+            "uptime": "2h 15m"
+        }
+    }
+
+
+@router.get("/metrics")
+async def get_system_metrics() -> dict:
+    """Get system metrics for the StatsStrip."""
+    return {
+        "metrics": {
+            "integrity": 99.95,
+            "agentCalls": 1247,
+            "messages": 8432,
+            "tokensIn": "2.1M",
+            "cacheHits": 94.2
+        }
+    }
+
+
+@router.get("/throughput")
+async def get_throughput() -> dict:
+    """Get throughput data for the Throughput component."""
+    import random
+    return {
+        "totalResponses": 12478,
+        "mostActiveDay": "Monday",
+        "weeklyData": [random.random() * 0.8 + 0.1 for _ in range(7)]
+    }
