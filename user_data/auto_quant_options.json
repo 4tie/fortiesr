@@ -2,7 +2,7 @@
   "strategy": "AIStrategy",
   "strategy_source": "existing",
   "trading_style": "scalping",
-  "risk_profile": "aggressive",
+  "risk_profile": "balanced",
   "analysis_depth": "deep",
   "uploaded_strategy_id": null,
   "advanced_overrides": {},

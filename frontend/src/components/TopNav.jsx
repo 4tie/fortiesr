@@ -1,11 +1,15 @@
 import { useState, useEffect } from "react";
 
 const NAV_TABS = [
-  { id: "overview", label: "Overview" },
   { id: "agents", label: "Agents" },
   { id: "tasks", label: "Tasks" },
   { id: "schedule", label: "Schedule" },
   { id: "content", label: "Content" },
+  { id: "auto-quant", label: "AutoQuant" },
+  { id: "optimizer", label: "Optimizer" },
+  { id: "backtest", label: "Backtest" },
+  { id: "results", label: "Results" },
+  { id: "pair-explorer", label: "Pair Explorer" },
 ];
 
 function LiveClock() {

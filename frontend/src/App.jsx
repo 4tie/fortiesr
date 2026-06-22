@@ -11,11 +11,10 @@ import AssistantDrawer from "./components/appShell/AssistantDrawer.jsx";
 import TabContentRenderer from "./components/appShell/TabContentRenderer.jsx";
 import UnsavedChangesDialog from "./components/appShell/UnsavedChangesDialog.jsx";
 import { buildAgentContext } from "./components/appShell/agentContext.js";
-import { getNavTabForSubTab, NAV_TABS } from "./components/tabs/registry.js";
 
 function App() {
-  const [activeNavTab, setActiveNavTab] = useState("overview");
-  const [activeTab,    setActiveTab]    = useState("overview");
+  const [activeNavTab, setActiveNavTab] = useState("auto-quant");
+  const [activeTab,    setActiveTab]    = useState("auto-quant");
   const [activeResult, setActiveResult] = useState(null);
   const [pendingTab,   setPendingTab]   = useState(null);
   const [backendOnline, setBackendOnline] = useState(true);
@@ -45,7 +44,7 @@ function App() {
   const handleLoadResult = (res) => {
     setActiveResult(res);
     setActiveTab("results");
-    setActiveNavTab("content");
+    setActiveNavTab("results"); // With flat navigation, navTab equals tabId
   };
 
   const clearActiveResult = () => setActiveResult(null);
@@ -63,11 +62,8 @@ function App() {
 
   const handleNavTabChange = useCallback((navTab) => {
     setActiveNavTab(navTab);
-    // Set first sub-tab as default when switching nav tabs
-    const navTabConfig = Object.values(NAV_TABS).find(t => t.id === navTab);
-    if (navTabConfig && navTabConfig.subTabs.length > 0) {
-      setActiveTab(navTabConfig.subTabs[0]);
-    }
+    // With flat navigation, navTab and activeTab are the same
+    setActiveTab(navTab);
   }, []);
 
   const confirmLeave = () => {
@@ -75,7 +71,7 @@ function App() {
     setPendingTab(null);
     setAgentTabContext({});
     setActiveTab(dest);
-    setActiveNavTab(getNavTabForSubTab(dest));
+    setActiveNavTab(dest); // With flat navigation, navTab equals tabId
     if (dest !== "results") setActiveResult(null);
   };
 
