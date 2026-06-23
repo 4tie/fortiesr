@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -23,9 +24,27 @@ DEFAULT_DATE_RANGES = {
 }
 
 DEPTH_SETTINGS = {
-    "quick": {"hyperopt_epochs": 30, "wfo_enabled": False},
-    "standard": {"hyperopt_epochs": 100, "wfo_enabled": False},
-    "deep": {"hyperopt_epochs": 150, "wfo_enabled": True},
+    "quick": {
+        "hyperopt_epochs": 30,
+        "wfo_enabled": False,
+        "wfo_required": False,
+        "is_lookback_months": 18,
+        "oos_lookback_months": 6,
+    },
+    "standard": {
+        "hyperopt_epochs": 100,
+        "wfo_enabled": True,
+        "wfo_required": False,
+        "is_lookback_months": 24,
+        "oos_lookback_months": 12,
+    },
+    "deep": {
+        "hyperopt_epochs": 150,
+        "wfo_enabled": True,
+        "wfo_required": True,
+        "is_lookback_months": 36,
+        "oos_lookback_months": 12,
+    },
 }
 
 
@@ -68,6 +87,153 @@ def normalize_percent(value: Any, default: float = 0.0) -> float:
     except (TypeError, ValueError):
         return default
     return numeric if abs(numeric) > 1 else numeric * 100.0
+
+
+def latest_complete_day(now: datetime | None = None) -> datetime:
+    """Return the latest complete day for data validation.
+
+    For Freqtrade-style timeranges, the end date should be the next boundary
+    so the run includes data through the last complete day.
+
+    Args:
+        now: Current datetime for testing (defaults to datetime.utcnow())
+
+    Returns:
+        datetime representing the latest complete day (yesterday UTC)
+    """
+    if now is None:
+        now = datetime.utcnow()
+    return (now - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+
+
+def date_ranges_for_depth(
+    depth: str,
+    as_of: datetime | None = None,
+    latest_data_end: datetime | None = None,
+) -> tuple[str, str]:
+    """Generate dynamic date ranges for a given analysis depth.
+
+    Ranges are calculated relative to the latest complete day, not hard-coded.
+    This ensures validation stays current as time progresses.
+
+    Args:
+        depth: Analysis depth ("quick", "standard", or "deep")
+        as_of: Reference date for calculation (defaults to now)
+        latest_data_end: Override latest data end date (defaults to latest_complete_day)
+
+    Returns:
+        Tuple of (in_sample_range, out_sample_range) in Freqtrade format (YYYYMMDD-YYYYMMDD)
+
+    Example for 2026-06-23:
+        quick: ("20241223-20260101", "20260101-20260623")
+        standard: ("20230623-20250623", "20250623-20260623")
+        deep: ("20220623-20250623", "20250623-20260623")
+    """
+    if depth not in DEPTH_SETTINGS:
+        depth = "standard"
+
+    settings = DEPTH_SETTINGS[depth]
+    is_months = settings["is_lookback_months"]
+    oos_months = settings["oos_lookback_months"]
+
+    if latest_data_end is None:
+        latest_data_end = latest_complete_day(as_of)
+
+    # Calculate OOS end (next day boundary to include last complete day)
+    oos_end = latest_data_end + timedelta(days=1)
+
+    # Calculate OOS start
+    oos_start = oos_end - timedelta(days=oos_months * 30)
+
+    # Calculate IS end (same as OOS start)
+    is_end = oos_start
+
+    # Calculate IS start
+    is_start = is_end - timedelta(days=is_months * 30)
+
+    # Format as Freqtrade timeranges
+    is_range = f"{is_start.strftime('%Y%m%d')}-{is_end.strftime('%Y%m%d')}"
+    oos_range = f"{oos_start.strftime('%Y%m%d')}-{oos_end.strftime('%Y%m%d')}"
+
+    return is_range, oos_range
+
+
+def walk_forward_windows_for_depth(
+    depth: str,
+    as_of: datetime | None = None,
+    latest_data_end: datetime | None = None,
+) -> list[dict[str, str]]:
+    """Generate walk-forward windows for a given analysis depth.
+
+    Windows are rolling and end at the latest data, ensuring recent market
+    conditions are tested. The latest window must not fail catastrophically
+    for a strategy to be considered Validated or Elite.
+
+    Args:
+        depth: Analysis depth ("quick", "standard", or "deep")
+        as_of: Reference date for calculation (defaults to now)
+        latest_data_end: Override latest data end date (defaults to latest_complete_day)
+
+    Returns:
+        List of window dicts with "train" and "test" ranges in Freqtrade format
+
+    Example for deep depth on 2026-06-23:
+        [
+            {"train": "20220623-20230623", "test": "20230623-20231223"},
+            {"train": "20230101-20240101", "test": "20240101-20240701"},
+            ...
+            {"train": "20250101-20260101", "test": "20260101-20260623"},
+        ]
+    """
+    if depth not in DEPTH_SETTINGS:
+        depth = "standard"
+
+    settings = DEPTH_SETTINGS[depth]
+
+    # Skip WFO for quick depth
+    if depth == "quick":
+        return []
+
+    if latest_data_end is None:
+        latest_data_end = latest_complete_day(as_of)
+
+    # Calculate window count based on depth
+    if depth == "standard":
+        window_count = 3
+    else:  # deep
+        window_count = 6
+
+    windows = []
+    train_months = 12
+    test_months = 6
+
+    # Generate rolling windows ending at latest data
+    for i in range(window_count):
+        # Calculate test end (next day boundary)
+        test_end = latest_data_end + timedelta(days=1)
+
+        # Calculate test start
+        test_start = test_end - timedelta(days=test_months * 30)
+
+        # Calculate train end (same as test start)
+        train_end = test_start
+
+        # Calculate train start
+        train_start = train_end - timedelta(days=train_months * 30)
+
+        # Shift windows backward for earlier iterations
+        shift_months = (window_count - 1 - i) * 6
+        train_start -= timedelta(days=shift_months * 30)
+        train_end -= timedelta(days=shift_months * 30)
+        test_start -= timedelta(days=shift_months * 30)
+        test_end -= timedelta(days=shift_months * 30)
+
+        windows.append({
+            "train": f"{train_start.strftime('%Y%m%d')}-{train_end.strftime('%Y%m%d')}",
+            "test": f"{test_start.strftime('%Y%m%d')}-{test_end.strftime('%Y%m%d')}",
+        })
+
+    return windows
 
 
 @dataclass(frozen=True)
@@ -297,7 +463,8 @@ class Policy:
         for tf in unsupported_configured:
             notes.append(f"Configured style timeframe {tf} is unsupported for automated validation.")
 
-        default_is, default_oos = DEFAULT_DATE_RANGES[depth]
+        # Use dynamic date ranges based on current date
+        default_is, default_oos = date_ranges_for_depth(depth)
         pair_universe = (
             advanced.get("pair_universe")
             or payload.get("pair_universe")

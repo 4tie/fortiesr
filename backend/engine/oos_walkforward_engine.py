@@ -100,6 +100,7 @@ class OOSAndWalkForwardEngine:
         self,
         strategy: Strategy,
         windows: List[Dict],  # [{"is_profit": x, "oos_profit": y, "period": "2022"}, ...]
+        latest_window_must_not_fail: bool = True,
     ) -> Dict:
         """
         Test walk-forward consistency across multiple periods.
@@ -107,6 +108,7 @@ class OOSAndWalkForwardEngine:
         Args:
             strategy: Strategy being tested
             windows: List of WF test results for each period
+            latest_window_must_not_fail: If True, latest window collapse blocks validation
 
         Returns:
             {
@@ -116,6 +118,7 @@ class OOSAndWalkForwardEngine:
                 "passing_windows": int,
                 "avg_degradation": float (%),
                 "consistency_std": float,  # Lower = more consistent
+                "latest_window_passed": bool,
                 "recommendation": str,
             }
         """
@@ -125,13 +128,15 @@ class OOSAndWalkForwardEngine:
                 "wf_score": 0.0,
                 "window_count": 0,
                 "passing_windows": 0,
+                "latest_window_passed": None,
                 "explanation": "No walk-forward data available",
             }
 
         degradations = []
         passing = 0
+        latest_window_passed = True
 
-        for window in windows:
+        for i, window in enumerate(windows):
             is_profit = window.get("is_profit", 0)
             oos_profit = window.get("oos_profit", 0)
 
@@ -141,8 +146,13 @@ class OOSAndWalkForwardEngine:
             degradation = (is_profit - oos_profit) / is_profit
             degradations.append(degradation)
 
-            if oos_profit > 0 and degradation < 0.50:
+            window_passed = oos_profit > 0 and degradation < 0.50
+            if window_passed:
                 passing += 1
+
+            # Check if this is the latest window (last in list)
+            if i == len(windows) - 1:
+                latest_window_passed = window_passed
 
         if not degradations:
             return {
@@ -150,6 +160,7 @@ class OOSAndWalkForwardEngine:
                 "wf_score": 0.0,
                 "window_count": len(windows),
                 "passing_windows": 0,
+                "latest_window_passed": None,
                 "explanation": "No valid windows for analysis",
             }
 
@@ -163,10 +174,17 @@ class OOSAndWalkForwardEngine:
 
         # Determine if walk-forward passed
         # Needs: >60% windows passing AND avg degradation < 40%
-        wf_passed = (passing / len(degradations) >= 0.60) and (avg_degradation < 0.40)
+        base_passed = (passing / len(degradations) >= 0.60) and (avg_degradation < 0.40)
+
+        # Additional check: latest window must not fail catastrophically
+        if latest_window_must_not_fail and not latest_window_passed:
+            wf_passed = False
+        else:
+            wf_passed = base_passed
 
         explanation = self._generate_wf_explanation(
-            wf_passed, passing, len(degradations), avg_degradation, consistency_std
+            wf_passed, base_passed, latest_window_passed, latest_window_must_not_fail,
+            passing, len(degradations), avg_degradation, consistency_std
         )
 
         return {
@@ -177,6 +195,8 @@ class OOSAndWalkForwardEngine:
             "window_pass_rate": (passing / len(degradations) * 100) if degradations else 0,
             "avg_degradation_pct": avg_degradation * 100,
             "consistency_std": consistency_std,
+            "latest_window_passed": latest_window_passed,
+            "latest_window_required": latest_window_must_not_fail,
             "explanation": explanation,
         }
 
@@ -218,16 +238,54 @@ class OOSAndWalkForwardEngine:
     def _generate_wf_explanation(
         self,
         passed: bool,
+        base_passed: bool,
+        latest_window_passed: bool,
+        latest_window_required: bool,
         passing_windows: int,
         total_windows: int,
         avg_degradation: float,
         consistency_std: float,
     ) -> str:
         """Generate human-readable walk-forward explanation"""
+        if not latest_window_required:
+            # Legacy behavior when latest window check is disabled
+            if base_passed:
+                return (
+                    f"Strong walk-forward consistency. "
+                    f"Strategy passed {passing_windows}/{total_windows} validation windows. "
+                    f"Average degradation: {avg_degradation*100:.1f}%. "
+                    f"Consistency score: {100-consistency_std*100:.0f}%. "
+                    f"Ready for deployment."
+                )
+            if passing_windows / total_windows >= 0.50:
+                return (
+                    f"Moderate walk-forward results. "
+                    f"Strategy passed {passing_windows}/{total_windows} windows. "
+                    f"Some periods showed strong results, others weak. "
+                    f"May work in certain market conditions."
+                )
+            return (
+                f"Poor walk-forward consistency. "
+                f"Strategy passed only {passing_windows}/{total_windows} windows. "
+                f"Performance is highly dependent on specific periods. "
+                f"Not recommended for live trading."
+            )
+
+        # New behavior with latest window check enabled
+        if not latest_window_passed:
+            return (
+                f"Latest walk-forward window failed catastrophically. "
+                f"Strategy passed {passing_windows}/{total_windows} windows overall, "
+                f"but the most recent period collapsed. "
+                f"This indicates the strategy may not work in current market conditions. "
+                f"Not recommended for live trading."
+            )
+
         if passed:
             return (
                 f"Strong walk-forward consistency. "
-                f"Strategy passed {passing_windows}/{total_windows} validation windows. "
+                f"Strategy passed {passing_windows}/{total_windows} validation windows, "
+                f"including the latest window. "
                 f"Average degradation: {avg_degradation*100:.1f}%. "
                 f"Consistency score: {100-consistency_std*100:.0f}%. "
                 f"Ready for deployment."
