@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import math
+from datetime import datetime
 from typing import Any
 
 from ..policy import load_policy
@@ -27,12 +28,15 @@ DEFAULT_SCORE_WEIGHTS: dict[str, float] = {
     "trade_quality": 0.05,
 }
 
-TIMEFRAME_MIN_TRADES: tuple[tuple[set[str], int], ...] = (
+TIMEFRAME_MIN_TRADES_PER_YEAR: tuple[tuple[set[str], int], ...] = (
     ({"1m", "3m", "5m"}, 500),
-    ({"15m", "30m", "1h"}, 200),
-    ({"2h", "4h", "6h", "8h", "12h"}, 100),
+    ({"15m", "30m", "1h"}, 250),
+    ({"2h", "4h", "6h", "8h", "12h"}, 120),
     ({"1d", "3d", "1w"}, 30),
 )
+
+# Minimum trades per year for scalping/intraday activity warning
+SCALPING_MIN_TRADES_PER_YEAR = 180
 
 VALIDATED_SCORE = 75.0
 PROMISING_SCORE = 65.0
@@ -74,13 +78,24 @@ def compute_score(
     tier_info = _classify_tier(score_100, gate_checks, normalized, validation_gates, elite_gates)
 
     score_explanation = {
-        "formula_version": "validation_first_v2",
+        "formula_version": "validation_first_v3",
         "units": {
             "internal_rates": "decimal: 0.10 means 10%",
             "display_rates": "percent: 10.0 means 10%",
             "profit_factor": "ratio",
             "sharpe_ratio": "ratio, optional",
             "calmar_ratio": "ratio, optional",
+        },
+        "time_range": {
+            "in_sample": str(getattr(state, "in_sample_range", "unknown")),
+            "out_of_sample": str(getattr(state, "out_sample_range", "unknown")),
+            "oos_years": normalized.get("oos_years", 1.0),
+            "latest_complete_day": datetime.utcnow().strftime("%Y-%m-%d"),
+        },
+        "trade_activity_gate": {
+            "required_oos_trades": normalized.get("required_oos_trades", 0),
+            "actual_oos_trades": normalized.get("total_trades", 0),
+            "basis": f"{normalized.get('min_trades_per_year', 0)} trades/year × {normalized.get('oos_years', 1.0)} OOS years",
         },
         "formulas": {
             "profit_factor": "70 points at validation min PF; 100 points at elite min PF.",
@@ -90,7 +105,7 @@ def compute_score(
             "oos": "OOS retention or explicit OOS pass/fail when available; missing OOS caps the tier below Validated.",
             "walk_forward": "Walk-forward pass-rate score when WFO windows are available; otherwise marked unavailable.",
             "pair_consistency": "Multi-pair pass rate when per-pair results exist, otherwise selected-pair coverage versus policy target.",
-            "trade_quality": "Trade-count score versus the stricter of policy min_trades and timeframe min_trades.",
+            "trade_quality": f"Trade-count score versus OOS-based requirement (min_trades_per_year × oos_years).",
         },
         "thresholds": _threshold_summary(validation_gates, elite_gates, normalized),
         "components": components,
@@ -169,7 +184,18 @@ def _score_weights(policy_weights: dict[str, Any]) -> dict[str, float]:
 
 def _normalize_metrics(state: Any, metrics: dict[str, Any], gates: dict[str, Any]) -> dict[str, Any]:
     timeframe = str(getattr(state, "selected_timeframe", None) or getattr(state, "timeframe", "") or "")
-    min_trades = _min_trades_for_timeframe(timeframe, gates)
+
+    # Calculate OOS years from date ranges
+    oos_range = str(getattr(state, "out_sample_range", "") or "")
+    oos_years = _calculate_oos_years(oos_range)
+
+    # Calculate required trades based on per-year requirement
+    min_trades_per_year = _min_trades_per_year_for_timeframe(timeframe)
+    required_oos_trades = max(1, int(min_trades_per_year * oos_years))
+
+    # Use the stricter of policy min_trades and OOS-based requirement
+    policy_min_trades = int(gates.get("min_trades") or 1)
+    min_trades = max(policy_min_trades, required_oos_trades)
 
     expectancy = _first_decimal_metric(
         metrics,
@@ -209,6 +235,9 @@ def _normalize_metrics(state: Any, metrics: dict[str, Any], gates: dict[str, Any
     return {
         "timeframe": timeframe,
         "min_trades_required": min_trades,
+        "oos_years": oos_years,
+        "required_oos_trades": required_oos_trades,
+        "min_trades_per_year": min_trades_per_year,
         "expectancy": expectancy,
         "expectancy_display_pct": _display_pct(expectancy),
         "profit_factor": profit_factor,
@@ -642,11 +671,44 @@ def _min_trades_for_timeframe(timeframe: str, gates: dict[str, Any]) -> int:
     policy_min = int(gates.get("min_trades") or 1)
     tf = timeframe.lower().strip()
     timeframe_min = 1
-    for names, minimum in TIMEFRAME_MIN_TRADES:
+    for names, minimum in TIMEFRAME_MIN_TRADES_PER_YEAR:
         if tf in names:
             timeframe_min = minimum
             break
     return max(policy_min, timeframe_min)
+
+
+def _min_trades_per_year_for_timeframe(timeframe: str) -> int:
+    """Return minimum trades per year for a given timeframe."""
+    tf = timeframe.lower().strip()
+    for names, minimum in TIMEFRAME_MIN_TRADES_PER_YEAR:
+        if tf in names:
+            return minimum
+    return 100  # Default fallback
+
+
+def _calculate_oos_years(oos_range: str) -> float:
+    """Calculate OOS years from Freqtrade timerange string.
+
+    Args:
+        oos_range: Freqtrade timerange format (YYYYMMDD-YYYYMMDD)
+
+    Returns:
+        OOS years as a float (e.g., 0.5 for 6 months, 1.0 for 1 year)
+    """
+    try:
+        parts = oos_range.split("-")
+        if len(parts) != 2:
+            return 1.0  # Default to 1 year if parsing fails
+
+        start_str, end_str = parts
+        start_date = datetime.strptime(start_str, "%Y%m%d")
+        end_date = datetime.strptime(end_str, "%Y%m%d")
+
+        days = (end_date - start_date).days
+        return round(days / 365.0, 2)
+    except (ValueError, AttributeError):
+        return 1.0  # Default to 1 year on error
 
 
 def _first_present(values: dict[str, Any], *keys: str) -> Any:
