@@ -7,11 +7,11 @@ import {
   DocumentArrowDownIcon,
   ChartBarIcon,
   ShieldCheckIcon,
-  TrendingUpIcon,
   ClockIcon,
   CurrencyDollarIcon,
   ChevronDownIcon,
   ChevronRightIcon,
+  ArrowUpIcon,
 } from "@heroicons/react/24/outline";
 import { translateError } from "../../features/autoquant/errorTranslator";
 
@@ -285,7 +285,7 @@ export default function AutoQuantFinalResultCard({ report, onDownload }) {
       label: "Best Pairs",
       value: stressTest?.winning_pairs?.length || 0,
       unit: "pairs",
-      icon: TrendingUpIcon,
+      icon: ArrowUpIcon,
     },
     {
       label: "Profit Factor",
