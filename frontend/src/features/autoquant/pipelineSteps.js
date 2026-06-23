@@ -14,8 +14,11 @@ export const PIPELINE_STEPS = [
     checks: ["Syntax validation", "Parameter compatibility", "API connectivity"],
     metrics: ["Validation time", "Error count", "Warnings found"],
     statusMap: {
-      "sanity_backtest": "passed",
+      // Backend statuses for this stage
+      "running": "running",
+      "passed": "passed",
       "failed": "failed",
+      "pending": "pending",
     },
   },
   {
@@ -28,8 +31,10 @@ export const PIPELINE_STEPS = [
     checks: ["Volume analysis", "Volatility screening", "Correlation filtering"],
     metrics: ["Candidates evaluated", "Pairs selected", "Screening duration"],
     statusMap: {
-      "pair_screening": "passed",
+      "running": "running",
+      "passed": "passed",
       "failed": "failed",
+      "pending": "pending",
     },
   },
   {
@@ -42,8 +47,10 @@ export const PIPELINE_STEPS = [
     checks: ["Data quality", "Trade execution", "Risk limits"],
     metrics: ["Total profit", "Max drawdown", "Trade count", "Win rate"],
     statusMap: {
-      "sanity_backtest": "passed",
+      "running": "running",
+      "passed": "passed",
       "failed": "failed",
+      "pending": "pending",
     },
   },
   {
@@ -56,8 +63,10 @@ export const PIPELINE_STEPS = [
     checks: ["Convergence testing", "Overfitting detection", "Parameter stability"],
     metrics: ["Best parameters", "Improvement %", "Optimization epochs", "Time elapsed"],
     statusMap: {
-      "hyperopt": "passed",
+      "running": "running",
+      "passed": "passed",
       "failed": "failed",
+      "pending": "pending",
     },
   },
   {
@@ -70,9 +79,10 @@ export const PIPELINE_STEPS = [
     checks: ["Market regime testing", "Sensitivity analysis", "Feature validation"],
     metrics: ["Robustness score", "Features added", "Stress test results"],
     statusMap: {
-      "auto_patching": "passed",
-      "robustness": "passed",
+      "running": "running",
+      "passed": "passed",
       "failed": "failed",
+      "pending": "pending",
     },
   },
   {
@@ -85,9 +95,10 @@ export const PIPELINE_STEPS = [
     checks: ["Statistical significance", "Risk-adjusted returns", "Consistency ranking"],
     metrics: ["Competition score", "Rank position", "Advantage margin"],
     statusMap: {
-      "ensemble": "passed",
-      "competition": "passed",
+      "running": "running",
+      "passed": "passed",
       "failed": "failed",
+      "pending": "pending",
     },
   },
   {
@@ -100,22 +111,32 @@ export const PIPELINE_STEPS = [
     checks: ["File generation", "Metadata completeness", "Export validation"],
     metrics: ["Files created", "Report pages", "Export time"],
     statusMap: {
-      "delivery": "passed",
-      "completed": "passed",
+      "running": "running",
+      "passed": "passed",
       "failed": "failed",
+      "completed": "passed",
+      "pending": "pending",
     },
   },
 ];
 
-// Map legacy stage names to new pipeline step IDs
+// Map legacy stage names and backend stage names to new pipeline step IDs
 export const LEGACY_STAGE_MAP = {
+  // Backend stage names (from backend/services/auto_quant/pipeline_modules/config.py)
+  "Pre-Flight Filtering": "preflight",
+  "Portfolio Baseline Backtest": "baseline",
+  "WFA Hyperopt": "hyperopt",
+  "Robustness & Feature Injection": "robustness",
+  "Portfolio Competition": "competition",
+  "Delivery": "delivery",
+
+  // Legacy UI stage names (for backward compatibility)
   "Sanity Backtest": "baseline",
   "Hyperopt Execution": "hyperopt",
   "Auto-Patching": "robustness",
   "Out-of-Sample Validation": "robustness",
   "Multi-Pair Stress Test": "competition",
   "Risk Assessment": "robustness",
-  "Delivery": "delivery",
 };
 
 // Helper to get step metadata by ID or legacy name
