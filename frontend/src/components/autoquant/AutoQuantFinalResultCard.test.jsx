@@ -77,10 +77,11 @@ describe("AutoQuantFinalResultCard", () => {
     expect(screen.getByText("3")).toBeInTheDocument(); // Best Pairs count without unit in main text
     expect(screen.getByText("2.50")).toBeInTheDocument();
     expect(screen.getByText("0.150")).toBeInTheDocument();
-    expect(screen.getByText("15.5%")).toBeInTheDocument();
+    // max_drawdown and score: value and unit are in sibling nodes; match the parent div's full textContent
+    expect(screen.getByText((_, el) => el?.tagName === 'DIV' && el.textContent === '15.5%')).toBeInTheDocument();
     expect(screen.getByText("150")).toBeInTheDocument();
     expect(screen.getByText("0.85")).toBeInTheDocument();
-    expect(screen.getByText("92.5%")).toBeInTheDocument();
+    expect(screen.getByText((_, el) => el?.tagName === 'DIV' && el.textContent === '92.5%')).toBeInTheDocument();
   });
 
   it("should render selected pairs", () => {

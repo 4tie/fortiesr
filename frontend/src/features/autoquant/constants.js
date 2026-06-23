@@ -1,13 +1,16 @@
 export const API_BASE = "";
 
+// Premium user-facing pipeline stage names (matches PIPELINE_STEPS order in pipelineSteps.js).
+// These are used as fallback stage names when the backend does not supply a stages array,
+// and also as display labels in the status bar / run dashboard.
 export const STAGE_NAMES = [
-  "Sanity Backtest",
-  "Hyperopt Execution",
-  "Auto-Patching",
-  "Out-of-Sample Validation",
-  "Multi-Pair Stress Test",
-  "Risk Assessment",
-  "Delivery",
+  "Pre-flight Filtering",
+  "Pair Screening",
+  "Portfolio Baseline Backtest",
+  "WFA Hyperopt",
+  "Robustness & Feature Injection",
+  "Portfolio Competition",
+  "Delivery / Export",
 ];
 
 export const STAGE_ICONS = ["01", "02", "03", "04", "05", "06", "07"];

@@ -122,12 +122,17 @@ export const PIPELINE_STEPS = [
 
 // Map legacy stage names and backend stage names to new pipeline step IDs
 export const LEGACY_STAGE_MAP = {
-  // Backend stage names (from backend/services/auto_quant/pipeline_modules/config.py)
-  "Pre-Flight Filtering": "preflight",
+  // New premium pipeline stage names (direct match)
+  "Pre-flight Filtering": "preflight",
+  "Pair Screening": "screening",
   "Portfolio Baseline Backtest": "baseline",
   "WFA Hyperopt": "hyperopt",
   "Robustness & Feature Injection": "robustness",
   "Portfolio Competition": "competition",
+  "Delivery / Export": "delivery",
+
+  // Backend stage names (from backend/services/auto_quant/pipeline_modules/config.py)
+  "Pre-Flight Filtering": "preflight",
   "Delivery": "delivery",
 
   // Legacy UI stage names (for backward compatibility)
