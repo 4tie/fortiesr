@@ -1,0 +1,73 @@
+/**
+ * Mock PipelineState for a just-started AutoQuant run
+ * Used for testing the premium pipeline UI with pending stages
+ */
+export const mockPipelineStatePending = {
+  status: "running",
+  run_id: "test-run-456",
+  started_at: "2024-01-01T11:00:00Z",
+  completed_at: null,
+  current_stage: 0,
+  progress: 5,
+  progress_percent: 5,
+  stages: [
+    {
+      index: 0,
+      name: "Pre-Flight Filtering",
+      status: "running",
+      message: "Validating strategy syntax...",
+      data: {},
+      started_at: "2024-01-01T11:00:00Z",
+      duration_s: null,
+    },
+    {
+      index: 1,
+      name: "Portfolio Baseline Backtest",
+      status: "pending",
+      message: "",
+      data: {},
+      started_at: null,
+      duration_s: null,
+    },
+    {
+      index: 2,
+      name: "WFA Hyperopt",
+      status: "pending",
+      message: "",
+      data: {},
+      started_at: null,
+      duration_s: null,
+    },
+    {
+      index: 3,
+      name: "Robustness & Feature Injection",
+      status: "pending",
+      message: "",
+      data: {},
+      started_at: null,
+      duration_s: null,
+    },
+    {
+      index: 4,
+      name: "Portfolio Competition",
+      status: "pending",
+      message: "",
+      data: {},
+      started_at: null,
+      duration_s: null,
+    },
+    {
+      index: 5,
+      name: "Delivery",
+      status: "pending",
+      message: "",
+      data: {},
+      started_at: null,
+      duration_s: null,
+    },
+  ],
+  wfo_windows: [],
+  recent_events: [],
+  generalization_failure: null,
+  retry_history: [],
+};

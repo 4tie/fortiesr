@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { playChime } from "../utils";
 import api from "../../../services/api";
+import { mapEventToStageIndex } from "../eventToStepMapper";
 
 const TERMINAL_STATUSES = new Set(["completed", "failed", "interrupted", "cancelled"]);
 const ACTIVE_STATUSES = new Set(["pending", "running", "awaiting_user_approval"]);
@@ -225,6 +226,22 @@ export default function useAutoQuantPipeline(initialPipelineState = null) {
       if (msg.status === "log") {
         appendEventLog(msg);
         return;
+      }
+
+      // Handle event types that map to specific stages
+      if (msg.msg_type || msg.type) {
+        const eventType = msg.msg_type || msg.type;
+        const stageIndex = mapEventToStageIndex(eventType);
+        if (stageIndex >= 0) {
+          // Route this event to the appropriate stage
+          applyStageEvent({
+            ...msg,
+            stage: stageIndex,
+            status: msg.status || "running",
+          });
+          appendEventLog(msg);
+          return;
+        }
       }
 
       if (msg.stage != null && msg.status) {

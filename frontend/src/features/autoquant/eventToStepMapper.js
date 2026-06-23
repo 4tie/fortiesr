@@ -58,6 +58,6 @@ export function describeEventMapping(eventType) {
  */
 export function getEventsForStage(stageIndex) {
   return Object.entries(EVENT_TYPE_TO_STAGE_INDEX)
-    .filter(([_, idx]) => idx === stageIndex)
-    .map(([type, _]) => type);
+    .filter(([, idx]) => idx === stageIndex)
+    .map(([type]) => type);
 }
