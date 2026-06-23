@@ -712,7 +712,7 @@ export default function AutoQuantRunDashboard({
                     <AutoQuantPipelineCard
                       key={stage.index || idx}
                       stage={stage}
-                      isExpanded={stage.status === "running" || stage.status === "failed"}
+                      isExpanded={stage.status === "running" || stage.status === "failed" || stage.status === "warning"}
                     />
                   ))}
                 </div>
