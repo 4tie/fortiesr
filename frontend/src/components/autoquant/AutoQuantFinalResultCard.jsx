@@ -160,63 +160,108 @@ function FileList({ files, onDownload }) {
 }
 
 export default function AutoQuantFinalResultCard({ report, onDownload }) {
-  // Determine final status based on report data
+  // Determine final status based on report data.
+  // Rule: backend validation_status / readiness_label is the PRIMARY source of truth.
+  // Score normalization is used ONLY as a fallback when no recognized backend status is present.
   const determineStatus = () => {
     if (!report) return { status: "data_issues", reason: "Report data not available", rawReason: null };
 
-    // Priority 1: Use backend-provided validation status
-    const backendStatus = report.validation_status || report.readiness_label;
-    
-    // Normalize score: if > 1, treat as 0-100 scale and divide by 100
+    // --- Score normalization (safe) ---
+    // If score > 1 it is on a 0-100 scale → divide by 100.
+    // If score is between 0 and 1, use as-is.
+    // If score is missing or not a number, treat as null (do not use for classification).
     const rawScore = typeof report.score === "number" ? report.score : null;
     const normalizedScore = rawScore == null ? null : rawScore > 1 ? rawScore / 100 : rawScore;
-    
+
     const scoreExplanation = report.score_explanation || [];
     const rawReason = scoreExplanation[0] || null;
 
-    // Map backend status to UI status
-    if (backendStatus === "Production Ready" || backendStatus === "Elite" || (normalizedScore != null && normalizedScore >= 0.75)) {
+    // Helper: translate a raw backend reason through errorTranslator.
+    // Returns { reason, rawReason } where rawReason is shown in the expandable
+    // "Technical details" section only when the message was actually translated.
+    const translateReason = (msg) => {
+      if (!msg) return { reason: null, rawReason: null };
+      const translated = translateError(msg);
+      const isSame = translated.userMessage === msg;
+      return {
+        reason: translated.userMessage,
+        rawReason: isSame ? null : msg,
+      };
+    };
+
+    // --- Priority 1: Authoritative backend status ---
+    // Backend validation_status / readiness_label takes full precedence.
+    // Score is NOT consulted when a recognized status is present.
+    const backendStatus = report.validation_status || report.readiness_label;
+
+    if (backendStatus === "Production Ready" || backendStatus === "Elite") {
       return {
         status: "export_ready",
         reason: rawReason || "Strategy meets all validation criteria",
-        rawReason: null
+        rawReason: null,
       };
     }
-    if (backendStatus === "Candidate" || backendStatus === "Qualified" || (normalizedScore != null && normalizedScore >= 0.5 && normalizedScore < 0.75)) {
-      // Translate the reason if it looks technical
-      const translated = rawReason ? translateError(rawReason) : null;
+    if (backendStatus === "Candidate" || backendStatus === "Qualified") {
+      const { reason, rawReason: raw } = translateReason(rawReason);
       return {
         status: "needs_repair",
-        reason: translated?.userMessage || rawReason || "Strategy has potential but needs improvement",
-        rawReason: translated?.userMessage !== rawReason ? rawReason : null
+        reason: reason || "Strategy has potential but needs improvement",
+        rawReason: raw,
       };
     }
-    if (backendStatus === "Rejected" || (normalizedScore != null && normalizedScore < 0.5)) {
-      // Translate the reason if it looks technical
-      const translated = rawReason ? translateError(rawReason) : null;
+    if (backendStatus === "Rejected") {
+      const { reason, rawReason: raw } = translateReason(rawReason);
       return {
         status: "rejected",
-        reason: translated?.userMessage || rawReason || "Strategy did not meet validation criteria",
-        rawReason: translated?.userMessage !== rawReason ? rawReason : null
+        reason: reason || "Strategy did not meet validation criteria",
+        rawReason: raw,
       };
     }
 
-    // Priority 2: Check if computation failed (missing thresholds or risk data)
+    // --- Priority 2: Score-based fallback (only when backend status is absent) ---
+    // A valid normalizedScore is required; missing/invalid score does NOT classify.
+    if (normalizedScore != null) {
+      if (normalizedScore >= 0.75) {
+        return {
+          status: "export_ready",
+          reason: rawReason || "Strategy meets score threshold",
+          rawReason: null,
+        };
+      }
+      if (normalizedScore >= 0.5) {
+        const { reason, rawReason: raw } = translateReason(rawReason);
+        return {
+          status: "needs_repair",
+          reason: reason || "Strategy has potential but needs improvement",
+          rawReason: raw,
+        };
+      }
+      // normalizedScore < 0.5
+      const { reason, rawReason: raw } = translateReason(rawReason);
+      return {
+        status: "rejected",
+        reason: reason || "Strategy did not meet validation criteria",
+        rawReason: raw,
+      };
+    }
+
+    // --- Priority 3: Data-quality fallback ---
+    // No backend status, no usable score — check if required report fields exist.
     if (!report.thresholds || !report.risk) {
-      const translated = rawReason ? translateError(rawReason) : null;
+      const { reason, rawReason: raw } = translateReason(rawReason);
       return {
         status: "data_issues",
-        reason: translated?.userMessage || "Insufficient data to determine readiness status",
-        rawReason: translated?.userMessage !== rawReason ? rawReason : null
+        reason: reason || "Insufficient data to determine readiness status",
+        rawReason: raw,
       };
     }
 
-    // Fallback: if no backend status and data is present, assume needs repair
-    const translated = rawReason ? translateError(rawReason) : null;
+    // Last resort: data is present but status cannot be determined.
+    const { reason, rawReason: raw } = translateReason(rawReason);
     return {
       status: "needs_repair",
-      reason: translated?.userMessage || "Status could not be determined from backend",
-      rawReason: translated?.userMessage !== rawReason ? rawReason : null
+      reason: reason || "Status could not be determined from backend",
+      rawReason: raw,
     };
   };
 
@@ -228,9 +273,6 @@ export default function AutoQuantFinalResultCard({ report, onDownload }) {
   const thresholds = report?.thresholds || {};
   const files = report?.files || {};
   const sensitivity = report?.sensitivity || null;
-
-  // Use backend thresholds if available, fallback to safe defaults
-  // Thresholds are used inline in metrics display below
 
   // Build metrics array
   const metrics = [
