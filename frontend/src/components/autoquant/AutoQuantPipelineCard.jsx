@@ -1,6 +1,5 @@
 import { useState } from "react";
 import {
-  ChevronDownIcon,
   ChevronRightIcon,
   CheckCircleIcon,
   XCircleIcon,
@@ -12,68 +11,52 @@ import {
 import { getPipelineStep, mapStageStatus, PIPELINE_STEPS } from "../../features/autoquant/pipelineSteps";
 import { translateError } from "../../features/autoquant/errorTranslator";
 
-function StatusBadge({ status }) {
-  const statusConfig = {
-    pending: {
-      icon: ClockIcon,
-      color: "base-content/40",
-      bgColor: "base-300/30",
-      borderColor: "base-300/40",
-      label: "Pending",
-    },
-    running: {
-      icon: ClockIcon,
-      color: "primary",
-      bgColor: "primary/10",
-      borderColor: "primary/30",
-      label: "Running",
-      animate: true,
-    },
-    passed: {
-      icon: CheckCircleIcon,
-      color: "success",
-      bgColor: "success/10",
-      borderColor: "success/30",
-      label: "Passed",
-    },
-    failed: {
-      icon: XCircleIcon,
-      color: "error",
-      bgColor: "error/10",
-      borderColor: "error/30",
-      label: "Failed",
-    },
-    warning: {
-      icon: ExclamationTriangleIcon,
-      color: "warning",
-      bgColor: "warning/10",
-      borderColor: "warning/30",
-      label: "Warning",
-    },
-    skipped: {
-      icon: MinusCircleIcon,
-      color: "base-content/40",
-      bgColor: "base-300/30",
-      borderColor: "base-300/40",
-      label: "Skipped",
-    },
-  };
+const STATUS_CLASSES = {
+  pending: {
+    badge: "bg-base-300/30 border-base-300/40 text-base-content/40",
+    icon: ClockIcon,
+    label: "Pending",
+  },
+  running: {
+    badge: "bg-primary/10 border-primary/30 text-primary animate-pulse",
+    icon: null, // replaced by daisyUI spinner
+    label: "Running",
+  },
+  passed: {
+    badge: "bg-success/10 border-success/30 text-success",
+    icon: CheckCircleIcon,
+    label: "Passed",
+  },
+  failed: {
+    badge: "bg-error/10 border-error/30 text-error",
+    icon: XCircleIcon,
+    label: "Failed",
+  },
+  warning: {
+    badge: "bg-warning/10 border-warning/30 text-warning",
+    icon: ExclamationTriangleIcon,
+    label: "Warning",
+  },
+  skipped: {
+    badge: "bg-base-300/30 border-base-300/40 text-base-content/40",
+    icon: MinusCircleIcon,
+    label: "Skipped",
+  },
+};
 
-  const config = statusConfig[status] || statusConfig.pending;
+function StatusBadge({ status }) {
+  const config = STATUS_CLASSES[status] || STATUS_CLASSES.pending;
   const Icon = config.icon;
 
   return (
     <div
-      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium ${
-        config.animate ? "animate-pulse" : ""
-      }`}
-      style={{
-        backgroundColor: `var(--${config.bgColor.replace("/", "-")})`,
-        borderColor: `var(--${config.borderColor.replace("/", "-")})`,
-        color: `var(--${config.color})`,
-      }}
+      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium ${config.badge}`}
     >
-      <Icon className={`h-3.5 w-3.5 ${config.animate ? "animate-spin" : ""}`} />
+      {status === "running" ? (
+        <span className="loading loading-spinner loading-xs" />
+      ) : (
+        <Icon className="h-3.5 w-3.5" />
+      )}
       {config.label}
     </div>
   );
@@ -84,7 +67,7 @@ function MetricItem({ label, value, unit = "" }) {
     <div className="flex items-center justify-between py-1.5 border-b border-base-200 last:border-0">
       <span className="text-xs text-base-content/60">{label}</span>
       <span className="text-xs font-mono font-medium text-base-content">
-        {value != null ? `${value}${unit}` : "Not available"}
+        {value != null ? `${value}${unit}` : "—"}
       </span>
     </div>
   );
@@ -134,16 +117,16 @@ export default function AutoQuantPipelineCard({ stage, isExpanded: defaultExpand
 
   return (
     <div
-      className={`card bg-base-100 border transition-all duration-300 ${
+      className={`card border transition-all duration-300 ${
         mappedStatus === "running"
-          ? "border-primary/30 shadow-sm shadow-primary/5"
+          ? "border-primary/40 border-l-2 border-l-primary bg-base-100 shadow-sm shadow-primary/10"
           : mappedStatus === "passed"
-          ? "border-success/20"
+          ? "border-success/25 bg-base-100"
           : mappedStatus === "failed"
-          ? "border-error/30"
+          ? "border-error/35 bg-base-100"
           : mappedStatus === "warning"
-          ? "border-warning/30"
-          : "border-base-300"
+          ? "border-warning/35 bg-base-100"
+          : "border-base-300/40 bg-base-100"
       }`}
     >
       <div className="card-body p-4">
@@ -174,16 +157,18 @@ export default function AutoQuantPipelineCard({ stage, isExpanded: defaultExpand
 
           {/* Step Info */}
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center justify-between gap-2">
               <h3 className="text-sm font-semibold text-base-content truncate">
                 {stepMetadata?.name || stage?.name || "Unknown Step"}
               </h3>
-              <StatusBadge status={mappedStatus} />
-              {stageDuration != null && mappedStatus === "passed" && (
-                <span className="text-[10px] font-mono text-base-content/40">
-                  {stageDuration}s
-                </span>
-              )}
+              <div className="flex items-center gap-2 shrink-0">
+                <StatusBadge status={mappedStatus} />
+                {stageDuration != null && mappedStatus === "passed" && (
+                  <span className="text-[10px] font-mono text-base-content/35">
+                    (<span>{stageDuration}s</span>)
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* Plain English Explanation */}
@@ -193,7 +178,7 @@ export default function AutoQuantPipelineCard({ stage, isExpanded: defaultExpand
 
             {/* Short status message */}
             {stageMessage && mappedStatus !== "running" && (
-              <p className="text-[11px] text-base-content/50 mt-1 truncate">
+              <p className="text-[11px] text-base-content/45 mt-1 truncate">
                 {stageMessage}
               </p>
             )}
@@ -205,17 +190,16 @@ export default function AutoQuantPipelineCard({ stage, isExpanded: defaultExpand
             className="btn btn-ghost btn-xs btn-circle hover:bg-base-200 transition-colors"
             aria-label={isExpanded ? "Collapse details" : "Expand details"}
           >
-            {isExpanded ? (
-              <ChevronDownIcon className="h-4 w-4 text-base-content/60" />
-            ) : (
-              <ChevronRightIcon className="h-4 w-4 text-base-content/60" />
-            )}
+            <ChevronRightIcon
+              className={`h-4 w-4 text-base-content/60 transition-transform duration-200 ${isExpanded ? "rotate-90" : "rotate-0"}`}
+            />
           </button>
         </div>
 
         {/* Expandable Technical Details */}
         {isExpanded && (
-          <div className="mt-4 pt-4 border-t border-base-200 space-y-4">
+          <div className="mt-4 space-y-4">
+            <div className="h-px bg-base-200/60" />
             {/* Why This Step Matters */}
             {stepMetadata?.whyItMatters && (
               <div className="flex gap-2">
@@ -395,9 +379,11 @@ export default function AutoQuantPipelineCard({ stage, isExpanded: defaultExpand
 
             {/* Not Available Yet */}
             {!hasData && !hasWarnings && !hasFailures && mappedStatus === "pending" && (
-              <div className="text-center py-4">
-                <ClockIcon className="h-6 w-6 text-base-content/30 mx-auto mb-2" />
-                <p className="text-xs text-base-content/40">Not available yet</p>
+              <div className="text-center py-6">
+                <span className="block text-3xl font-mono text-base-content/[0.12] leading-none select-none">
+                  {stepMetadata ? PIPELINE_STEPS.findIndex((s) => s.id === stepMetadata.id) + 1 : "—"}
+                </span>
+                <p className="text-xs text-base-content/35 mt-2">Waiting to start</p>
               </div>
             )}
           </div>
