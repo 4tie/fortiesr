@@ -10,6 +10,7 @@ import {
   InformationCircleIcon,
 } from "@heroicons/react/24/outline";
 import { getPipelineStep, mapStageStatus, PIPELINE_STEPS } from "../../features/autoquant/pipelineSteps";
+import { translateError, getSuggestedActions } from "../../features/autoquant/errorTranslator";
 
 function StatusBadge({ status }) {
   const statusConfig = {
@@ -273,7 +274,20 @@ export default function AutoQuantPipelineCard({ stage, isExpanded: defaultExpand
                 </h4>
                 <div className="bg-base-200/50 rounded-lg p-2 space-y-0.5">
                   {Object.entries(stageData).map(([key, value]) => {
-                    // Skip nested objects and arrays for display
+                    // Handle arrays: flatten for display
+                    if (Array.isArray(value)) {
+                      // Skip common arrays that get their own sections below
+                      if (["retry_history", "per_pair_metrics", "per_pair", "wfo_windows"].includes(key)) {
+                        return null;
+                      }
+                      // Flatten other arrays
+                      const arrayDisplay = value.length > 0
+                        ? `${value.length} item${value.length !== 1 ? "s" : ""}`
+                        : "empty";
+                      const label = key.replace(/_/g, " ").replace(/([A-Z])/g, " $1").trim();
+                      return <MetricItem key={key} label={label} value={arrayDisplay} />;
+                    }
+                    // Skip nested objects (still)
                     if (typeof value === "object" && value !== null) return null;
                     // Format the key for display
                     const label = key
@@ -293,6 +307,37 @@ export default function AutoQuantPipelineCard({ stage, isExpanded: defaultExpand
               </div>
             )}
 
+            {/* Per-Pair Results (if present) */}
+            {stageData?.per_pair && Array.isArray(stageData.per_pair) && stageData.per_pair.length > 0 && (
+              <div>
+                <h4 className="text-[10px] font-semibold uppercase tracking-wider text-base-content/50 mb-2">
+                  Pairs
+                </h4>
+                <div className="flex flex-wrap gap-1">
+                  {stageData.per_pair.map((pair, idx) => {
+                    const pairName = typeof pair === "string" ? pair : pair.key || pair.pair || `Pair ${idx}`;
+                    return (
+                      <span key={idx} className="badge badge-xs badge-primary badge-outline">
+                        {pairName}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* WFO Windows Summary (if present) */}
+            {stageData?.wfo_windows && Array.isArray(stageData.wfo_windows) && stageData.wfo_windows.length > 0 && (
+              <div>
+                <h4 className="text-[10px] font-semibold uppercase tracking-wider text-base-content/50 mb-2">
+                  Walk-Forward Windows
+                </h4>
+                <div className="text-xs text-base-content/70">
+                  {stageData.wfo_windows.length} window{stageData.wfo_windows.length !== 1 ? "s" : ""} tested
+                </div>
+              </div>
+            )}
+
             {/* Warnings */}
             {hasWarnings && stageData?.warnings?.length > 0 && (
               <div className="rounded-lg bg-warning/10 border border-warning/20 p-3">
@@ -300,12 +345,15 @@ export default function AutoQuantPipelineCard({ stage, isExpanded: defaultExpand
                   Warnings
                 </h4>
                 <ul className="space-y-1">
-                  {stageData.warnings.map((warning, idx) => (
-                    <li key={idx} className="text-xs text-warning/90 flex items-start gap-2">
-                      <ExclamationTriangleIcon className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                      <span>{warning}</span>
-                    </li>
-                  ))}
+                  {stageData.warnings.map((warning, idx) => {
+                    const translated = translateError(warning, stage?.name);
+                    return (
+                      <li key={idx} className="text-xs text-warning/90 flex items-start gap-2">
+                        <ExclamationTriangleIcon className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                        <span>{translated.userMessage || warning}</span>
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             )}
@@ -316,13 +364,23 @@ export default function AutoQuantPipelineCard({ stage, isExpanded: defaultExpand
                 <h4 className="text-[10px] font-semibold uppercase tracking-wider text-error mb-2">
                   Errors
                 </h4>
-                <ul className="space-y-1">
-                  {stageData.errors.map((error, idx) => (
-                    <li key={idx} className="text-xs text-error/90 flex items-start gap-2">
-                      <XCircleIcon className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                      <span>{error}</span>
-                    </li>
-                  ))}
+                <ul className="space-y-2">
+                  {stageData.errors.map((error, idx) => {
+                    const translated = translateError(error, stage?.name);
+                    return (
+                      <li key={idx} className="text-xs text-error/90 space-y-1">
+                        <div className="flex items-start gap-2">
+                          <XCircleIcon className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                          <span>{translated.userMessage || error}</span>
+                        </div>
+                        {translated.userMessage !== error && (
+                          <div className="text-[10px] text-error/60 font-mono pl-5 break-words">
+                            {error}
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             )}

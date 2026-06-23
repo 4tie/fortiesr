@@ -8,6 +8,7 @@ import {
   CheckCircleIcon,
 } from "@heroicons/react/24/outline";
 import ErrorDisplay from "../shared/ErrorDisplay";
+import { translateError, getSuggestedActions } from "../../features/autoquant/errorTranslator";
 
 function RetryHistoryTable({ history, onAcceptFix, onRejectFix }) {
   const [expandedDetails, setExpandedDetails] = useState({});
@@ -423,11 +424,17 @@ function GeneralizationFailurePanel({ gf, onRetryRelaxed, onAcceptFix, onRejectF
 }
 
 export default function AutoQuantFailureReport({ state, onRetryRelaxed }) {
+  const [showTechnicalDetails, setShowTechnicalDetails] = useState(false);
   const failedStage = state.stages?.find((s) => s.status === "failed");
   const gf = state.generalization_failure
     ?? (failedStage?.data?.attempts ? failedStage.data : null);
   // Stage 4 = OOS overfitting exhaustion; Stage 2 = Sharp Peak sensitivity exhaustion
   const isGeneralizationFailure = (failedStage?.index === 4 || failedStage?.index === 2) && gf;
+
+  // Get error message and translate it
+  const errorMessage = failedStage?.message || state.error || "Unknown error";
+  const stageName = failedStage?.name || "Unknown Stage";
+  const translated = translateError(errorMessage, stageName);
 
   return (
     <div className={`rounded-xl border p-4 ${isGeneralizationFailure ? (gf.reason === "sharp_peak" ? "border-secondary/30 bg-secondary/5" : "border-error/30 bg-error/5") : "border-error/40 bg-error/10"}`}>
@@ -444,12 +451,46 @@ export default function AutoQuantFailureReport({ state, onRetryRelaxed }) {
           {failedStage && (
             <p className="text-xs mt-1 text-base-content/70">
               Stage {failedStage.index} - {failedStage.name}
-              {isGeneralizationFailure ? "" : `: ${failedStage.message}`}
             </p>
           )}
-          {!failedStage && state.error && (
-            <p className="text-xs mt-1 text-base-content/70">{state.error}</p>
+
+          {/* Friendly error message */}
+          {!isGeneralizationFailure && translated?.userMessage && (
+            <div className="mt-3 space-y-2">
+              <p className="text-sm text-base-content/80 font-medium">
+                {translated.userMessage}
+              </p>
+
+              {/* Suggested actions */}
+              {translated.action && (
+                <div className="text-xs text-base-content/70 space-y-1">
+                  <p className="font-semibold uppercase text-base-content/60">Next steps:</p>
+                  <ul className="list-disc list-inside space-y-0.5">
+                    {getSuggestedActions(translated.action).slice(0, 3).map((action, idx) => (
+                      <li key={idx}>{action}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Technical details (expandable) */}
+              <button
+                type="button"
+                onClick={() => setShowTechnicalDetails(!showTechnicalDetails)}
+                className="text-[10px] text-primary/60 hover:text-primary/80 flex items-center gap-1 mt-2"
+              >
+                <ChevronRightIcon className={`h-3 w-3 transition-transform ${showTechnicalDetails ? "rotate-90" : ""}`} />
+                {showTechnicalDetails ? "Hide" : "Show"} technical details
+              </button>
+
+              {showTechnicalDetails && (
+                <div className="bg-base-300/30 rounded p-2 text-[10px] font-mono text-base-content/60 max-h-40 overflow-y-auto">
+                  {translated.originalMessage}
+                </div>
+              )}
+            </div>
           )}
+
           {isGeneralizationFailure && (
             <GeneralizationFailurePanel gf={gf} onRetryRelaxed={onRetryRelaxed} />
           )}

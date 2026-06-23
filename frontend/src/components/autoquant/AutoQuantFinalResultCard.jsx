@@ -139,43 +139,60 @@ export default function AutoQuantFinalResultCard({ report, onDownload }) {
   const determineStatus = () => {
     if (!report) return { status: "data_issues", reason: "Report data not available" };
 
-    const { validation_status, readiness_label, validation_notes } = report;
+    // Priority 1: Use backend-provided validation status
+    const backendStatus = report.validation_status || report.readiness_label;
+    const score = report.score ?? 0;
+    const scoreExplanation = report.score_explanation || [];
 
-    // Check for data issues first
-    if (validation_status === "data_issues" || readiness_label === "Data Issues") {
-      return { status: "data_issues", reason: validation_notes || "Data quality problems detected" };
+    // Map backend status to UI status
+    if (backendStatus === "Production Ready" || backendStatus === "Elite" || score >= 0.75) {
+      return {
+        status: "export_ready",
+        reason: scoreExplanation[0] || "Strategy meets all validation criteria"
+      };
+    }
+    if (backendStatus === "Candidate" || backendStatus === "Qualified" || (score >= 0.5 && score < 0.75)) {
+      return {
+        status: "needs_repair",
+        reason: scoreExplanation[0] || "Strategy has potential but needs improvement"
+      };
+    }
+    if (backendStatus === "Rejected" || score < 0.5) {
+      return {
+        status: "rejected",
+        reason: scoreExplanation[0] || "Strategy did not meet validation criteria"
+      };
     }
 
-    // Check for rejection
-    if (validation_status === "rejected" || readiness_label === "Rejected") {
-      return { status: "rejected", reason: validation_notes || "Strategy did not meet quality thresholds" };
+    // Priority 2: Check if computation failed (missing thresholds or risk data)
+    if (!report.thresholds || !report.risk) {
+      return {
+        status: "data_issues",
+        reason: "Insufficient data to determine readiness status"
+      };
     }
 
-    // Check for needs repair
-    if (validation_status === "needs_repair" || readiness_label === "Needs Repair") {
-      return { status: "needs_repair", reason: validation_notes || "Issues found that need attention" };
-    }
-
-    // Check if export ready
-    if (validation_status === "export_ready" || readiness_label === "Export Ready") {
-      return { status: "export_ready", reason: validation_notes || "All validation checks passed" };
-    }
-
-    // Default to needs repair if uncertain
+    // Fallback: if no backend status and data is present, assume needs repair
     return {
       status: "needs_repair",
-      reason: validation_notes || "Status could not be determined - review needed",
+      reason: "Status could not be determined from backend"
     };
   };
 
   const { status, reason } = determineStatus();
 
-  // Extract report data
+  // Extract report data — use backend thresholds when available
   const risk = report?.risk || {};
   const stressTest = report?.stress_test || {};
   const thresholds = report?.thresholds || {};
   const files = report?.files || {};
   const sensitivity = report?.sensitivity || null;
+
+  // Use backend thresholds if available, fallback to safe defaults
+  const maxDrawdownThreshold = thresholds.max_drawdown !== undefined ? thresholds.max_drawdown : 30;
+  const minWinRateThreshold = thresholds.min_win_rate !== undefined ? thresholds.min_win_rate : 40;
+  const minProfitFactorThreshold = thresholds.min_profit_factor !== undefined ? thresholds.min_profit_factor : 1.0;
+  const minSharpeThreshold = thresholds.min_sharpe !== undefined ? thresholds.min_sharpe : 0.5;
 
   // Build metrics array
   const metrics = [
