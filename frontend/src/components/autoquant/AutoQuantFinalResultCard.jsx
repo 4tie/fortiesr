@@ -189,10 +189,7 @@ export default function AutoQuantFinalResultCard({ report, onDownload }) {
   const sensitivity = report?.sensitivity || null;
 
   // Use backend thresholds if available, fallback to safe defaults
-  const maxDrawdownThreshold = thresholds.max_drawdown !== undefined ? thresholds.max_drawdown : 30;
-  const minWinRateThreshold = thresholds.min_win_rate !== undefined ? thresholds.min_win_rate : 40;
-  const minProfitFactorThreshold = thresholds.min_profit_factor !== undefined ? thresholds.min_profit_factor : 1.0;
-  const minSharpeThreshold = thresholds.min_sharpe !== undefined ? thresholds.min_sharpe : 0.5;
+  // Thresholds are used inline in metrics display below
 
   // Build metrics array
   const metrics = [

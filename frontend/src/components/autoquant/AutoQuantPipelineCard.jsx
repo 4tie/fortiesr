@@ -10,7 +10,7 @@ import {
   InformationCircleIcon,
 } from "@heroicons/react/24/outline";
 import { getPipelineStep, mapStageStatus, PIPELINE_STEPS } from "../../features/autoquant/pipelineSteps";
-import { translateError, getSuggestedActions } from "../../features/autoquant/errorTranslator";
+import { translateError } from "../../features/autoquant/errorTranslator";
 
 function StatusBadge({ status }) {
   const statusConfig = {
