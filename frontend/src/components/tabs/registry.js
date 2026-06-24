@@ -13,6 +13,7 @@ import PerformanceTab from "../PerformanceTab.jsx";
 import PairExplorerTab from "../PairExplorerTab.jsx";
 import AutoQuantOverview from "../AutoQuantOverview.jsx";
 import StrategyLabTab from "../StrategyLabTab.jsx";
+import HermesStrategyLabTab from "../HermesStrategyLabTab.jsx";
 import AssistantTab from "../AssistantTab.jsx";
 import QuantTab from "../QuantTab.jsx";
 import AgentsTab from "../AgentsTab.jsx";
@@ -22,70 +23,22 @@ import ContentTab from "../ContentTab.jsx";
 
 // Navigation tab mapping - flat structure matching TopNav
 export const NAV_TABS = {
-  agents: {
-    id: "agents",
-    label: "Agents",
-  },
-  tasks: {
-    id: "tasks",
-    label: "Tasks",
-  },
-  schedule: {
-    id: "schedule",
-    label: "Schedule",
-  },
-  content: {
-    id: "content",
-    label: "Content",
-  },
-  "auto-quant": {
-    id: "auto-quant",
-    label: "AutoQuant",
-  },
-  optimizer: {
-    id: "optimizer",
-    label: "Optimizer",
-  },
-  backtest: {
-    id: "backtest",
-    label: "Backtest",
-  },
-  results: {
-    id: "results",
-    label: "Results",
-  },
-  "pair-explorer": {
-    id: "pair-explorer",
-    label: "Pair Explorer",
-  },
-  settings: {
-    id: "settings",
-    label: "Settings",
-  },
-  "strategy-lab": {
-    id: "strategy-lab",
-    label: "Strategy Lab",
-  },
-  quant: {
-    id: "quant",
-    label: "Quant",
-  },
-  performance: {
-    id: "performance",
-    label: "Performance",
-  },
-  "ai-assistant": {
-    id: "ai-assistant",
-    label: "AI Assistant",
-  },
-  "strategy-editor": {
-    id: "strategy-editor",
-    label: "Strategy Editor",
-  },
-  "stress-test": {
-    id: "stress-test",
-    label: "Stress Test",
-  },
+  agents: { id: "agents", label: "Agents" },
+  tasks: { id: "tasks", label: "Tasks" },
+  schedule: { id: "schedule", label: "Schedule" },
+  content: { id: "content", label: "Content" },
+  "auto-quant": { id: "auto-quant", label: "AutoQuant" },
+  optimizer: { id: "optimizer", label: "Optimizer" },
+  backtest: { id: "backtest", label: "Backtest" },
+  results: { id: "results", label: "Results" },
+  "pair-explorer": { id: "pair-explorer", label: "Pair Explorer" },
+  settings: { id: "settings", label: "Settings" },
+  "strategy-lab": { id: "strategy-lab", label: "Strategy Lab" },
+  quant: { id: "quant", label: "Quant" },
+  performance: { id: "performance", label: "Performance" },
+  "ai-assistant": { id: "ai-assistant", label: "AI Assistant" },
+  "strategy-editor": { id: "strategy-editor", label: "Strategy Editor" },
+  "stress-test": { id: "stress-test", label: "Stress Test" },
 };
 
 // Helper to find which nav tab a sub-tab belongs to (no longer needed with flat structure)
@@ -211,7 +164,7 @@ export const TAB_REGISTRY = {
   "strategy-lab": {
     id: "strategy-lab",
     label: "Strategy Lab",
-    component: StrategyLabTab,
+    component: HermesStrategyLabTab,
     requiresStrategies: false,
     requiresPairs: false,
     requiresSharedState: false,
