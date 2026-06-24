@@ -99,6 +99,15 @@ const DEFAULT_SIMPLE_FORM = {
   pairs: DEFAULT_MANUAL_PAIRS,
 };
 
+const DEFAULT_HERMES_FORM = {
+  trading_style: "trend_following",
+  direction: "long",
+  risk_profile: "balanced",
+  timeframe_preference: "5m",
+  user_notes: "",
+  pairs: DEFAULT_MANUAL_PAIRS,
+};
+
 const DEFAULT_CANDIDATE_CONFIG = {
   timerange: "20240101-20240401",
   timeframe: "5m",
@@ -267,6 +276,7 @@ function buildStrategySpecFromSimpleMode(form) {
     description: `${form.tradingStyle} preset, ${form.tradingHorizon} horizon, ${form.riskProfile} risk, ${form.direction} direction.`,
     timeframe: form.timeframe,
     trading_style: form.tradingStyle,
+    direction: form.direction,
     indicators: preset.indicators,
     entry_conditions: preset.entry_conditions,
     exit_conditions: preset.exit_conditions,
@@ -316,9 +326,6 @@ function validateSimpleMode(form, spec) {
   }
   if (getSimpleModePairs(form).length === 0) {
     errors.push("At least one pair is required.");
-  }
-  if (form.direction !== "long") {
-    errors.push("Only long direction is supported for now.");
   }
   if (!spec.indicators || spec.indicators.length === 0) {
     errors.push("Generated spec must include at least one indicator.");
@@ -740,6 +747,10 @@ export default function StrategyLabTab() {
   const [currentGateName, setCurrentGateName] = useState(null);
   const [inputMode, setInputMode] = useState("simple");
   const [simpleForm, setSimpleForm] = useState(DEFAULT_SIMPLE_FORM);
+  const [hermesForm, setHermesForm] = useState(DEFAULT_HERMES_FORM);
+  const [hermesSpec, setHermesSpec] = useState(null);
+  const [hermesGenerating, setHermesGenerating] = useState(false);
+  const [hermesError, setHermesError] = useState(null);
   const [spec, setSpec] = useState(JSON.stringify(
     buildStrategySpecFromSimpleMode(DEFAULT_SIMPLE_FORM),
     null,
@@ -855,6 +866,100 @@ export default function StrategyLabTab() {
     setValidationErrors([]);
     setParseError(null);
     setError(null);
+  };
+
+  const handleHermesFieldChange = (field, value) => {
+    setHermesForm((prev) => ({ ...prev, [field]: value }));
+    setHermesError(null);
+  };
+
+  const handleGenerateHermesSpec = async () => {
+    setHermesGenerating(true);
+    setHermesError(null);
+    setHermesSpec(null);
+
+    try {
+      const response = await api.autoquant.generateStrategySpec({
+        trading_style: hermesForm.trading_style,
+        direction: hermesForm.direction,
+        risk_profile: hermesForm.risk_profile,
+        timeframe_preference: hermesForm.timeframe_preference,
+        user_notes: hermesForm.user_notes,
+      });
+
+      if (response.errors && response.errors.length > 0) {
+        setHermesError(response.errors.join(", "));
+        return;
+      }
+
+      if (response.spec) {
+        setHermesSpec(response.spec);
+      } else {
+        setHermesError("Failed to generate strategy spec");
+      }
+    } catch (err) {
+      setHermesError(err.message || "Failed to generate strategy spec");
+    } finally {
+      setHermesGenerating(false);
+    }
+  };
+
+  const handleConfirmHermesSpec = async () => {
+    if (!hermesSpec) return;
+
+    // Build candidate config from Hermes form
+    const candidateConfig = {
+      ...DEFAULT_CANDIDATE_CONFIG,
+      timeframe: hermesForm.timeframe_preference,
+      pairs: hermesForm.pairs.split(",").map(p => p.trim()).filter(p => p),
+    };
+
+    try {
+      const response = await api.candidate.startRun(hermesSpec, candidateConfig);
+      setRunId(response.run_id);
+      setStatus("running");
+      setError(null);
+      setValidationErrors([]);
+      setVerdict(null);
+      setGates([]);
+      setCurrentGateName(null);
+
+      // Connect WebSocket for live updates
+      const ws = api.candidate.connectWebSocket(response.run_id);
+      wsRef.current = ws;
+
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.gate) {
+          setGates(prev => [...prev, data.gate]);
+          setCurrentGateName(data.gate.name);
+        }
+        if (data.verdict) {
+          setVerdict(data.verdict);
+          setStatus("completed");
+          ws.close();
+        }
+        if (data.error) {
+          setError(data.error);
+          setStatus("failed");
+          ws.close();
+        }
+      };
+
+      ws.onerror = () => {
+        setError("WebSocket connection failed");
+        setStatus("failed");
+      };
+
+      ws.onclose = () => {
+        if (status !== "completed" && status !== "failed") {
+          // Fallback to polling if WebSocket closes unexpectedly
+          startPolling(response.run_id);
+        }
+      };
+    } catch (err) {
+      setError(err.message || "Failed to start candidate evaluation");
+    }
   };
 
   const handleDownloadPair = async (pair, requiredDate, timeframes, endDate) => {
@@ -1170,6 +1275,13 @@ export default function StrategyLabTab() {
             </button>
             <button
               type="button"
+              className={`tab ${inputMode === "hermes" ? "tab-active" : ""}`}
+              onClick={() => setInputMode("hermes")}
+            >
+              Generate with Hermes Agent
+            </button>
+            <button
+              type="button"
               className={`tab ${inputMode === "advanced" ? "tab-active" : ""}`}
               onClick={() => setInputMode("advanced")}
             >
@@ -1245,8 +1357,6 @@ export default function StrategyLabTab() {
                         onChange={(e) => handleSimpleFieldChange("direction", e.target.value)}
                       >
                         <option value="long">long</option>
-                        <option value="short">short</option>
-                        <option value="both">both</option>
                       </select>
                     </div>
                     <div>
@@ -1337,6 +1447,138 @@ export default function StrategyLabTab() {
                     spec={simplePreviewSpec} 
                     validationErrors={validationErrors}
                   />
+                </div>
+              </div>
+            </div>
+          ) : inputMode === "hermes" ? (
+            <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.9fr)] gap-4">
+              <div className="card bg-base-200 border border-base-300">
+                <div className="card-body p-4">
+                  <h3 className="font-semibold text-sm mb-3">Generate with Hermes Agent</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <label htmlFor="hermes-trading-style" className="block text-xs font-medium mb-1">
+                        Trading style
+                      </label>
+                      <select
+                        id="hermes-trading-style"
+                        className="select select-bordered select-sm w-full"
+                        value={hermesForm.trading_style}
+                        onChange={(e) => handleHermesFieldChange("trading_style", e.target.value)}
+                      >
+                        <option value="trend_following">trend_following</option>
+                        <option value="mean_reversion">mean_reversion</option>
+                        <option value="momentum">momentum</option>
+                        <option value="breakout">breakout</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label htmlFor="hermes-direction" className="block text-xs font-medium mb-1">
+                        Direction
+                      </label>
+                      <select
+                        id="hermes-direction"
+                        className="select select-bordered select-sm w-full"
+                        value={hermesForm.direction}
+                        onChange={(e) => handleHermesFieldChange("direction", e.target.value)}
+                      >
+                        <option value="long">long</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label htmlFor="hermes-risk-profile" className="block text-xs font-medium mb-1">
+                        Risk profile
+                      </label>
+                      <select
+                        id="hermes-risk-profile"
+                        className="select select-bordered select-sm w-full"
+                        value={hermesForm.risk_profile}
+                        onChange={(e) => handleHermesFieldChange("risk_profile", e.target.value)}
+                      >
+                        <option value="low">low</option>
+                        <option value="balanced">balanced</option>
+                        <option value="aggressive">aggressive</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label htmlFor="hermes-timeframe" className="block text-xs font-medium mb-1">
+                        Timeframe
+                      </label>
+                      <select
+                        id="hermes-timeframe"
+                        className="select select-bordered select-sm w-full"
+                        value={hermesForm.timeframe_preference}
+                        onChange={(e) => handleHermesFieldChange("timeframe_preference", e.target.value)}
+                      >
+                        {VALID_TIMEFRAMES.map((timeframe) => (
+                          <option key={timeframe} value={timeframe}>{timeframe}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label htmlFor="hermes-pairs" className="block text-xs font-medium mb-1">
+                        Pairs
+                      </label>
+                      <textarea
+                        id="hermes-pairs"
+                        className="textarea textarea-bordered textarea-sm w-full h-20 font-mono text-xs"
+                        value={hermesForm.pairs}
+                        onChange={(e) => handleHermesFieldChange("pairs", e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="hermes-notes" className="block text-xs font-medium mb-1">
+                        User notes (optional)
+                      </label>
+                      <textarea
+                        id="hermes-notes"
+                        className="textarea textarea-bordered textarea-sm w-full h-16 font-mono text-xs"
+                        value={hermesForm.user_notes}
+                        onChange={(e) => handleHermesFieldChange("user_notes", e.target.value)}
+                        placeholder="Additional context for strategy generation..."
+                      />
+                    </div>
+                    <button
+                      className="btn btn-primary btn-sm w-full"
+                      onClick={handleGenerateHermesSpec}
+                      disabled={hermesGenerating}
+                    >
+                      {hermesGenerating ? (
+                        <>
+                          <span className="loading loading-spinner loading-xs"></span>
+                          Generating...
+                        </>
+                      ) : (
+                        "Generate Strategy Spec"
+                      )}
+                    </button>
+                    {hermesError && (
+                      <div className="alert alert-error alert-xs py-2">
+                        <span className="text-xs">{hermesError}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="card bg-base-200 border border-base-300">
+                <div className="card-body p-4">
+                  <h3 className="font-semibold text-sm mb-3">Strategy Spec Preview</h3>
+                  {hermesSpec ? (
+                    <div className="space-y-3">
+                      <StrategySpecPreview spec={hermesSpec} validationErrors={[]} />
+                      <button
+                        className="btn btn-success btn-sm w-full"
+                        onClick={handleConfirmHermesSpec}
+                        disabled={status === "running"}
+                      >
+                        Confirm & Start Evaluation
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="text-center text-base-content/40 text-sm py-8">
+                      Generate a strategy spec to preview
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

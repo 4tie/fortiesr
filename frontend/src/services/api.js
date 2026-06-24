@@ -68,6 +68,20 @@ export const api = {
     },
 
     /**
+     * Generate strategy spec using Hermes AI
+     * @param {object} payload - { trading_style, timeframe_preference, direction, risk_profile, user_notes }
+     * @returns {Promise<{spec: object, errors: string[], raw_response: string}>}
+     */
+    async generateStrategySpec(payload) {
+      const res = await fetch(`${this.baseURL}/generate-strategy-spec`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      return parseJsonResponse(res, "Failed to generate strategy spec.");
+    },
+
+    /**
      * Screen pairs for trading
      * @param {object} payload
      * @returns {Promise<object>}

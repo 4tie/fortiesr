@@ -38,6 +38,17 @@ def render_strategy_from_spec(spec: StrategySpec) -> dict:
 
     # Step 1: Validate spec before rendering
     spec_errors = validate_spec(spec)
+    
+    # Validate direction (MVP long-only)
+    if spec.direction != "long":
+        errors.append(f"Only long direction is supported, got: {spec.direction}")
+        return {
+            "source": None,
+            "errors": errors,
+            "warnings": warnings,
+            "template": None,
+        }
+    
     if spec_errors:
         return {
             "source": None,
@@ -106,15 +117,52 @@ def render_strategy_from_spec(spec: StrategySpec) -> dict:
                 f"exact line '{target_line}' not found"
             )
 
-    # Step 5: Add warnings for unapplied spec fields
-    # ROI, stoploss, trailing, position_sizing, indicator conditions are not applied
+    # Step 5: Apply stoploss
+    if spec.stoploss is not None:
+        # Try to replace stoploss line
+        stoploss_pattern = r'stoploss = -?\d+\.?\d*'
+        import re
+        if re.search(stoploss_pattern, source):
+            source = re.sub(stoploss_pattern, f'stoploss = {spec.stoploss}', source)
+        else:
+            warnings.append(f"Could not apply stoploss {spec.stoploss} to template")
+
+    # Step 6: Apply ROI settings
+    if spec.roi and len(spec.roi) > 0:
+        # Try to find and replace minimal_roi
+        roi_pattern = r'minimal_roi = \{[^}]*\}'
+        roi_str = "{"
+        roi_str += ", ".join([f'"{int(mins)}": {pct}' for mins, pct in spec.roi])
+        roi_str += "}"
+        if re.search(roi_pattern, source):
+            source = re.sub(roi_pattern, f'minimal_roi = {roi_str}', source)
+        else:
+            warnings.append("Could not apply ROI settings to template")
+
+    # Step 7: Apply trailing stop settings
+    if spec.trailing and spec.trailing.trailing_stop:
+        # Try to replace trailing stop configuration
+        trailing_pattern = r'trailing_stop = (True|False)'
+        if re.search(trailing_pattern, source):
+            source = re.sub(trailing_pattern, 'trailing_stop = True', source)
+            if spec.trailing.trailing_stop_positive is not None:
+                source = re.sub(
+                    r'trailing_stop_positive = -?\d+\.?\d*',
+                    f'trailing_stop_positive = {spec.trailing.trailing_stop_positive}',
+                    source
+                )
+        else:
+            warnings.append("Could not apply trailing stop settings to template")
+
+    # Step 8: Apply max_open_trades if specified
+    if spec.max_open_trades is not None:
+        max_trades_pattern = r'max_open_trades = \d+'
+        if re.search(max_trades_pattern, source):
+            source = re.sub(max_trades_pattern, f'max_open_trades = {spec.max_open_trades}', source)
+
+    # Step 9: Add warnings for unapplied complex spec fields
+    # Complex custom indicator parameters and entry/exit conditions are not applied
     # unless already supported by the template
-    if spec.roi:
-        warnings.append("ROI settings not applied to generated source (template defaults used)")
-    if spec.stoploss != -0.10:
-        warnings.append("Custom stoploss not applied to generated source (template defaults used)")
-    if spec.trailing.trailing_stop:
-        warnings.append("Trailing stop settings not applied to generated source (template defaults used)")
     if spec.indicators:
         warnings.append("Custom indicator parameters not applied to generated source (template defaults used)")
     if spec.entry_conditions:
@@ -124,7 +172,7 @@ def render_strategy_from_spec(spec: StrategySpec) -> dict:
     if spec.position_sizing.method != "fixed":
         warnings.append("Custom position sizing not applied to generated source (template defaults used)")
 
-    # Step 6: Validate rendered source
+    # Step 10: Validate rendered source
     validator = StrategyValidator()
     validation_result = validator.validate_code(source)
 
