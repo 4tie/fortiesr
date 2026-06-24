@@ -1,0 +1,19 @@
+{
+  "strategy_name": "HermesTestStrategy",
+  "params": {
+    "buy": {},
+    "sell": {},
+    "roi": {
+      "0": 0.03,
+      "10": 0.02,
+      "30": 0.01,
+      "60": 0.0
+    },
+    "stoploss": {
+      "stoploss": -0.025
+    },
+    "trailing": {
+      "trailing_stop": false
+    }
+  }
+}

@@ -293,6 +293,11 @@ export default function StrategySpecPreview({ spec, validationErrors }) {
               <div className="badge badge-outline badge-sm">
                 📊 {spec.trading_style}
               </div>
+              {spec.direction && (
+                <div className="badge badge-outline badge-sm">
+                  {spec.direction === "long" ? "📈 long" : spec.direction === "short" ? "📉 short" : "↔️ both"}
+                </div>
+              )}
               <div className="badge badge-outline badge-sm">
                 📈 {spec.max_open_trades} max trades
               </div>
