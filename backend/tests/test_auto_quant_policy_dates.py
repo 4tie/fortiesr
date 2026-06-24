@@ -75,11 +75,11 @@ class TestDateRangesForDepth:
         is_range, oos_range = date_ranges_for_depth("quick", as_of=as_of)
         
         # Quick: 18 months IS, 6 months OOS
-        # IS: 2024-12-23 → 2026-01-01 (approx 18 months)
-        # OOS: 2026-01-01 → 2026-06-23 (approx 6 months)
+        # IS: 2024-06-23 → 2025-12-23 (18 months)
+        # OOS: 2025-12-23 → 2026-06-23 (6 months)
         assert is_range.startswith("2024")
-        assert is_range.endswith("20260101")
-        assert oos_range.startswith("20260101")
+        assert is_range.endswith("20251223")
+        assert oos_range.startswith("20251223")
         assert oos_range.endswith("20260623")
 
     def test_standard_depth_ranges(self):
@@ -176,7 +176,7 @@ class TestCalculateOosYears:
 
     def test_six_month_oos(self):
         """6-month OOS range should return 0.5 years."""
-        oos_range = "20250623-20261223"
+        oos_range = "20250623-20251223"
         years = _calculate_oos_years(oos_range)
         assert years == 0.5
 

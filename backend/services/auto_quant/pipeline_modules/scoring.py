@@ -94,7 +94,9 @@ def compute_score(
         },
         "trade_activity_gate": {
             "required_oos_trades": normalized.get("required_oos_trades", 0),
-            "actual_oos_trades": normalized.get("total_trades", 0),
+            "actual_oos_trades": normalized.get("oos_total_trades") if normalized.get("oos_total_trades") is not None else normalized.get("total_trades", 0),
+            "in_sample_trades": normalized.get("in_sample_total_trades"),
+            "portfolio_trades": normalized.get("portfolio_total_trades"),
             "basis": f"{normalized.get('min_trades_per_year', 0)} trades/year × {normalized.get('oos_years', 1.0)} OOS years",
         },
         "formulas": {
@@ -221,6 +223,11 @@ def _normalize_metrics(state: Any, metrics: dict[str, Any], gates: dict[str, Any
     if oos_passed is None and oos_retention is not None:
         oos_passed = oos_retention >= float(gates.get("min_oos_retention", 0.0) or 0.0)
 
+    # Extract explicit OOS trade count for validation (preferred over generic total_trades)
+    oos_total_trades = _to_int(metrics.get("oos_total_trades"), None)
+    in_sample_total_trades = _to_int(metrics.get("in_sample_total_trades"), None)
+    portfolio_total_trades = _to_int(metrics.get("portfolio_total_trades"), None)
+
     wfo_pass_rate = _as_decimal(
         _first_present(metrics, "wfo_pass_rate", "walk_forward_score", "walk_forward_pass_rate"),
         default=None,
@@ -253,6 +260,9 @@ def _normalize_metrics(state: Any, metrics: dict[str, Any], gates: dict[str, Any
         "oos_profit": oos_profit,
         "oos_profit_display_pct": _display_pct(oos_profit),
         "oos_passed": oos_passed,
+        "oos_total_trades": oos_total_trades,
+        "in_sample_total_trades": in_sample_total_trades,
+        "portfolio_total_trades": portfolio_total_trades,
         "wfo_pass_rate": wfo_pass_rate,
         "wfo_pass_rate_display_pct": _display_pct(wfo_pass_rate),
         "pair_pass_rate": pair_pass_rate,
@@ -373,12 +383,13 @@ def _build_components(
             display_threshold=_display_pct(min_pair),
         ),
         "trade_quality": _component(
-            normalized.get("total_trades"),
-            _threshold_score(normalized.get("total_trades"), normalized.get("min_trades_required", 1), normalized.get("min_trades_required", 1) * 2),
+            normalized.get("oos_total_trades") if normalized.get("oos_total_trades") is not None else normalized.get("total_trades"),
+            _threshold_score(normalized.get("oos_total_trades") if normalized.get("oos_total_trades") is not None else normalized.get("total_trades"), normalized.get("min_trades_required", 1), normalized.get("min_trades_required", 1) * 2),
             weights.get("trade_quality", 0.0),
             ">=",
             normalized.get("min_trades_required"),
             "count",
+            display_value=normalized.get("oos_total_trades") if normalized.get("oos_total_trades") is not None else normalized.get("total_trades"),
         ),
     }
 
@@ -709,14 +720,18 @@ def _min_trades_per_year_for_timeframe(timeframe: str) -> int:
 
 
 def _calculate_oos_years(oos_range: str) -> float:
-    """Calculate OOS years from Freqtrade timerange string.
+    """Calculate OOS years from Freqtrade timerange string using exact calendar months.
+
+    This uses calendar-month arithmetic to ensure accurate month counting
+    (e.g., 12 months = 1.0 year, not 360 days).
 
     Args:
         oos_range: Freqtrade timerange format (YYYYMMDD-YYYYMMDD)
 
     Returns:
-        OOS years as a float (e.g., 0.5 for 6 months, 1.0 for 1 year)
+        OOS years as a float (e.g., 0.5 for 6 months, 1.0 for 12 months)
     """
+    import calendar
     try:
         parts = oos_range.split("-")
         if len(parts) != 2:
@@ -726,8 +741,10 @@ def _calculate_oos_years(oos_range: str) -> float:
         start_date = datetime.strptime(start_str, "%Y%m%d")
         end_date = datetime.strptime(end_str, "%Y%m%d")
 
-        days = (end_date - start_date).days
-        return round(days / 365.0, 2)
+        # Calculate months using calendar arithmetic
+        total_months = (end_date.year * 12 + end_date.month) - (start_date.year * 12 + start_date.month)
+        oos_months = total_months + (end_date.day - start_date.day) / calendar.monthrange(end_date.year, end_date.month)[1]
+        return round(oos_months / 12.0, 2)
     except (ValueError, AttributeError):
         return 1.0  # Default to 1 year on error
 

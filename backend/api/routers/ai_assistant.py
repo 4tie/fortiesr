@@ -435,6 +435,7 @@ async def autoquant_chat(body: AutoQuantRequest, request: Request) -> dict:
     # Import the AI agent tools
     from .ai_agent import SYSTEM_PROMPT as AUTOQUANT_SYSTEM_PROMPT, TOOLS
     from ...services.ai import get_ai_service
+    from ...services.auto_quant.assistant_prompt import build_autoquant_prompt_messages
     
     services = request.app.state.services
     settings = services.settings_store.load()
@@ -446,11 +447,16 @@ async def autoquant_chat(body: AutoQuantRequest, request: Request) -> dict:
         # Get AI service instance
         ai_service = await get_ai_service(settings.user_data_directory_path)
         
-        # Prepare messages with AutoQuant system prompt
-        messages = [
-            {"role": "system", "content": AUTOQUANT_SYSTEM_PROMPT},
-            {"role": "user", "content": body.message}
-        ]
+        # Build context-aware prompt messages using AutoQuant context builder
+        agent_context = getattr(request.app.state, "agent_context", {})
+        context_overrides = body.context_overrides or {}
+        
+        messages = build_autoquant_prompt_messages(
+            user_message=body.message,
+            agent_context=agent_context,
+            history=context_overrides.get("history"),
+            user_profile=context_overrides.get("user_profile"),
+        )
         
         # Prepare tools for function calling
         tools = TOOLS
