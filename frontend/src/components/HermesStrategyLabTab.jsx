@@ -200,7 +200,7 @@ export default function HermesStrategyLabTab(props) {
           )}
 
           {runState?.verdict && (
-            <div className="alert mt-4 ${runState.verdict.passed ? 'alert-success' : 'alert-warning'}">
+            <div className={`alert mt-4 ${runState.verdict.passed ? "alert-success" : "alert-warning"}`}>
               <span>
                 Candidate verdict: {runState.verdict.passed ? "passed" : "failed"}
                 {runState.verdict.failure_reason ? ` — ${runState.verdict.failure_reason}` : ""}
