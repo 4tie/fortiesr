@@ -1,9 +1,9 @@
 {
-  "strategy": "AIStrategy",
+  "strategy": "GAProfitableStrategy",
   "strategy_source": "existing",
-  "trading_style": "scalping",
+  "trading_style": "intraday",
   "risk_profile": "balanced",
-  "analysis_depth": "deep",
+  "analysis_depth": "standard",
   "uploaded_strategy_id": null,
   "advanced_overrides": {},
   "timeframe": "5m",

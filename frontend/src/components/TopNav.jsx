@@ -1,10 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 const PRIMARY_TABS = [
   { id: "auto-quant", label: "AutoQuant" },
   { id: "backtest", label: "Backtest" },
   { id: "results", label: "Results" },
-  { id: "settings", label: "Settings" },
 ];
 
 const DROPDOWN_GROUPS = [
@@ -82,9 +81,26 @@ function StatusPill() {
 function NavDropdown({ group, activeTab, onChange, isOpen, onToggle }) {
   const activeTabInGroup = group.tabs.find(tab => tab.id === activeTab);
   const isActive = !!activeTabInGroup;
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        onToggle();
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen, onToggle]);
 
   return (
-    <div className="relative">
+    <div className="relative" ref={dropdownRef}>
       <button
         onClick={onToggle}
         className={`px-3 py-2 rounded-full text-xs font-medium transition-all whitespace-nowrap flex items-center gap-1 ${
@@ -138,8 +154,8 @@ export default function TopNav({ activeTab, onChange, backendOnline, isWorkRunni
     <nav className="fixed top-0 left-0 right-0 h-16 glass-card border-b border-white/10 z-50 px-6 flex items-center justify-between">
       <BrandMark backendOnline={backendOnline} isWorkRunning={isWorkRunning} />
 
-      <div className="flex items-center gap-1 bg-white/5 rounded-full p-1 overflow-visible">
-        <div className="flex items-center gap-1 overflow-x-auto max-w-[70vw] scrollbar-hide">
+      <div className="flex items-center gap-1 bg-white/5 rounded-full p-1">
+        <div className="flex items-center gap-1 overflow-visible max-w-[70vw] scrollbar-hide">
           {PRIMARY_TABS.map((tab) => (
             <button
               key={tab.id}
@@ -164,6 +180,17 @@ export default function TopNav({ activeTab, onChange, backendOnline, isWorkRunni
               onToggle={() => toggleDropdown(group.label)}
             />
           ))}
+          <button
+            onClick={() => onChange("settings")}
+            className={`px-3 py-2 rounded-full text-xs font-medium transition-all whitespace-nowrap ${
+              activeTab === "settings"
+                ? "bg-white text-base-100 shadow-lg shadow-white/10"
+                : "text-text/60 hover:text-text hover:bg-white/5"
+            }`}
+            title="Settings"
+          >
+            Settings
+          </button>
         </div>
       </div>
 

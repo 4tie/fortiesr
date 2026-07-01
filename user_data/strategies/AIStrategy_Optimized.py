@@ -187,5 +187,7 @@ class AIStrategy_Optimized(IStrategy):
         # Apply dual-factor sizing formula
         position_size = proposed_stake * (target_risk_pct / atr_pct) * (stability_score / 100.0)
         
+        return position_size
+
 
 

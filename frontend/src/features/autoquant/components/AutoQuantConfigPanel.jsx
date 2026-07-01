@@ -132,78 +132,96 @@ function InSampleHint({ timerange }) {
   return <span className="label-text-alt text-success">{summary.days} days (~{summary.months} months)</span>;
 }
 
-function ScreeningResultsTable({ rows, selectedPair, onSelect }) {
+function ScreeningResultsTable({ rows, selectedPairs, onToggle, onCopy }) {
   if (!rows.length) return null;
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-primary/30 bg-base-200/50 neon-glow">
-      <table className="table table-xs w-full">
-        <thead>
-          <tr className="text-[10px] uppercase tracking-wider text-primary/50">
-            <th className="font-semibold">Rank</th>
-            <th className="font-semibold">Pair</th>
-            <th className="font-semibold text-right">Profit %</th>
-            <th className="font-semibold text-right">Trades</th>
-            <th className="font-semibold text-right">Win Rate</th>
-            <th className="font-semibold text-right">Max DD</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, i) => (
-            <tr
-              key={row.pair}
-              className={classNames(
-                "cursor-pointer text-xs transition-all duration-300 hover:bg-primary/20 hover:scale-[1.02]",
-                selectedPair === row.pair ? "bg-primary/15 border-l-2 border-primary" : ""
-              )}
-              onClick={() => onSelect(row.pair)}
-              title="Select this pair and populate the Pair Universe field"
-            >
-              <td className="font-mono text-[10px] text-primary/40">{i + 1}</td>
-              <td className="font-mono font-semibold text-primary">{row.pair}</td>
-              <td
-                className={classNames(
-                  "text-right font-mono font-bold",
-                  row.profit_pct == null
-                    ? "text-base-content/30"
-                    : row.profit_pct >= 0
-                      ? "text-success neon-glow-green"
-                      : "text-error neon-glow-red"
-                )}
-              >
-                {row.profit_pct == null ? "-" : `${row.profit_pct >= 0 ? "+" : ""}${row.profit_pct}%`}
-              </td>
-              <td className="text-right font-mono text-base-content/60">{row.trade_count ?? "-"}</td>
-              <td
-                className={classNames(
-                  "text-right font-mono",
-                  row.win_rate == null
-                    ? "text-base-content/30"
-                    : row.win_rate >= 50
-                      ? "text-success neon-glow-green"
-                      : "text-error neon-glow-red"
-                )}
-              >
-                {row.win_rate == null ? "-" : `${row.win_rate}%`}
-              </td>
-              <td
-                className={classNames(
-                  "text-right font-mono",
-                  row.max_dd == null
-                    ? "text-base-content/30"
-                    : row.max_dd > 20
-                      ? "text-error neon-glow-red"
-                      : row.max_dd > 10
-                        ? "text-warning neon-glow-orange"
-                        : "text-success neon-glow-green"
-                )}
-              >
-                {row.max_dd == null ? "-" : `${row.max_dd}%`}
-              </td>
+    <div className="space-y-3">
+      <div className="overflow-x-auto rounded-lg border border-primary/30 bg-base-200/50 neon-glow">
+        <table className="table table-xs w-full">
+          <thead>
+            <tr className="text-[10px] uppercase tracking-wider text-primary/50">
+              <th className="font-semibold w-8">Select</th>
+              <th className="font-semibold">Rank</th>
+              <th className="font-semibold">Pair</th>
+              <th className="font-semibold text-right">Profit %</th>
+              <th className="font-semibold text-right">Trades</th>
+              <th className="font-semibold text-right">Win Rate</th>
+              <th className="font-semibold text-right">Max DD</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => (
+              <tr
+                key={row.pair}
+                className={classNames(
+                  "text-xs transition-all duration-300 hover:bg-primary/20",
+                  selectedPairs.includes(row.pair) ? "bg-primary/15" : ""
+                )}
+              >
+                <td className="text-center">
+                  <input
+                    type="checkbox"
+                    checked={selectedPairs.includes(row.pair)}
+                    onChange={() => onToggle(row.pair)}
+                    className="checkbox checkbox-xs checkbox-primary"
+                  />
+                </td>
+                <td className="font-mono text-[10px] text-primary/40">{i + 1}</td>
+                <td className="font-mono font-semibold text-primary">{row.pair}</td>
+                <td
+                  className={classNames(
+                    "text-right font-mono font-bold",
+                    row.profit_pct == null
+                      ? "text-base-content/30"
+                      : row.profit_pct >= 0
+                        ? "text-success neon-glow-green"
+                        : "text-error neon-glow-red"
+                  )}
+                >
+                  {row.profit_pct == null ? "-" : `${row.profit_pct >= 0 ? "+" : ""}${row.profit_pct}%`}
+                </td>
+                <td className="text-right font-mono text-base-content/60">{row.trade_count ?? "-"}</td>
+                <td
+                  className={classNames(
+                    "text-right font-mono",
+                    row.win_rate == null
+                      ? "text-base-content/30"
+                      : row.win_rate >= 50
+                        ? "text-success neon-glow-green"
+                        : "text-error neon-glow-red"
+                  )}
+                >
+                  {row.win_rate == null ? "-" : `${row.win_rate}%`}
+                </td>
+                <td
+                  className={classNames(
+                    "text-right font-mono",
+                    row.max_dd == null
+                      ? "text-base-content/30"
+                      : row.max_dd > 20
+                        ? "text-error neon-glow-red"
+                        : row.max_dd > 10
+                          ? "text-warning neon-glow-orange"
+                          : "text-success neon-glow-green"
+                  )}
+                >
+                  {row.max_dd == null ? "-" : `${row.max_dd}%`}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {selectedPairs.length > 0 && (
+        <button
+          type="button"
+          className="btn btn-sm btn-primary w-full gap-2"
+          onClick={onCopy}
+        >
+          Copy {selectedPairs.length} selected pair{selectedPairs.length !== 1 ? 's' : ''} to Pair Universe
+        </button>
+      )}
     </div>
   );
 }
@@ -247,9 +265,26 @@ export default function AutoQuantConfigPanel({
   const [hermesSpec, setHermesSpec] = useState(null);
   const [isGeneratingSpec, setIsGeneratingSpec] = useState(false);
   const [hermesError, setHermesError] = useState(null);
+  const [selectedScreenedPairs, setSelectedScreenedPairs] = useState([]);
   const wfoSummary = form.wfo_enabled ? getWfoWindowSummary(form) : null;
   const pairCount = useMemo(() => countPairs(form.pair_universe), [form.pair_universe]);
   const searchSpaceLabel = form.hyperopt_spaces.length ? form.hyperopt_spaces.join(", ") : "none";
+
+  const toggleScreenedPair = (pair) => {
+    setSelectedScreenedPairs(prev => {
+      if (prev.includes(pair)) {
+        return prev.filter(p => p !== pair);
+      } else {
+        return [...prev, pair];
+      }
+    });
+  };
+
+  const copySelectedPairs = () => {
+    if (selectedScreenedPairs.length > 0) {
+      updateField("pair_universe", selectedScreenedPairs.join(","));
+    }
+  };
 
   const selectScreenedPair = (pair) => {
     setSelectedPair(pair);
@@ -365,200 +400,29 @@ export default function AutoQuantConfigPanel({
                   Strategy Source
                 </p>
               </div>
-              
-              {/* Strategy Source Radio Buttons */}
-              <div className="flex gap-2">
-                {[
-                  { value: "existing", label: "Upload strategy file" },
-                  { value: "generated", label: "Generate with Hermes Agent" },
-                ].map(({ value, label }) => (
-                  <button
-                    key={value}
-                    type="button"
-                    className={classNames(
-                      "flex-1 rounded-lg border px-3 py-2 text-left transition-all",
-                      strategySource === value
-                        ? "border-primary bg-primary/10"
-                        : "border-base-300 bg-base-200/50 hover:border-base-content/30"
-                    )}
-                    onClick={() => {
-                      setStrategySource(value);
-                      setHermesSpec(null);
-                      setHermesError(null);
-                    }}
-                  >
-                    <span className={classNames(
-                      "text-xs font-medium",
-                      strategySource === value ? "text-primary" : "text-base-content/70"
-                    )}>
-                      {label}
-                    </span>
-                  </button>
-                ))}
-              </div>
 
               {/* Existing Strategy Selection */}
-              {strategySource === "existing" && (
-                <div className="flex flex-col gap-2 sm:flex-row">
-                  {strategiesLoading ? (
-                    <div className="skeleton h-9 min-w-0 flex-1 rounded-lg" />
-                  ) : (
-                    <label className="form-control min-w-0 flex-1">
-                      <span className="sr-only">Strategy</span>
-                      <select
-                        className="select select-bordered select-sm w-full"
-                        value={form.strategy}
-                        onChange={(e) => updateField("strategy", e.target.value)}
-                      >
-                        <option value="">Select strategy...</option>
-                        {strategyList.map((s) => (
-                          <option key={s.strategy_name} value={s.strategy_name}>
-                            {s.strategy_name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  )}
-                  <label className="form-control sm:w-64">
-                    <span className="sr-only">Template Type</span>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                {strategiesLoading ? (
+                  <div className="skeleton h-9 min-w-0 flex-1 rounded-lg" />
+                ) : (
+                  <label className="form-control min-w-0 flex-1">
+                    <span className="sr-only">Strategy</span>
                     <select
                       className="select select-bordered select-sm w-full"
-                      value={templateType}
-                      onChange={(e) => setTemplateType(e.target.value)}
-                      disabled={isGenerating}
-                      title="Choose which strategy template to generate"
+                      value={form.strategy}
+                      onChange={(e) => updateField("strategy", e.target.value)}
                     >
-                      <option value="omni">Omni-Strategy</option>
-                      <option value="catfactory">CatFactory</option>
-                      <option value="adaptive">Adaptive Regime</option>
-                      <option value="ensemble">Ensemble Voting</option>
-                      <option value="momentum">Momentum EMA/ATR</option>
+                      <option value="">Select strategy...</option>
+                      {strategyList.map((s) => (
+                        <option key={s.strategy_name} value={s.strategy_name}>
+                          {s.strategy_name}
+                        </option>
+                      ))}
                     </select>
                   </label>
-                  <button
-                    type="button"
-                    className="btn btn-outline btn-sm gap-1.5"
-                    onClick={() => handleGenerateTemplate(form, updateField)}
-                    disabled={isGenerating}
-                  >
-                    {isGenerating && <span className="loading loading-spinner loading-xs" />}
-                    Generate
-                  </button>
-                </div>
-              )}
-
-              {/* Hermes Agent Generation Form */}
-              {strategySource === "generated" && (
-                <div className="space-y-3 rounded-lg border border-primary/20 bg-primary/5 p-3">
-                  <div className="grid grid-cols-2 gap-2">
-                    <label className="form-control">
-                      <span className="label label-text text-xs font-medium">Trading Style</span>
-                      <select
-                        className="select select-bordered select-xs"
-                        value={hermesForm.trading_style}
-                        onChange={(e) => setHermesForm({ ...hermesForm, trading_style: e.target.value })}
-                      >
-                        <option value="scalping">Scalping</option>
-                        <option value="intraday">Intraday</option>
-                        <option value="swing">Swing</option>
-                        <option value="position">Position</option>
-                      </select>
-                    </label>
-                    <label className="form-control">
-                      <span className="label label-text text-xs font-medium">Direction</span>
-                      <select
-                        className="select select-bordered select-xs"
-                        value={hermesForm.direction}
-                        onChange={(e) => setHermesForm({ ...hermesForm, direction: e.target.value })}
-                      >
-                        <option value="long">Long Only</option>
-                        <option value="short">Short Only</option>
-                        <option value="both">Both</option>
-                      </select>
-                    </label>
-                    <label className="form-control">
-                      <span className="label label-text text-xs font-medium">Risk Profile</span>
-                      <select
-                        className="select select-bordered select-xs"
-                        value={hermesForm.risk_profile}
-                        onChange={(e) => setHermesForm({ ...hermesForm, risk_profile: e.target.value })}
-                      >
-                        <option value="conservative">Conservative</option>
-                        <option value="balanced">Balanced</option>
-                        <option value="aggressive">Aggressive</option>
-                      </select>
-                    </label>
-                    <label className="form-control">
-                      <span className="label label-text text-xs font-medium">Timeframe</span>
-                      <select
-                        className="select select-bordered select-xs"
-                        value={hermesForm.timeframe_preference}
-                        onChange={(e) => setHermesForm({ ...hermesForm, timeframe_preference: e.target.value })}
-                      >
-                        {["1m", "5m", "15m", "30m", "1h", "4h", "1d"].map((tf) => (
-                          <option key={tf} value={tf}>{tf}</option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
-                  <label className="form-control">
-                    <span className="label label-text text-xs font-medium">User Notes (optional)</span>
-                    <textarea
-                      className="textarea textarea-bordered textarea-xs"
-                      rows={2}
-                      value={hermesForm.user_notes}
-                      onChange={(e) => setHermesForm({ ...hermesForm, user_notes: e.target.value })}
-                      placeholder="Describe your strategy preferences..."
-                    />
-                  </label>
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-sm gap-2"
-                    onClick={handleGenerateStrategySpec}
-                    disabled={isGeneratingSpec}
-                  >
-                    {isGeneratingSpec && <span className="loading loading-spinner loading-xs" />}
-                    Generate Strategy Spec
-                  </button>
-                  {hermesError && (
-                    <div className="rounded border border-error/20 bg-error/10 px-3 py-2 text-xs text-error">
-                      {hermesError}
-                    </div>
-                  )}
-                  {hermesSpec && (
-                    <div className="rounded border border-success/20 bg-success/10 p-3">
-                      <p className="text-xs font-semibold text-success mb-2">Strategy Spec Generated</p>
-                      <div className="text-[10px] text-base-content/70 space-y-1">
-                        <p><strong>Name:</strong> {hermesSpec.name}</p>
-                        <p><strong>Description:</strong> {hermesSpec.description}</p>
-                        <p><strong>Style:</strong> {hermesSpec.trading_style}</p>
-                        <p><strong>Direction:</strong> {hermesSpec.direction}</p>
-                        <p><strong>Timeframe:</strong> {hermesSpec.timeframe}</p>
-                        <p><strong>Indicators:</strong> {hermesSpec.indicators?.length || 0}</p>
-                      </div>
-                      <button
-                        type="button"
-                        className="btn btn-success btn-xs mt-3 gap-2"
-                        onClick={handleConfirmAndStart}
-                      >
-                        <PlayIcon className="h-3 w-3" />
-                        Confirm & Start AutoQuant
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {generateStatus && strategySource === "existing" && (
-                <div
-                  className={classNames(
-                    "rounded border px-3 py-2 text-xs",
-                    generateStatus.ok ? "border-success/25 bg-success/10 text-success" : "border-error/25 bg-error/10 text-error"
-                  )}
-                >
-                  {generateStatus.message}
-                </div>
-              )}
+                )}
+              </div>
             </div>
 
             <div className="grid grid-cols-3 gap-2">
@@ -726,7 +590,12 @@ export default function AutoQuantConfigPanel({
                   {screenError}
                 </div>
               )}
-              <ScreeningResultsTable rows={screenResults} selectedPair={selectedPair} onSelect={selectScreenedPair} />
+              <ScreeningResultsTable 
+                rows={screenResults} 
+                selectedPairs={selectedScreenedPairs} 
+                onToggle={toggleScreenedPair} 
+                onCopy={copySelectedPairs} 
+              />
               {screenResults.length === 0 && !isScreening && !screenError && (
                 <div className="flex h-full min-h-36 items-center justify-center rounded-lg border border-dashed border-base-300 bg-base-100/60 px-4 text-center text-xs text-base-content/35">
                   Screening results appear here after the run completes.

@@ -58,6 +58,7 @@ class GAProfitableStrategy(IStrategy):
         # EMA
         dataframe['ema_20'] = ta.EMA(dataframe, timeperiod=20)
         dataframe['ema_50'] = ta.EMA(dataframe, timeperiod=50)
+        dataframe['ema_100'] = ta.EMA(dataframe, timeperiod=100)
         
         # ATR
         dataframe['atr'] = ta.ATR(dataframe, timeperiod=14)

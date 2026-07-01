@@ -4,7 +4,7 @@
   "user_data_directory_path": "/home/mohs/Desktop/fictional-octo-guide/user_data",
   "default_config_file_path": "/home/mohs/Desktop/fictional-octo-guide/user_data/config.json",
   "ollama_api_url": "http://localhost:11434",
-  "ollama_model": "fourty-lite:latest",
+  "ollama_model": "hermes3:3b",
   "ollama_provider": "local",
   "ollama_api_key": "",
   "network_mode": "local",

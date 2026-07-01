@@ -516,6 +516,9 @@ class Policy:
         # Use dynamic date ranges based on current date
         default_is, default_oos = date_ranges_for_depth(depth)
         
+        # Get depth defaults for configuration
+        depth_defaults = DEPTH_SETTINGS[depth]
+        
         # Generate planned WFO windows if enabled
         wfo_enabled = bool(payload.get("wfo_enabled", advanced.get("wfo_enabled", depth_defaults["wfo_enabled"])))
         planned_wfo_windows = []
@@ -555,7 +558,6 @@ class Policy:
             0.35,
         )
 
-        depth_defaults = DEPTH_SETTINGS[depth]
         hyperopt_spaces = payload.get("hyperopt_spaces", advanced.get("hyperopt_spaces", ["stoploss", "roi"]))
         if isinstance(hyperopt_spaces, str):
             hyperopt_spaces = [s.strip() for s in hyperopt_spaces.split(",") if s.strip()]
