@@ -1,20 +1,20 @@
 import { useEffect, useRef } from "react";
 
 export default function AutoQuantLogTerminal({ lines, filter }) {
-  const bottomRef = useRef(null);
+  const containerRef = useRef(null);
   const filterLower = filter ? filter.toLowerCase() : "";
   const displayed = filterLower
     ? lines.filter((l) => l.toLowerCase().includes(filterLower))
     : lines;
 
   useEffect(() => {
-    if (typeof bottomRef.current?.scrollIntoView === "function") {
-      bottomRef.current.scrollIntoView({ behavior: "smooth" });
+    if (containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
   }, [lines]);
 
   return (
-    <div className="bg-base-300 rounded-lg p-3 h-48 overflow-y-auto font-mono text-[11px] leading-relaxed">
+    <div ref={containerRef} className="bg-base-300 rounded-lg p-3 h-48 overflow-y-auto font-mono text-[11px] leading-relaxed">
       {displayed.length === 0 ? (
         <span className="text-base-content/30">
           {filterLower ? "No lines match filter." : "Waiting for pipeline output..."}
@@ -37,7 +37,6 @@ export default function AutoQuantLogTerminal({ lines, filter }) {
           </div>
         ))
       )}
-      <div ref={bottomRef} />
     </div>
   );
 }

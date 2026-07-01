@@ -1,0 +1,30 @@
+{
+  "strategy_name": "EnsembleFactory",
+  "params": {
+    "buy": {
+      "rsi_weight": 0.4,
+      "macd_weight": 0.3,
+      "bb_weight": 0.3,
+      "consensus_threshold": 0.5,
+      "rsi_oversold": 30,
+      "rsi_period": 14
+    },
+    "sell": {},
+    "protection": {},
+    "roi": {
+      "0": 0.1,
+      "30": 0.05,
+      "60": 0.02,
+      "120": 0.0
+    },
+    "stoploss": {
+      "stoploss": -0.05
+    },
+    "trailing": {
+      "trailing_stop": false,
+      "trailing_stop_positive": null,
+      "trailing_stop_positive_offset": null,
+      "trailing_only_offset_is_reached": null
+    }
+  }
+}

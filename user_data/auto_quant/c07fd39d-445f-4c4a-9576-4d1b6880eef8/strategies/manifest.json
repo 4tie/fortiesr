@@ -1,0 +1,12 @@
+{
+  "original_strategy": "GAProfitableStrategy",
+  "original_strategy_hash": "3088b79b2688d4f4711ff3c035daa1918ffd7d2250cd8a3bc21cb3ae43844e6f",
+  "variants": [
+    {
+      "role": "working",
+      "strategy_name": "GAProfitableStrategy",
+      "path": "/home/mohs/Desktop/fictional-octo-guide/user_data/auto_quant/c07fd39d-445f-4c4a-9576-4d1b6880eef8/strategies/GAProfitableStrategy.py",
+      "source": "/home/mohs/Desktop/fictional-octo-guide/user_data/strategies/GAProfitableStrategy.py"
+    }
+  ]
+}
