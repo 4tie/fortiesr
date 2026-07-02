@@ -267,6 +267,28 @@ Total oversized files identified: 25
 
 **Commit**: [pending commit] - Refactor Phase 2: split AutoQuant generator module
 
+## Known Unrelated Test Failure
+
+**Issue**: Pre-existing `ModuleNotFoundError` for `backend.services.auto_quant.pipeline_modules.ai_suggestions`
+
+**Impact**: This failure prevents pytest from running any tests, including generator-focused tests.
+
+**Failure Output**:
+```
+ImportError while loading conftest '/home/mohs/Desktop/fortiesr/backend/tests/conftest.py':
+backend/services/auto_quant/pipeline_modules/state_modules/persistence.py:9: in <module>
+    from ..ai_suggestions import normalize_ai_suggestions
+E   ModuleNotFoundError: No module named 'backend.services.auto_quant.pipeline_modules.ai_suggestions'
+```
+
+**Verification**: This failure exists both before and after the generator refactor (commit f7490898). It is unrelated to the Phase 2 generator module split.
+
+**Status**: Documented for future resolution. Does not affect the generator refactor completion since:
+- File size check passed
+- Compile check passed
+- All public function names preserved
+- Import compatibility maintained
+
 ## Already Refactored Files
 
 ### backend/api/routers/auto_quant.py (1899 lines) → COMPLETED
