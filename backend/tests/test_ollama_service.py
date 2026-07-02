@@ -19,6 +19,8 @@ from backend.services.auto_quant.ollama_service import (
     ask_ollama_for_sensitivity_fix,
     ask_ollama_for_wfa_fix,
     create_ollama_client_from_settings,
+    explain_autoquant_failure,
+    explain_autoquant_stage,
 )
 
 
@@ -33,14 +35,19 @@ def temp_user_data_dir(tmp_path: Path) -> Path:
     data_dir.mkdir(parents=True, exist_ok=True)
 
     settings_file = data_dir / "strategy_lab_settings.json"
-    settings_file.write_text(
-        """{
+    settings_payload = """{
     "ollama_api_url": "http://localhost:11434",
     "ollama_model": "llama3",
     "ollama_provider": "local",
     "ollama_api_key": "",
     "ollama_timeout": 30
-}""",
+}"""
+    settings_file.write_text(
+        settings_payload,
+        encoding="utf-8",
+    )
+    (user_data / "strategy_lab_settings.json").write_text(
+        settings_payload,
         encoding="utf-8",
     )
 
@@ -94,6 +101,35 @@ def _suggestion_state(tmp_path: Path, *, retry_history: list[dict] | None = None
         wfo_is_months=3,
         wfo_oos_months=1,
         wfo_recency_weight=1.0,
+    )
+
+
+def _explanation_state(tmp_path: Path):
+    return SimpleNamespace(
+        analysis_depth="deep",
+        current_stage=1,
+        error="Stage failed",
+        readiness_label="Candidate",
+        risk_profile="balanced",
+        run_config_snapshot={},
+        run_id="explain-run",
+        score={},
+        score_explanation=[],
+        stages=[
+            SimpleNamespace(
+                index=1,
+                name="Pre-Flight Filtering",
+                status="failed",
+                message="Insufficient trades",
+                data={"trades": 0},
+            )
+        ],
+        status="failed",
+        strategy="TestStrategy",
+        timeframe="5m",
+        trading_style="swing",
+        user_data_dir=str(tmp_path / "user_data"),
+        validation_status="Candidate",
     )
 
 
@@ -266,16 +302,43 @@ def test_create_ollama_client_from_settings_missing_file(tmp_path: Path):
 def test_create_ollama_client_from_settings_missing_model(temp_user_data_dir: Path):
     """Test client creation with missing model in settings."""
     settings_file = temp_user_data_dir.parent / "data" / "strategy_lab_settings.json"
-    settings_file.write_text(
-        """{
+    settings_payload = """{
     "ollama_api_url": "http://localhost:11434",
     "ollama_provider": "local"
-}""",
+}"""
+    settings_file.write_text(
+        settings_payload,
+        encoding="utf-8",
+    )
+    (temp_user_data_dir / "strategy_lab_settings.json").write_text(
+        settings_payload,
         encoding="utf-8",
     )
 
     client = create_ollama_client_from_settings(str(temp_user_data_dir))
     assert client is None
+
+
+@pytest.mark.asyncio
+async def test_autoquant_stage_explanation_falls_back_when_ollama_unavailable(tmp_path: Path):
+    state = _explanation_state(tmp_path)
+
+    with patch("backend.services.auto_quant.ollama_service.create_strategy_lab_client", return_value=None):
+        result = await explain_autoquant_stage(state, stage_index=1)
+
+    assert result["source"] == "deterministic"
+    assert "Insufficient trades" in result["explanation"]
+
+
+@pytest.mark.asyncio
+async def test_autoquant_failure_explanation_falls_back_when_ollama_unavailable(tmp_path: Path):
+    state = _explanation_state(tmp_path)
+
+    with patch("backend.services.auto_quant.ollama_service.create_strategy_lab_client", return_value=None):
+        result = await explain_autoquant_failure(state, {"reason": "test"})
+
+    assert result["source"] == "deterministic"
+    assert "Stage failed" in result["explanation"]
 
 
 @pytest.mark.asyncio

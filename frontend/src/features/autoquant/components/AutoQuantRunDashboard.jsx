@@ -4,6 +4,7 @@ import {
   ChartBarIcon,
   ClockIcon,
   CommandLineIcon,
+  InformationCircleIcon,
   PauseCircleIcon,
   PlayCircleIcon,
   StopCircleIcon,
@@ -20,6 +21,8 @@ import AutoQuantFinalReport from "../../../components/autoquant/AutoQuantFinalRe
 import AutoQuantPipelineCard from "../../../components/autoquant/AutoQuantPipelineCard";
 import AutoQuantFinalResultCard from "../../../components/autoquant/AutoQuantFinalResultCard";
 import ProfessionalChartsTab from "../../../components/ProfessionalChartsTab";
+import AutoQuantAISuggestionPanel from "./AutoQuantAISuggestionPanel";
+import { explainFailure, explainStage } from "../api";
 import { STAGE_NAMES } from "../constants";
 import { formatElapsed, getEstimatedTimeRemaining, getProgressPercent, getRunStatusFlags, getRunStatusLabel } from "../viewModel";
 
@@ -587,6 +590,41 @@ export default function AutoQuantRunDashboard({
 
   // View mode state for pipeline display
   const [viewMode, setViewMode] = useState("compact"); // 'compact' or 'detailed'
+  const [explanation, setExplanation] = useState(null);
+  const [explanationError, setExplanationError] = useState("");
+  const [explanationKey, setExplanationKey] = useState("");
+
+  const requestStageExplanation = async (stage) => {
+    setExplanationKey(`stage-${stage.index}`);
+    setExplanationError("");
+    try {
+      const data = await explainStage(runId, { stage_index: stage.index, stage_name: stage.name });
+      setExplanation({ key: `stage-${stage.index}`, ...data });
+    } catch (err) {
+      setExplanationError(err.message || "Failed to explain stage.");
+    } finally {
+      setExplanationKey("");
+    }
+  };
+
+  const requestFailureExplanation = async () => {
+    setExplanationKey("failure");
+    setExplanationError("");
+    try {
+      const data = await explainFailure(runId, {
+        failure_context: {
+          error: pipelineState?.error,
+          current_stage: pipelineState?.current_stage,
+          status: pipelineState?.status,
+        },
+      });
+      setExplanation({ key: "failure", ...data });
+    } catch (err) {
+      setExplanationError(err.message || "Failed to explain failure.");
+    } finally {
+      setExplanationKey("");
+    }
+  };
 
   // Download file handler for final result card
   const downloadFile = (filename) => {
@@ -693,6 +731,13 @@ export default function AutoQuantRunDashboard({
 
       <ApprovalReviewPanel pipelineState={pipelineState} onResume={onResume} />
 
+      <AutoQuantAISuggestionPanel
+        runId={runId}
+        pipelineState={pipelineState}
+        onCancel={onCancel}
+        onReset={onReset}
+      />
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Pipeline Stages - Compact or Detailed View */}
         <div className="lg:col-span-1">
@@ -710,12 +755,35 @@ export default function AutoQuantRunDashboard({
               ) : (
                 <div className="space-y-2 mt-3">
                   {(pipelineState.stages || []).map((stage, idx) => (
-                    <AutoQuantPipelineCard
-                      key={stage.index || idx}
-                      stage={stage}
-                      isExpanded={stage.status === "running" || stage.status === "failed" || stage.status === "warning"}
-                    />
+                    <div key={stage.index || idx} className="space-y-2">
+                      <AutoQuantPipelineCard
+                        stage={stage}
+                        isExpanded={stage.status === "running" || stage.status === "failed" || stage.status === "warning"}
+                      />
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          className="btn btn-xs btn-ghost gap-1 text-primary"
+                          onClick={() => requestStageExplanation(stage)}
+                          disabled={explanationKey === `stage-${stage.index}`}
+                        >
+                          {explanationKey === `stage-${stage.index}` ? (
+                            <span className="loading loading-spinner loading-xs" />
+                          ) : (
+                            <InformationCircleIcon className="h-3.5 w-3.5" />
+                          )}
+                          Explain this stage
+                        </button>
+                      </div>
+                      {explanation?.key === `stage-${stage.index}` && (
+                        <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs text-base-content/70">
+                          <p className="mb-1 font-semibold text-primary">{explanation.title}</p>
+                          <p className="leading-relaxed whitespace-pre-wrap">{explanation.explanation}</p>
+                        </div>
+                      )}
+                    </div>
                   ))}
+                  {explanationError && <div className="alert alert-error py-2 text-xs">{explanationError}</div>}
                 </div>
               )}
             </div>
@@ -819,7 +887,33 @@ export default function AutoQuantRunDashboard({
         </div>
       </div>
 
-      {flags.isFailed && <AutoQuantFailureReport state={pipelineState} onRetryRelaxed={onRetryRelaxed} />}
+      {flags.isFailed && (
+        <div className="space-y-3">
+          <div className="flex justify-end">
+            <button
+              type="button"
+              className="btn btn-xs btn-outline gap-1"
+              onClick={requestFailureExplanation}
+              disabled={explanationKey === "failure"}
+            >
+              {explanationKey === "failure" ? (
+                <span className="loading loading-spinner loading-xs" />
+              ) : (
+                <InformationCircleIcon className="h-3.5 w-3.5" />
+              )}
+              Explain failure
+            </button>
+          </div>
+          {explanation?.key === "failure" && (
+            <div className="rounded-lg border border-error/20 bg-error/5 p-3 text-xs text-base-content/70">
+              <p className="mb-1 font-semibold text-error">{explanation.title}</p>
+              <p className="leading-relaxed whitespace-pre-wrap">{explanation.explanation}</p>
+            </div>
+          )}
+          {explanationError && <div className="alert alert-error py-2 text-xs">{explanationError}</div>}
+          <AutoQuantFailureReport state={pipelineState} onRetryRelaxed={onRetryRelaxed} />
+        </div>
+      )}
       {flags.isInterrupted && <AutoQuantInterruptedReport state={pipelineState} />}
       {flags.isCancelled && (
         <div className="alert alert-warning">

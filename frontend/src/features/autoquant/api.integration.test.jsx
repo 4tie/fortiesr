@@ -150,6 +150,83 @@ describe("AutoQuant API Integration Tests", () => {
     );
   });
 
+  test("listAISuggestions calls correct endpoint", async () => {
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ suggestions: [] }),
+    });
+
+    const runId = "test-run-1";
+    await api.autoquant.listAISuggestions(runId);
+
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining(`/api/auto-quant/${runId}/ai-suggestions`)
+    );
+  });
+
+  test("approveAISuggestion calls correct endpoint", async () => {
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ status: "running" }),
+    });
+
+    await api.autoquant.approveAISuggestion("run-1", "suggestion-1");
+
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/auto-quant/run-1/ai-suggestions/suggestion-1/approve"),
+      expect.objectContaining({ method: "POST" })
+    );
+  });
+
+  test("rejectAISuggestion calls correct endpoint", async () => {
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ status: "awaiting_user_approval" }),
+    });
+
+    await api.autoquant.rejectAISuggestion("run-1", "suggestion-1");
+
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/auto-quant/run-1/ai-suggestions/suggestion-1/reject"),
+      expect.objectContaining({ method: "POST" })
+    );
+  });
+
+  test("explainStage calls correct endpoint", async () => {
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ explanation: "Stage explanation" }),
+    });
+
+    await api.autoquant.explainStage("run-1", { stage_index: 1 });
+
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/auto-quant/run-1/ai/explain-stage"),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ stage_index: 1 }),
+      })
+    );
+  });
+
+  test("explainFailure calls correct endpoint", async () => {
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ explanation: "Failure explanation" }),
+    });
+
+    const payload = { failure_context: { reason: "sharp_peak" } };
+    await api.autoquant.explainFailure("run-1", payload);
+
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/auto-quant/run-1/ai/explain-failure"),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify(payload),
+      })
+    );
+  });
+
   test("getStatus calls correct endpoint", async () => {
     fetch.mockResolvedValueOnce({
       ok: true,

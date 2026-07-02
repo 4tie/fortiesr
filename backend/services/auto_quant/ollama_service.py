@@ -16,12 +16,76 @@ from typing import Any
 
 from ..ai.ollama_client import CircuitBreaker, OllamaClient
 from ..ai.ollama_config import config_from_user_data_dir
+from .assistant_prompt import AUTOQUANT_COPILOT_SYSTEM_PROMPT, build_autoquant_prompt_messages
 
 logger = logging.getLogger(__name__)
 
 
 # Global circuit breaker for ollama API calls
 _ollama_circuit_breaker = CircuitBreaker(failure_threshold=5, cooldown_seconds=300)
+
+
+def _state_agent_context(state: Any) -> dict[str, Any]:
+    return {
+        "active": {
+            "auto_quant_run_id": getattr(state, "run_id", None),
+            "strategy_name": getattr(state, "strategy", None),
+        },
+        "auto_quant": {
+            "run_id": getattr(state, "run_id", None),
+            "status": getattr(state, "status", None),
+            "current_stage": getattr(state, "current_stage", None),
+            "state": {
+                "stages": [
+                    {
+                        "index": stage.index,
+                        "name": stage.name,
+                        "status": stage.status,
+                        "message": stage.message,
+                        "data": stage.data,
+                    }
+                    for stage in getattr(state, "stages", [])
+                ],
+                "run_config_snapshot": getattr(state, "run_config_snapshot", {}),
+                "timeframe": getattr(state, "timeframe", None),
+            },
+            "metrics": {
+                "validation_status": getattr(state, "validation_status", None),
+                "readiness_label": getattr(state, "readiness_label", None),
+                "score": getattr(state, "score", None),
+                "score_explanation": getattr(state, "score_explanation", None),
+            },
+            "error": getattr(state, "error", None),
+        },
+        "strategy": {"strategy_name": getattr(state, "strategy", None)},
+    }
+
+
+def _fallback_explanation(kind: str, state: Any, target: Any = None) -> dict[str, Any]:
+    stage = None
+    if kind == "stage":
+        stage = target if isinstance(target, dict) else {}
+        title = f"{stage.get('name') or 'AutoQuant stage'} explanation"
+        explanation = (
+            f"{stage.get('name') or 'This stage'} is currently "
+            f"{stage.get('status') or 'unknown'}. {stage.get('message') or 'No additional backend message is available.'}"
+        )
+    else:
+        title = "AutoQuant failure explanation"
+        explanation = (
+            getattr(state, "error", None)
+            or "AutoQuant has a failure or paused review state. Review the stage details and retry history before continuing."
+        )
+    return {
+        "source": "deterministic",
+        "title": title,
+        "explanation": explanation,
+        "next_actions": [
+            "Review backend-provided stage metrics and logs.",
+            "Approve a validated retry suggestion only if the proposed changes match your intent.",
+            "Start a new run with manual settings if you reject the suggestion.",
+        ],
+    }
 
 
 def clean_json_response(response: str) -> str:
@@ -562,6 +626,95 @@ def _analyze_market_conditions(
         "duration_days": duration_days,
         "exchange_type": exchange_type,
     }
+
+
+async def explain_autoquant_stage(state: Any, stage_index: int | None = None, stage_name: str | None = None) -> dict[str, Any]:
+    """Explain an AutoQuant stage using the shared AutoQuant copilot context."""
+    target_stage = None
+    for stage in getattr(state, "stages", []):
+        if stage_index is not None and stage.index == stage_index:
+            target_stage = stage
+            break
+        if stage_name and stage.name.casefold() == stage_name.casefold():
+            target_stage = stage
+            break
+    if target_stage is None and getattr(state, "stages", None):
+        current_stage = getattr(state, "current_stage", 1) or 1
+        target_stage = state.stages[max(0, min(len(state.stages) - 1, current_stage - 1))]
+
+    stage_payload = {
+        "index": getattr(target_stage, "index", None),
+        "name": getattr(target_stage, "name", None),
+        "status": getattr(target_stage, "status", None),
+        "message": getattr(target_stage, "message", None),
+        "data": getattr(target_stage, "data", None),
+    }
+    user_message = (
+        "Explain this AutoQuant stage using only backend context. "
+        f"Stage: {json.dumps(stage_payload, default=str)}"
+    )
+    response = await _call_autoquant_copilot(state, user_message, feature="autoquant_explain_stage")
+    if response:
+        return {
+            "source": "ollama",
+            "title": f"{stage_payload.get('name') or 'Stage'} explanation",
+            "explanation": response,
+            "next_actions": [],
+        }
+    return _fallback_explanation("stage", state, stage_payload)
+
+
+async def explain_autoquant_failure(state: Any, failure_context: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Explain an AutoQuant failure using the shared AutoQuant copilot context."""
+    user_message = (
+        "Explain this AutoQuant failure or paused review state. "
+        "Include what failed, what backend evidence is available, why it matters, and safe next actions. "
+        f"Failure context: {json.dumps(failure_context or {}, default=str)}"
+    )
+    response = await _call_autoquant_copilot(state, user_message, feature="autoquant_explain_failure")
+    if response:
+        return {
+            "source": "ollama",
+            "title": "AutoQuant failure explanation",
+            "explanation": response,
+            "next_actions": [],
+        }
+    return _fallback_explanation("failure", state, failure_context)
+
+
+async def _call_autoquant_copilot(state: Any, user_message: str, *, feature: str) -> str | None:
+    client = create_strategy_lab_client(getattr(state, "user_data_dir", ""), strict_json=False)
+    if client is None:
+        return None
+    try:
+        if not _ollama_circuit_breaker.should_allow_call():
+            return None
+        if not await client.check_health():
+            _ollama_circuit_breaker.record_failure()
+            return None
+        messages = build_autoquant_prompt_messages(
+            user_message=user_message,
+            agent_context=_state_agent_context(state),
+            user_profile={
+                "risk_profile": getattr(state, "risk_profile", None),
+                "trading_style": getattr(state, "trading_style", None),
+                "analysis_depth": getattr(state, "analysis_depth", None),
+            },
+        )
+        system_prompt = messages[0]["content"] if messages else AUTOQUANT_COPILOT_SYSTEM_PROMPT
+        prompt = "\n\n".join(f"{message['role']}: {message['content']}" for message in messages[1:])
+        response = await client.generate(prompt, system_prompt=system_prompt, feature=feature)
+        if response:
+            _ollama_circuit_breaker.record_success()
+            return response.strip()
+        _ollama_circuit_breaker.record_failure()
+        return None
+    except Exception as exc:
+        logger.warning("AutoQuant copilot explanation failed: %s", exc)
+        _ollama_circuit_breaker.record_failure()
+        return None
+    finally:
+        await client.close()
 
 
 def _analyze_historical_success_rates(

@@ -6,6 +6,7 @@ import logging
 import re
 from pathlib import Path
 
+from ..ai_suggestions import create_pending_suggestion, optimization_stage_index
 from ..ollama_service import ask_ollama_for_wfa_fix
 from ..policy import load_policy, walk_forward_windows_for_depth
 from ..profit_lockin import ensure_profit_lockin_hyperopt_loss
@@ -470,31 +471,13 @@ async def _stage_hyperopt_wfo(
         _rlog(run_id, 3, logging.WARNING,
               f"WFO FAILED: Pass rate {pass_rate:.1%} ({len(valid)}/{n}) below 50% threshold")
         _emit(run_id, 3, "running",
-              f"WFO Pass rate {pass_rate:.1%} below 50% threshold — triggering self-healing retry...",
+              f"WFO Pass rate {pass_rate:.1%} below 50% threshold — awaiting suggestion approval...",
               -1)
 
-        # Record failure in retry history
-        attempt_record = {
-            "attempt": state.retry_count,
-            "label": "WFO Attempt" if state.retry_count == 0 else f"WFO Retry {state.retry_count}",
-            "loss": state.hyperopt_loss,
-            "spaces": list(state.hyperopt_spaces),
-            "epochs": state.hyperopt_epochs,
-            "profit": avg_profit,
-            "drawdown": None,
-            "trades": None,
-            "reason": "segment_pass_rate_below_50%",
-            "passed": False,
-            "segment_pass_rate": f"{len(valid)}/{n}",
-        }
-        state.retry_history.append(attempt_record)
-
-        # ── Self-Healing Retry Loop ───────────────────────────────────────
-        state.retry_count += 1
-        if state.retry_count > state.max_retries:
+        if state.retry_count >= state.max_retries:
             # All retries exhausted
             msg = (
-                f"WFO failed after {state.max_retries} self-healing attempts. "
+                f"WFO failed after {state.max_retries} approved retry attempts. "
                 f"Pass rate remained below 50% ({pass_rate:.1%})."
             )
             _rlog(run_id, 3, logging.ERROR, msg)
@@ -507,86 +490,57 @@ async def _stage_hyperopt_wfo(
 
         # Try AI suggestions if enabled
         ai_suggestions = None
+        source = "deterministic"
         if state.ai_enabled:
             try:
                 _rlog(run_id, 3, logging.INFO,
                       "WFO self-healing: requesting AI suggestions for parameter mutations")
                 ai_suggestions = await ask_ollama_for_wfa_fix(wfo_results, state)
                 if ai_suggestions:
+                    source = "ollama"
                     _rlog(run_id, 3, logging.INFO,
                           f"AI suggestions received: {ai_suggestions.get('reasoning', 'N/A')}")
             except Exception as exc:
                 _rlog(run_id, 3, logging.WARNING,
                       f"AI suggestion request failed: {exc}")
 
-        # Apply mutations (AI or Hard Mutation fallback)
-        if ai_suggestions:
-            # Apply AI suggestions
-            if "hyperopt_loss" in ai_suggestions:
-                state.hyperopt_loss = ai_suggestions["hyperopt_loss"]
-            if "hyperopt_spaces" in ai_suggestions:
-                state.hyperopt_spaces = set(ai_suggestions["hyperopt_spaces"])
-            if "hyperopt_epochs" in ai_suggestions:
-                state.hyperopt_epochs = ai_suggestions["hyperopt_epochs"]
-            if "param_overrides" in ai_suggestions:
-                if not hasattr(state, 'param_overrides'):
-                    state.param_overrides = {}
-                state.param_overrides.update(ai_suggestions["param_overrides"])
-
-            _emit(run_id, 3, "running",
-                  f"⚠️ WFA Self-Healing Retry {state.retry_count}/{state.max_retries}: "
-                  f"Applying AI-suggested parameter mutations...",
-                  -1,
-                  {
-                      "retry_attempt": state.retry_count,
-                      "max_retries": state.max_retries,
-                      "failure_reason": "segment_pass_rate_below_50%",
-                      "pass_rate": f"{len(valid)}/{n}",
-                      "fallback_type": "ai_suggestions",
-                      "applied_changes": ai_suggestions,
-                  },
-                  msg_type="self_heal_retry")
-        else:
-            # Hard Mutation fallback
-            _rlog(run_id, 3, logging.WARNING,
-                  "AI unavailable or failed — applying HARD MUTATION")
-            if not hasattr(state, 'param_overrides'):
-                state.param_overrides = {}
-            state.param_overrides.update({
-                "use_ema_cross": True,
-                "use_atr": True,
-                "use_rsi": True,
-                "use_adx": True,
-            })
-            state.hyperopt_spaces = ["buy", "stoploss", "roi"]
-            state.hyperopt_epochs = int(state.hyperopt_epochs * 2.0)
-
-            _emit(run_id, 3, "running",
-                  f"⚠️ WFA Self-Healing Retry {state.retry_count}/{state.max_retries}: "
-                  f"Applying HARD MUTATION with forced Boolean indicators...",
-                  -1,
-                  {
-                      "retry_attempt": state.retry_count,
-                      "max_retries": state.max_retries,
-                      "failure_reason": "segment_pass_rate_below_50%",
-                      "pass_rate": f"{len(valid)}/{n}",
-                      "fallback_type": "hard_mutation",
-                      "applied_changes": {
-                          "hyperopt_spaces": state.hyperopt_spaces,
-                          "hyperopt_epochs": state.hyperopt_epochs,
-                          "param_overrides": state.param_overrides,
-                      },
-                  },
-                  msg_type="self_heal_retry")
-
-        # Reset stage status and retry WFO
-        state.stages[2].status = "pending"
-        state.stages[2].message = ""
-        state.stages[2].data = {}
+        suggestion = create_pending_suggestion(
+            state=state,
+            trigger="wfo_pass_rate",
+            failure_reason="segment_pass_rate_below_50%",
+            retry_attempt=state.retry_count + 1,
+            source=source,
+            proposed_changes=ai_suggestions,
+            explanation=ai_suggestions.get("reasoning") if ai_suggestions else None,
+            evidence={
+                "wfo_windows": wfo_results,
+                "pass_rate": pass_rate,
+                "segment_pass_rate": f"{len(valid)}/{n}",
+            },
+        )
+        state.status = "awaiting_user_approval"
+        stage_idx = optimization_stage_index()
+        state.current_stage = stage_idx
+        if 0 < stage_idx <= len(state.stages):
+            state.stages[stage_idx - 1].status = "warning"
+            state.stages[stage_idx - 1].message = suggestion["summary"]
+            state.stages[stage_idx - 1].data = {
+                **(state.stages[stage_idx - 1].data or {}),
+                "ai_suggestion_id": suggestion["id"],
+                "wfo_windows": wfo_results,
+                "wfo_pass_rate": pass_rate,
+            }
+        _emit(
+            run_id,
+            stage_idx,
+            "awaiting_user_approval",
+            suggestion["summary"],
+            -1,
+            {"suggestion": suggestion},
+            msg_type="ai_suggestion_ready",
+        )
         _save_state_to_disk(state)
-
-        # Retry WFO by calling this function again
-        return await _stage_hyperopt_wfo(run_id, state, out_dir, pairs)
+        return None
 
     # ── Pass Rate >= 50%: Aggregate Parameters ───────────────────────────
     _rlog(run_id, 3, logging.INFO,
