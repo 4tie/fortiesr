@@ -128,6 +128,8 @@ function PipelineProgress({ pipelineState }) {
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
+    if (!ctx) return; // Null guard for canvas context
+
     const width = canvas.width;
     const height = canvas.height;
 

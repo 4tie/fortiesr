@@ -203,7 +203,8 @@ describe('AutoQuantTab', () => {
     };
 
     await renderAutoQuant({ pipelineState: mockPipelineState });
-    expect(screen.getByText(/Stage 2\/7/)).toBeInTheDocument();
+    // Pipeline now has 6 stages instead of 7
+    expect(screen.getByText(/Stage 2\/6/)).toBeInTheDocument();
   });
 
   test('displays pre-selection configuration options', async () => {
