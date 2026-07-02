@@ -1,0 +1,16 @@
+# Trading dependencies - Freqtrade and technical analysis
+# Install with: pip install -r requirements-trading.txt
+# Requires: requirements-core.txt
+
+# Freqtrade (main trading bot)
+freqtrade
+
+# Technical analysis libraries
+TA-Lib>=0.4.28
+mplfinance>=0.12.9
+
+# Vector backtesting (heavy)
+vectorbt>=1.0.0,<2
+
+# Performance optimization
+numba>=0.58.0

@@ -4,14 +4,13 @@ import { getPipelineStep, mapStageStatus, PIPELINE_STEPS, LEGACY_STAGE_MAP } fro
 describe("pipelineSteps", () => {
   describe("PIPELINE_STEPS", () => {
     it("should have all required pipeline steps", () => {
-      expect(PIPELINE_STEPS).toHaveLength(7);
+      expect(PIPELINE_STEPS).toHaveLength(6);
       expect(PIPELINE_STEPS[0].id).toBe("preflight");
-      expect(PIPELINE_STEPS[1].id).toBe("screening");
-      expect(PIPELINE_STEPS[2].id).toBe("baseline");
-      expect(PIPELINE_STEPS[3].id).toBe("hyperopt");
-      expect(PIPELINE_STEPS[4].id).toBe("robustness");
-      expect(PIPELINE_STEPS[5].id).toBe("competition");
-      expect(PIPELINE_STEPS[6].id).toBe("delivery");
+      expect(PIPELINE_STEPS[1].id).toBe("baseline");
+      expect(PIPELINE_STEPS[2].id).toBe("hyperopt");
+      expect(PIPELINE_STEPS[3].id).toBe("robustness");
+      expect(PIPELINE_STEPS[4].id).toBe("competition");
+      expect(PIPELINE_STEPS[5].id).toBe("delivery");
     });
 
     it("should have required metadata for each step", () => {
@@ -99,8 +98,8 @@ describe("pipelineSteps", () => {
       expect(mapStageStatus("warning", "Portfolio Baseline Backtest")).toBe("warning");
     });
 
-    it("should map completed status to passed", () => {
-      expect(mapStageStatus("completed", "Portfolio Baseline Backtest")).toBe("passed");
+    it("should map skipped status to skipped", () => {
+      expect(mapStageStatus("skipped", "Portfolio Baseline Backtest")).toBe("skipped");
     });
 
     it("should use step-specific status mapping when available", () => {

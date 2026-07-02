@@ -96,7 +96,7 @@ function PipelineProgress({ pipelineState }) {
     }
 
     const data = pipelineState.stages.map(stage => {
-      if (stage.status === 'completed') return 1.0;
+      if (stage.status === 'passed') return 1.0;
       if (stage.status === 'running') return 0.5;
       if (stage.status === 'failed') return 0.2;
       return 0.0;
@@ -173,7 +173,7 @@ function PipelineProgress({ pipelineState }) {
         ctx.beginPath();
         ctx.arc(x, y, 4, 0, Math.PI * 2);
         
-        if (pipelineState?.stages?.[i]?.status === 'completed') {
+        if (pipelineState?.stages?.[i]?.status === 'passed') {
           ctx.fillStyle = '#7DD3FC';
         } else if (pipelineState?.stages?.[i]?.status === 'running') {
           ctx.fillStyle = '#F472B6';
@@ -202,10 +202,10 @@ function PipelineProgress({ pipelineState }) {
     return () => clearInterval(interval);
   }, [progressData, pipelineState]);
 
-  const completedStages = pipelineState?.status === 'completed' 
-    ? (pipelineState?.stages?.length || 7)
-    : (pipelineState?.stages?.filter(s => s.status === 'completed').length || 0);
-  const totalStages = pipelineState?.stages?.length || 7;
+  const completedStages = pipelineState?.status === 'completed'
+    ? (pipelineState?.stages?.length || 6)
+    : (pipelineState?.stages?.filter(s => s.status === 'passed').length || 0);
+  const totalStages = pipelineState?.stages?.length || 6;
 
   return (
     <div className="bg-base-100 border border-base-200 rounded-xl p-4 shadow-sm">

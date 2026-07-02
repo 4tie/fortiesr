@@ -1,30 +1,39 @@
-colorama
-fastapi
-filelock
-httpx
-optuna
-pandas
-pydantic
-pytest
-pytest-asyncio
-python-dotenv
-scikit-learn
-scikit-optimize
-uvicorn
-freqtrade
-aiohttp
-numpy
-python-dotenv
-requests
-scikit-optimize
-numba>=0.58.0
-vectorbt>=1.0.0,<2
-TA-Lib>=0.4.28
-mplfinance>=0.12.9
-hmmlearn>=0.3.0
-deap>=2.3.0
-pymoo>=0.6.0
-stable-baselines3>=2.0.0
-gymnasium>=0.29.0
-shimmy>=0.2.1
-discord.py>=2.3.0
+# Split Requirements for Easier Installation
+# ============================================
+#
+# Dependencies have been split into modular files to make installation easier,
+# especially on low-resource machines. Install only what you need.
+#
+# Installation Options:
+#
+# 1. Minimal (Core only - for basic API functionality):
+#    pip install -r requirements-core.txt
+#
+# 2. Full Trading (Core + Trading):
+#    pip install -r requirements-core.txt
+#    pip install -r requirements-trading.txt
+#
+# 3. With AI/ML Optimization (Core + Trading + AI):
+#    pip install -r requirements-core.txt
+#    pip install -r requirements-trading.txt
+#    pip install -r requirements-ai.txt
+#
+# 4. Complete with Reinforcement Learning (All dependencies):
+#    pip install -r requirements-core.txt
+#    pip install -r requirements-trading.txt
+#    pip install -r requirements-ai.txt
+#    pip install -r requirements-rl.txt
+#
+# 5. Development (Core + Dev tools):
+#    pip install -r requirements-core.txt
+#    pip install -r requirements-dev.txt
+#
+# File Descriptions:
+# - requirements-core.txt: Essential dependencies (FastAPI, pandas, numpy, etc.)
+# - requirements-trading.txt: Freqtrade, TA-Lib, vectorbt (heavy)
+# - requirements-ai.txt: Optuna, scikit-learn, genetic algorithms
+# - requirements-rl.txt: stable-baselines3, gymnasium (very heavy - install only if needed)
+# - requirements-dev.txt: pytest, pytest-asyncio (for testing)
+#
+# Note: discord.py was removed as it's optional and can be installed separately if needed.
+

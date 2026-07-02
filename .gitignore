@@ -1,11 +1,34 @@
+# Environment and Virtual Environments
 .env
 .venv/
 venv_test/
-.pytest_cache/
+
+# Python
 __pycache__/
 *.pyc
+.pytest_cache/
+
+# Frontend
+node_modules/
+frontend/dist/
+coverage/
+playwright-report/
+test-results/
+
+# Logs
+*.log
+
+# User Data - Sensitive Settings (API keys, tokens)
+user_data/strategy_lab_settings.json
+user_data/config.json
+
+# User Data - Heavy Results and Data
+user_data/backtest_results/
+user_data/hyperopt_results/
+user_data/data/
+user_data/data_downloads/
+
+# User Data - Specific Patterns
 user_data/auto_quant/*/state.json
 user_data/data/binance/*.feather
 user_data/strategies/rendered/
-user_data/data_downloads/
-user_data/hyperopt_results/

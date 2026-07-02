@@ -5,7 +5,6 @@ export const API_BASE = "";
 // and also as display labels in the status bar / run dashboard.
 export const STAGE_NAMES = [
   "Pre-flight Filtering",
-  "Pair Screening",
   "Portfolio Baseline Backtest",
   "WFA Hyperopt",
   "Robustness & Feature Injection",
@@ -13,7 +12,7 @@ export const STAGE_NAMES = [
   "Delivery / Export",
 ];
 
-export const STAGE_ICONS = ["01", "02", "03", "04", "05", "06", "07"];
+export const STAGE_ICONS = ["01", "02", "03", "04", "05", "06"];
 
 export const LEGAL_STATUS_TRANSITIONS = {
   pending: ["running", "cancelled", "interrupted"],

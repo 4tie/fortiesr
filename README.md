@@ -1,4 +1,4 @@
-# Fictional Octo Guide - Strategy Lab
+# FortiesR - Strategy Lab
 
 A comprehensive Freqtrade-based trading strategy discovery, validation, optimization, and export platform with a modern React frontend and Python FastAPI backend.
 
@@ -104,7 +104,7 @@ npx playwright test
 ## Project Structure
 
 ```
-fictional-octo-guide/
+fortiesr/
 ├── backend/
 │   ├── api/
 │   │   ├── app.py              # FastAPI application factory
@@ -194,4 +194,3 @@ This project follows strict coding conventions:
 ## License
 
 [Add your license information here]
-# potential-eureka

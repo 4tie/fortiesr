@@ -6,40 +6,38 @@
 
 // Stage indices are 1-based to match pipelineState.stages[].index values.
 // Stages are built as: { index: i + 1, name, ... } so index 1 = Pre-flight Filtering,
-// index 2 = Pair Screening, index 3 = Portfolio Baseline Backtest, etc.
+// index 2 = Portfolio Baseline Backtest, index 3 = WFA Hyperopt, etc.
 export const EVENT_TYPE_TO_STAGE_INDEX = {
   // Stage 1 (Pre-flight Filtering) — index 1
   "pair_selection_request": 1,
   "regime_detected": 1,
   "phase1_self_heal": 1,
+  "pair_status": 1,  // Remapped from Stage 2
+  "data_healing_status": 1,  // Remapped from Stage 2
 
-  // Stage 2 (Pair Screening) — index 2
-  "pair_status": 2,
-  "data_healing_status": 2,
+  // Stage 2 (Portfolio Baseline Backtest) — index 2
+  "portfolio_baseline_review": 2,
 
-  // Stage 3 (Portfolio Baseline Backtest) — index 3
-  "portfolio_baseline_review": 3,
+  // Stage 3 (WFA Hyperopt) — index 3
+  "hyperopt_epoch": 3,
+  "sensitivity_result": 3,
+  "wfa_segment_result": 3,
+  "self_heal_retry": 3,
 
-  // Stage 4 (WFA Hyperopt) — index 4
-  "hyperopt_epoch": 4,
-  "sensitivity_result": 4,
-  "wfa_segment_result": 4,
-  "self_heal_retry": 4,
+  // Stage 4 (Robustness & Feature Injection) — index 4
+  "stability_score_result": 4,
 
-  // Stage 5 (Robustness & Feature Injection) — index 5
-  "stability_score_result": 5,
+  // Stage 5 (Portfolio Competition) — index 5
+  "portfolio_backtest_result": 5,
+  "portfolio_drawdown_warning": 5,
 
-  // Stage 6 (Portfolio Competition) — index 6
-  "portfolio_backtest_result": 6,
-  "portfolio_drawdown_warning": 6,
-
-  // Stage 7 (Delivery / Export) — index 7
-  "delivery_complete": 7,
+  // Stage 6 (Delivery / Export) — index 6
+  "delivery_complete": 6,
 
   // Optional substages (not mapped to user-facing steps, but for reference)
-  // ga_complete: genetic algorithm (substage of 4.5)
-  // rl_training_complete: RL training (substage of 5.5)
-  // rl_deployment_complete: RL deployment (substage of 6.5)
+  // ga_complete: genetic algorithm (substage of 2.5)
+  // rl_training_complete: RL training (substage of 3.5)
+  // rl_deployment_complete: RL deployment (substage of 4.5)
 };
 
 /**
