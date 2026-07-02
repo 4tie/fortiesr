@@ -83,6 +83,27 @@ const RunDetailStages = ({ run }) => {
               {stage.index === 2 && (
                 <>
                   <div>
+                    <div className="text-xs text-base-content/50">Baseline Profit</div>
+                    <div className={`font-bold ${stage.data.profit_total_abs > 0 ? "text-success" : "text-error"}`}>
+                      ${fmt(stage.data.profit_total_abs || 0, 0)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-base-content/50">Max Drawdown</div>
+                    <div className="font-bold text-base-content">
+                      {fmt(stage.data.max_drawdown_account * 100 || 0, 1)}%
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-base-content/50">Trade Count</div>
+                    <div className="font-bold text-base-content">{stage.data.trade_count || 0}</div>
+                  </div>
+                </>
+              )}
+
+              {stage.index === 3 && (
+                <>
+                  <div>
                     <div className="text-xs text-base-content/50">Epochs Completed</div>
                     <div className="font-bold text-base-content">
                       {stage.data.epochs_completed || 0} / {stage.data.epochs_total || 0}
@@ -169,23 +190,6 @@ const RunDetailStages = ({ run }) => {
                   </div>
                 </>
               )}
-
-              {stage.index === 7 && (
-                <>
-                  <div>
-                    <div className="text-xs text-base-content/50">Files Generated</div>
-                    <div className="font-bold text-base-content">
-                      {stage.data.files_count || 0} files
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-base-content/50">Strategy Size</div>
-                    <div className="font-bold text-base-content">
-                      {stage.data.strategy_size || "N/A"} KB
-                    </div>
-                  </div>
-                </>
-              )}
             </div>
           )}
         </div>
@@ -225,31 +229,27 @@ const RunDetailStages = ({ run }) => {
         <div className="font-semibold text-base-content mb-2">Stage Descriptions:</div>
         <div className="space-y-1">
           <div>
-            <span className="font-mono">Stage 1: Sanity Backtest</span> - Data healing and pair
+            <span className="font-mono">Stage 1: Pre-Flight Filtering</span> - Data healing and pair
             pre-selection
           </div>
           <div>
-            <span className="font-mono">Stage 2: Hyperopt Execution</span> - Parameter
+            <span className="font-mono">Stage 2: Portfolio Baseline Backtest</span> - Establishes
+            performance baseline
+          </div>
+          <div>
+            <span className="font-mono">Stage 3: WFA Hyperopt</span> - Parameter
             optimization with Walk-Forward Analysis
           </div>
           <div>
-            <span className="font-mono">Stage 3: Auto-Patching</span> - Best parameters injected
-            into strategy
+            <span className="font-mono">Stage 4: Robustness & Feature Injection</span> - Out-of-sample
+            validation and protective features
           </div>
           <div>
-            <span className="font-mono">Stage 4: OOS Validation</span> - Out-of-sample backtest on
-            held-out data
-          </div>
-          <div>
-            <span className="font-mono">Stage 5: Multi-Pair Stress Test</span> - Portfolio
+            <span className="font-mono">Stage 5: Portfolio Competition</span> - Portfolio
             testing with capital constraints
           </div>
           <div>
-            <span className="font-mono">Stage 6: Risk Assessment</span> - Hard gates applied
-            (profitability validation)
-          </div>
-          <div>
-            <span className="font-mono">Stage 7: Delivery</span> - Final strategy, config, and
+            <span className="font-mono">Stage 6: Delivery</span> - Final strategy, config, and
             report generation
           </div>
         </div>

@@ -22,22 +22,6 @@ export const PIPELINE_STEPS = [
     },
   },
   {
-    id: "screening",
-    name: "Pair Screening",
-    icon: "filter_list",
-    description: "Analyzes market data to find the most profitable trading pairs",
-    whyItMatters: "Focuses computational resources on pairs with the highest potential returns",
-    inputs: ["Pair universe", "Timeframe", "Historical data"],
-    checks: ["Volume analysis", "Volatility screening", "Correlation filtering"],
-    metrics: ["Candidates evaluated", "Pairs selected", "Screening duration"],
-    statusMap: {
-      "running": "running",
-      "passed": "passed",
-      "failed": "failed",
-      "pending": "pending",
-    },
-  },
-  {
     id: "baseline",
     name: "Portfolio Baseline Backtest",
     icon: "assessment",
@@ -114,7 +98,6 @@ export const PIPELINE_STEPS = [
       "running": "running",
       "passed": "passed",
       "failed": "failed",
-      "completed": "passed",
       "pending": "pending",
     },
   },
@@ -124,7 +107,6 @@ export const PIPELINE_STEPS = [
 export const LEGACY_STAGE_MAP = {
   // New premium pipeline stage names (direct match)
   "Pre-flight Filtering": "preflight",
-  "Pair Screening": "screening",
   "Portfolio Baseline Backtest": "baseline",
   "WFA Hyperopt": "hyperopt",
   "Robustness & Feature Injection": "robustness",
@@ -133,6 +115,10 @@ export const LEGACY_STAGE_MAP = {
 
   // Backend stage names (from backend/services/auto_quant/pipeline_modules/config.py)
   "Pre-Flight Filtering": "preflight",
+  "Portfolio Baseline Backtest": "baseline",
+  "WFA Hyperopt": "hyperopt",
+  "Robustness & Feature Injection": "robustness",
+  "Portfolio Competition": "competition",
   "Delivery": "delivery",
 
   // Legacy UI stage names (for backward compatibility)
@@ -164,7 +150,7 @@ export function mapStageStatus(stageStatus, stageName) {
     return step.statusMap[stageStatus];
   }
   
-  // Default status mapping
+  // Default status mapping (stage-level - use 'passed' not 'completed')
   const statusMap = {
     "pending": "pending",
     "running": "running",
@@ -172,7 +158,6 @@ export function mapStageStatus(stageStatus, stageName) {
     "failed": "failed",
     "warning": "warning",
     "skipped": "skipped",
-    "completed": "passed",
   };
   
   return statusMap[stageStatus] || "pending";
