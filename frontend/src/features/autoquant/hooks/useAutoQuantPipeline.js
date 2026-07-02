@@ -74,6 +74,12 @@ export default function useAutoQuantPipeline(initialPipelineState = null) {
   const seenLogEventsRef = useRef(new Set());
   const manuallyClosedSocketsRef = useRef(new WeakSet());
   const maxReconnectAttempts = 10;
+  
+  // Debouncing refs for high-frequency updates
+  const pendingLogLinesRef = useRef([]);
+  const pendingFitnessPointsRef = useRef([]);
+  const logUpdateTimerRef = useRef(null);
+  const fitnessUpdateTimerRef = useRef(null);
 
   useEffect(() => {
     latestStatusRef.current = pipelineState?.status ?? null;
@@ -104,7 +110,23 @@ export default function useAutoQuantPipeline(initialPipelineState = null) {
 
   const appendLogLine = useCallback((line) => {
     if (!line) return;
-    setLogLines((prev) => [...prev, line].slice(-1200));
+    // Batch log updates to reduce re-renders
+    pendingLogLinesRef.current.push(line);
+    
+    // Clear existing timer and schedule batched update
+    if (logUpdateTimerRef.current) {
+      clearTimeout(logUpdateTimerRef.current);
+    }
+    
+    logUpdateTimerRef.current = setTimeout(() => {
+      if (pendingLogLinesRef.current.length > 0) {
+        setLogLines((prev) => {
+          const newLines = [...prev, ...pendingLogLinesRef.current].slice(-1200);
+          pendingLogLinesRef.current = [];
+          return newLines;
+        });
+      }
+    }, 100); // Batch every 100ms
   }, []);
 
   const appendEventLog = useCallback((event) => {
@@ -203,7 +225,22 @@ export default function useAutoQuantPipeline(initialPipelineState = null) {
       }
 
       if (msg.type === "fitness_point") {
-        setFitnessCurve((prev) => [...prev, msg.point]);
+        // Batch fitness point updates to reduce re-renders during hyperopt
+        pendingFitnessPointsRef.current.push(msg.point);
+        
+        if (fitnessUpdateTimerRef.current) {
+          clearTimeout(fitnessUpdateTimerRef.current);
+        }
+        
+        fitnessUpdateTimerRef.current = setTimeout(() => {
+          if (pendingFitnessPointsRef.current.length > 0) {
+            setFitnessCurve((prev) => {
+              const newCurve = [...prev, ...pendingFitnessPointsRef.current];
+              pendingFitnessPointsRef.current = [];
+              return newCurve;
+            });
+          }
+        }, 150); // Batch fitness points every 150ms
         return;
       }
       if (msg.type === "hyperopt_progress") {
@@ -376,6 +413,19 @@ export default function useAutoQuantPipeline(initialPipelineState = null) {
     clearElapsedTimer();
     clearReconnectTimeout();
     closeWebSocket();
+    
+    // Clear debouncing timers and flush pending updates
+    if (logUpdateTimerRef.current) {
+      clearTimeout(logUpdateTimerRef.current);
+      logUpdateTimerRef.current = null;
+    }
+    if (fitnessUpdateTimerRef.current) {
+      clearTimeout(fitnessUpdateTimerRef.current);
+      fitnessUpdateTimerRef.current = null;
+    }
+    pendingLogLinesRef.current = [];
+    pendingFitnessPointsRef.current = [];
+    
     setLogLines([]);
     setFitnessCurve([]);
     setHyperoptProgress(null);
@@ -490,6 +540,16 @@ export default function useAutoQuantPipeline(initialPipelineState = null) {
       clearElapsedTimer();
       clearReconnectTimeout();
       closeWebSocket();
+      
+      // Clear debouncing timers on unmount
+      if (logUpdateTimerRef.current) {
+        clearTimeout(logUpdateTimerRef.current);
+        logUpdateTimerRef.current = null;
+      }
+      if (fitnessUpdateTimerRef.current) {
+        clearTimeout(fitnessUpdateTimerRef.current);
+        fitnessUpdateTimerRef.current = null;
+      }
     };
   }, [clearElapsedTimer, clearReconnectTimeout, closeWebSocket]);
 
