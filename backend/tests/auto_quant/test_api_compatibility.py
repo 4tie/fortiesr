@@ -9,7 +9,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from backend.api.routers.auto_quant import StartAutoQuantRequest
+from backend.api.routers.auto_quant.schemas import StartAutoQuantRequest
 
 
 def test_old_payload_accepted():

@@ -1,0 +1,72 @@
+"""Pipeline status and control endpoints for Auto-Quant."""
+
+from fastapi import APIRouter, HTTPException
+
+from ....services.auto_quant import pipeline as _pl
+from ....services.auto_quant.api_service import (
+    get_pipeline_status,
+    request_pipeline_cancel,
+)
+from ....services.auto_quant.ai_suggestions import optimization_stage_index
+
+from .schemas import ResumePipelineRequest
+
+
+def register_pipeline_control_endpoints(router: APIRouter) -> None:
+    """Register pipeline status and control endpoints on the given router."""
+    
+    @router.get(
+        "/status/{run_id}",
+        summary="Get current pipeline state",
+    )
+    async def get_status(run_id: str) -> dict:
+        return get_pipeline_status(run_id)
+
+    @router.post(
+        "/cancel/{run_id}",
+        summary="Request pipeline cancellation",
+    )
+    async def cancel_pipeline(run_id: str) -> dict:
+        return request_pipeline_cancel(run_id)
+
+    @router.post(
+        "/resume/{run_id}",
+        summary="Resume pipeline after user approval",
+    )
+    async def resume_pipeline(run_id: str, body: ResumePipelineRequest) -> dict:
+        """Resume a paused pipeline with user-approved pairs."""
+        state = _pl.get_state(run_id)
+        if state is None:
+            raise HTTPException(status_code=404, detail=f"Pipeline run '{run_id}' not found.")
+        if state.status != "awaiting_user_approval":
+            raise HTTPException(
+                status_code=409,
+                detail=f"Pipeline is not awaiting user approval (current status: {state.status})"
+            )
+
+        # Update state with approved pairs
+        state.user_approved_pairs = body.approved_pairs
+        # Also populate selected_pairs directly to ensure pipeline can proceed
+        state.selected_pairs = [{"key": pair} for pair in body.approved_pairs]
+        # Advance current_stage to avoid getting stuck in resume logic
+        if state.current_stage == 1:
+            state.current_stage = 2
+        elif state.current_stage == 2:
+            # Stage 2 (Portfolio Baseline) approval - advance to optimization
+            state.current_stage = optimization_stage_index()
+            # Mark Stage 2 as passed since user approved the baseline
+            if len(state.stages) > 1:
+                state.stages[1].status = "passed"
+        state.status = "running"
+        _pl._save_state_to_disk(state)
+
+        # Resume the pipeline (this will trigger the next stage)
+        import asyncio
+        asyncio.create_task(_pl.run_pipeline(run_id))
+
+        return {
+            "run_id": run_id,
+            "status": "running",
+            "approved_pairs": body.approved_pairs,
+            "message": f"Pipeline resumed with {len(body.approved_pairs)} approved pairs"
+        }
