@@ -14,6 +14,7 @@ from . import (
     report_endpoint,
     chat_endpoint,
 )
+from .session_manager import SessionManager
 
 # Register endpoints from each module
 discovery_endpoints.register_discovery_endpoints(router)
@@ -23,4 +24,4 @@ execution_tool_endpoints.register_execution_tool_endpoints(router)
 report_endpoint.register_report_endpoint(router)
 chat_endpoint.register_chat_endpoint(router)
 
-__all__ = ["router"]
+__all__ = ["router", "SessionManager"]
