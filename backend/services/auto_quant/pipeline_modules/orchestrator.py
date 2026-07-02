@@ -7,7 +7,8 @@ import shutil
 from pathlib import Path
 
 from ..sensitivity import run_sensitivity_check
-from ..ollama_service import ask_ollama_for_sensitivity_fix, detect_strategy_type
+from ..ai_suggestions import create_pending_suggestion, optimization_stage_index
+from ..ollama_service import ask_ollama_for_sensitivity_fix
 from ..policy import load_policy
 from ..variants import ensure_working_copy
 from .config import DEFAULT_STRESS_PAIRS
@@ -54,6 +55,13 @@ async def run_pipeline(run_id: str) -> None:
     state = get_states().get(run_id)
     if state is None:
         logger.error("run_pipeline called with unknown run_id=%s — aborting.", run_id)
+        return
+    if state.status == "awaiting_user_approval" and getattr(state, "pending_ai_suggestion_id", None):
+        logger.info(
+            "run_pipeline: run %s is awaiting AI suggestion approval (%s); not resuming.",
+            run_id,
+            state.pending_ai_suggestion_id,
+        )
         return
 
     # If resuming from user approval, continue from where we left off
@@ -209,7 +217,7 @@ async def run_pipeline(run_id: str) -> None:
                         s2_result)
             
             # Advance to next stage
-            state.current_stage = 3
+            state.current_stage = optimization_stage_index()
             _save_state_to_disk(state)
         else:
             # Stage 2 already completed and current_stage > 2, skip to next stage
@@ -296,36 +304,46 @@ async def run_pipeline(run_id: str) -> None:
                   msg_type="sensitivity_result")
 
             if not sensitivity_result["passed"]:
-                # ── Sharp peak: trigger self-healing retry ─────────────────
                 failure_reason = sensitivity_result.get("failure_reason")
                 
                 if failure_reason == "FAIL_NEGATIVE_BASELINE":
                     _rlog(run_id, 3, logging.WARNING,
-                          "Sensitivity check FAILED (Negative Baseline) — triggering HARD MUTATION. "
+                          "Sensitivity check FAILED (Negative Baseline) — creating pending AI suggestion. "
                           f"p_best={sensitivity_result.get('p_best')}")
                 else:
                     _rlog(run_id, 3, logging.WARNING,
-                          "Sensitivity check FAILED (Sharp Peak) — triggering self-healing retry. "
+                          "Sensitivity check FAILED (Sharp Peak) — creating pending AI suggestion. "
                           f"p_best={sensitivity_result.get('p_best')}  "
                           f"p_minus={sensitivity_result.get('p_minus')}  "
                           f"p_plus={sensitivity_result.get('p_plus')}")
 
-                attempt_idx = state.retry_count
-                attempt_record = {
-                    "attempt": attempt_idx,
-                    "label": "Initial attempt" if attempt_idx == 0 else f"Retry {attempt_idx}",
-                    "loss": state.hyperopt_loss,
-                    "spaces": list(state.hyperopt_spaces),
-                    "epochs": state.hyperopt_epochs,
-                    "profit": sensitivity_result.get("p_best"),
-                    "drawdown": None,
-                    "trades": None,
-                    "reason": failure_reason if failure_reason else "sensitivity",
-                    "passed": False,
-                }
-                
-                # Try Ollama for intelligent suggestions if enabled
+                if state.retry_count >= state.max_retries:
+                    failure_label = "Negative Baseline" if failure_reason == "FAIL_NEGATIVE_BASELINE" else "Sharp Peak"
+                    state.generalization_failure = {
+                        "thresholds": {
+                            "min_oos_profit": state.min_oos_profit,
+                            "max_drawdown_threshold": state.max_drawdown_threshold,
+                        },
+                        "attempts": state.retry_history,
+                        "best_attempt": max(state.retry_history, key=lambda a: a.get("profit") or -999.0)
+                        if state.retry_history else None,
+                        "best_attempt_file": None,
+                        "best_attempt_strategy_name": None,
+                        "suggestions": [
+                            "Strategy failed robustness after approved retry attempts. "
+                            "Start a new run with different pairs, timeframe, strategy, or WFO settings."
+                        ],
+                    }
+                    msg = (
+                        f"Strategy failed robustness check after "
+                        f"{state.max_retries} approved retry attempts ({failure_label} detected)."
+                    )
+                    _rlog(run_id, 3, logging.ERROR, f"Sensitivity | {msg}")
+                    _fail_stage(run_id, state, 3, msg, state.generalization_failure)
+                    return
+
                 ollama_suggestions = None
+                source = "deterministic"
                 try:
                     import json
                     settings_file = Path(state.user_data_dir).parent / "data" / "strategy_lab_settings.json"
@@ -342,7 +360,7 @@ async def run_pipeline(run_id: str) -> None:
                                 state
                             )
                             if ollama_suggestions:
-                                attempt_record["ollama_suggestions"] = ollama_suggestions
+                                source = "ollama"
                                 _rlog(run_id, 3, logging.INFO,
                                       f"Ollama suggestions: {ollama_suggestions.get('reasoning', 'N/A')}")
                             else:
@@ -351,157 +369,40 @@ async def run_pipeline(run_id: str) -> None:
                 except Exception as exc:
                     _rlog(run_id, 3, logging.WARNING,
                           f"Failed to check Ollama settings or get suggestions: {exc}")
-                
-                state.retry_history.append(attempt_record)
 
-                state.retry_count += 1
-                if state.retry_count > state.max_retries:
-                    history = state.retry_history
-                    best_a = max(history, key=lambda a: a.get("profit") or -999.0)
-                    state.generalization_failure = {
-                        "thresholds": {
-                            "min_oos_profit": state.min_oos_profit,
-                            "max_drawdown_threshold": state.max_drawdown_threshold,
-                        },
-                        "attempts": history,
-                        "best_attempt": best_a,
-                        "best_attempt_file": None,
-                        "best_attempt_strategy_name": None,
-                        "suggestions": [
-                            "Strategy parameters sit on a very sharp optimisation peak — "
-                            "nearby values produce significantly different results. "
-                            "Consider extending the in-sample date range, "
-                            "using a different base strategy, or switching to WFO mode."
-                        ],
+                trigger = "negative_baseline" if failure_reason == "FAIL_NEGATIVE_BASELINE" else "sharp_peak"
+                proposed_changes = ollama_suggestions if ollama_suggestions else None
+                suggestion = create_pending_suggestion(
+                    state=state,
+                    trigger=trigger,
+                    failure_reason=failure_reason or "sensitivity",
+                    retry_attempt=state.retry_count + 1,
+                    source=source,
+                    proposed_changes=proposed_changes,
+                    explanation=ollama_suggestions.get("reasoning") if ollama_suggestions else None,
+                    evidence={"sensitivity": sensitivity_result},
+                )
+                state.status = "awaiting_user_approval"
+                state.current_stage = optimization_stage_index()
+                stage_idx = optimization_stage_index()
+                if 0 < stage_idx <= len(state.stages):
+                    state.stages[stage_idx - 1].status = "warning"
+                    state.stages[stage_idx - 1].message = suggestion["summary"]
+                    state.stages[stage_idx - 1].data = {
+                        **(state.stages[stage_idx - 1].data or {}),
+                        "ai_suggestion_id": suggestion["id"],
                     }
-                    # Get the actual failure reason from the most recent sensitivity check
-                    last_failure_reason = sensitivity_result.get("failure_reason", "sensitivity failure")
-                    failure_label = "Negative Baseline" if last_failure_reason == "FAIL_NEGATIVE_BASELINE" else "Sharp Peak"
-
-                    # Adjust suggestions based on failure type
-                    if last_failure_reason == "FAIL_NEGATIVE_BASELINE":
-                        failure_suggestions = [
-                            "Strategy is unprofitable with current configuration (Negative Baseline). "
-                            "Consider: 1) Different timeframe or pairs, 2) Enabling trend/volatility filters, "
-                            "3) Switching to OnlyProfitHyperOptLoss, 4) Strategy redesign."
-                        ]
-                    else:
-                        failure_suggestions = [
-                            "Strategy parameters sit on a very sharp optimisation peak — "
-                            "nearby values produce significantly different results. "
-                            "Consider extending the in-sample date range, "
-                            "using a different base strategy, or switching to WFO mode."
-                        ]
-
-                    state.generalization_failure["suggestions"] = failure_suggestions
-
-                    msg = (
-                        f"❌ Strategy failed robustness check after "
-                        f"{state.max_retries} self-healing attempts ({failure_label} detected). "
-                        "See retry history and suggestions below."
-                    )
-                    _rlog(run_id, 3, logging.ERROR, f"Sensitivity | {msg}")
-                    _fail_stage(run_id, state, 3, msg, state.generalization_failure)
-                    return
-
-                # ── Hard Mutation for FAIL_NEGATIVE_BASELINE ───────────────────
-                if failure_reason == "FAIL_NEGATIVE_BASELINE":
-                    _rlog(run_id, 3, logging.WARNING,
-                          "FAIL_NEGATIVE_BASELINE detected — applying HARD MUTATION")
-                    
-                    # Force dominant Boolean indicators to True via state overrides
-                    if not hasattr(state, 'param_overrides'):
-                        state.param_overrides = {}
-                    state.param_overrides.update({
-                        "use_ema_cross": True,
-                        "use_atr": True,
-                        "use_adx": True,
-                    })
-                    
-                    # Widen hyperopt spaces drastically
-                    state.hyperopt_spaces = ["buy", "stoploss", "roi"]
-                    state.hyperopt_epochs = int(state.hyperopt_epochs * 2.0)
-                    
-                    _rlog(run_id, 3, logging.INFO,
-                          f"Hard Mutation: forcing Boolean indicators, "
-                          f"spaces={state.hyperopt_spaces}, epochs={state.hyperopt_epochs}")
-                    
-                    retry_msg = (
-                        f"⚠️ Negative Baseline detected. Triggering HARD MUTATION Retry "
-                        f"{state.retry_count}/{state.max_retries} with forced Boolean indicators…"
-                    )
-                else:
-                    # Apply Ollama suggestions if available, otherwise use fallback logic
-                    if ollama_suggestions:
-                        _rlog(run_id, 3, logging.INFO,
-                              "Applying Ollama-suggested parameter adjustments")
-                        
-                        # Apply hyperopt_loss
-                        if "hyperopt_loss" in ollama_suggestions:
-                            state.hyperopt_loss = ollama_suggestions["hyperopt_loss"]
-                        
-                        # Apply hyperopt_spaces
-                        if "hyperopt_spaces" in ollama_suggestions:
-                            state.hyperopt_spaces = set(ollama_suggestions["hyperopt_spaces"])
-                        
-                        # Apply hyperopt_epochs
-                        if "hyperopt_epochs" in ollama_suggestions:
-                            state.hyperopt_epochs = ollama_suggestions["hyperopt_epochs"]
-                        
-                        # Apply param_overrides
-                        if "param_overrides" in ollama_suggestions:
-                            if not hasattr(state, 'param_overrides'):
-                                state.param_overrides = {}
-                            state.param_overrides.update(ollama_suggestions["param_overrides"])
-                        
-                        retry_msg = (
-                            f"⚠️ Sharp Peak detected. Applying AI-Suggested Retry "
-                            f"{state.retry_count}/{state.max_retries}…"
-                        )
-                    else:
-                        # Fallback to standard logic
-                        retry_msg = (
-                            f"⚠️ Sharp Peak detected. Triggering Self-Healing Retry "
-                            f"{state.retry_count}/{state.max_retries} with a different optimisation axis…"
-                        )
-                
-                _rlog(run_id, 3, logging.WARNING, retry_msg)
-                _emit(run_id, 3, "running", retry_msg, -1)
-
-                _sens_reason = attempt_record.get("reason", "sensitivity")
-                if _sens_reason == "FAIL_NEGATIVE_BASELINE":
-                    # Hard mutation already applied above
-                    _new_loss = "OnlyProfitHyperOptLoss"
-                elif _sens_reason == "drawdown":
-                    _new_loss = "CalmarHyperOptLoss"
-                elif _sens_reason == "both":
-                    _new_loss = "ProfitDrawDownHyperOptLoss"
-                else:
-                    _new_loss = "OnlyProfitHyperOptLoss"
-                
-                # Only apply standard soft mutation if not hard mutation and no ollama suggestions
-                if _sens_reason != "FAIL_NEGATIVE_BASELINE" and not ollama_suggestions:
-                    state.hyperopt_loss = _new_loss
-                    _rlog(run_id, 3, logging.INFO,
-                          f"Self-Heal Retry {state.retry_count}: switching hyperopt_loss → {_new_loss} "
-                          f"(reason={_sens_reason})")
-                    
-                    if state.retry_count == 2:
-                        state.hyperopt_spaces = ["roi", "stoploss"]
-                        _rlog(run_id, 3, logging.INFO,
-                              "Self-Heal Retry 2: broadening spaces → ['roi', 'stoploss']")
-                    elif state.retry_count >= 3:
-                        state.hyperopt_epochs = int(state.hyperopt_epochs * 1.5)
-                        _rlog(run_id, 3, logging.INFO,
-                              f"Self-Heal Retry {state.retry_count}: boosting epochs → {state.hyperopt_epochs}")
-
-                for idx in (2, 3):
-                    state.stages[idx - 1].status = "pending"
-                    state.stages[idx - 1].message = ""
-                    state.stages[idx - 1].data = {}
-
+                _emit(
+                    run_id,
+                    stage_idx,
+                    "awaiting_user_approval",
+                    suggestion["summary"],
+                    -1,
+                    {"suggestion": suggestion},
+                    msg_type="ai_suggestion_ready",
+                )
                 _save_state_to_disk(state)
-                continue
+                return
 
             # ── Auto-Patching (merged into Stage 3) ───────────────────────
             _rlog(run_id, 3, logging.INFO, "── Sub-step: Auto-Patching ──")

@@ -32,6 +32,26 @@ export function resumeRun(runId, approvedPairs) {
   return api.autoquant.resumeRun(runId, approvedPairs);
 }
 
+export function listAISuggestions(runId) {
+  return api.autoquant.listAISuggestions(runId);
+}
+
+export function approveAISuggestion(runId, suggestionId) {
+  return api.autoquant.approveAISuggestion(runId, suggestionId);
+}
+
+export function rejectAISuggestion(runId, suggestionId) {
+  return api.autoquant.rejectAISuggestion(runId, suggestionId);
+}
+
+export function explainStage(runId, payload) {
+  return api.autoquant.explainStage(runId, payload);
+}
+
+export function explainFailure(runId, payload) {
+  return api.autoquant.explainFailure(runId, payload);
+}
+
 export function getReport(runId) {
   return api.autoquant.getReport(runId);
 }

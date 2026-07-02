@@ -9,6 +9,7 @@ from pathlib import Path
 
 from ..monte_carlo import run_monte_carlo
 from ..policy import load_policy
+from ..ai_suggestions import ai_assistance_summary
 from ..profit_lockin import compute_profit_giveback_metrics, extract_strategy_trades
 from ..variants import copy_to_output, strategy_path_args
 from .helpers import (
@@ -711,6 +712,7 @@ async def _stage_delivery(
             if k in ("rsi_weight", "macd_weight", "bb_weight", "consensus_threshold")
         } if state.ensemble_enabled else {},
         "sensitivity": state.sensitivity,
+        "ai_assistance": ai_assistance_summary(state),
         "strategy_variants": state.strategy_variants,
         "artifact_versions": state.artifact_versions,
     }

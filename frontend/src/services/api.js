@@ -134,6 +134,43 @@ export const api = {
       return parseJsonResponse(res, "Failed to resume pipeline.");
     },
 
+    async listAISuggestions(runId) {
+      const res = await fetch(`${this.baseURL}/${runId}/ai-suggestions`);
+      return parseJsonResponse(res, "Failed to load AI suggestions.");
+    },
+
+    async approveAISuggestion(runId, suggestionId) {
+      const res = await fetch(`${this.baseURL}/${runId}/ai-suggestions/${suggestionId}/approve`, {
+        method: "POST",
+      });
+      return parseJsonResponse(res, "Failed to approve AI suggestion.");
+    },
+
+    async rejectAISuggestion(runId, suggestionId) {
+      const res = await fetch(`${this.baseURL}/${runId}/ai-suggestions/${suggestionId}/reject`, {
+        method: "POST",
+      });
+      return parseJsonResponse(res, "Failed to reject AI suggestion.");
+    },
+
+    async explainStage(runId, payload) {
+      const res = await fetch(`${this.baseURL}/${runId}/ai/explain-stage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload || {}),
+      });
+      return parseJsonResponse(res, "Failed to explain stage.");
+    },
+
+    async explainFailure(runId, payload) {
+      const res = await fetch(`${this.baseURL}/${runId}/ai/explain-failure`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload || {}),
+      });
+      return parseJsonResponse(res, "Failed to explain failure.");
+    },
+
     /**
      * Get pipeline run status
      * @param {string} runId

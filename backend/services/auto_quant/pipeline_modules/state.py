@@ -23,6 +23,7 @@ from .config import (
     TOP_PAIRS_SELECTION_COUNT,
 )
 from .logging import _rlog, get_queues, logger
+from ..ai_suggestions import ai_assistance_summary, normalize_ai_suggestions
 from ..policy import get_policy_versions, load_policy, normalize_decimal
 
 # ── Data structures ───────────────────────────────────────────────────────────
@@ -97,10 +98,12 @@ class PipelineState:
     excluded_time_windows: dict = field(default_factory=dict)
     # Ollama AI Integration
     ai_enabled: bool = True  # Per-run AI toggle
-    ai_suggestions: dict = field(default_factory=dict)  # Store AI suggestions for review
+    ai_suggestions: list = field(default_factory=list)  # Advisor-only AI suggestions for review
+    pending_ai_suggestion_id: str | None = None
     ai_interactions: list = field(default_factory=list)  # Log all AI interactions
     ai_metrics: dict = field(default_factory=dict)  # Track AI performance metrics
     ollama_available: bool = False  # Cached availability check
+    param_overrides: dict = field(default_factory=dict)  # Applied only through retry/patch flow
     # Data Healing Configuration
     data_healing_warmup_candles: int = 200  # Indicator warm-up period in candles
     data_healing_timeout: int = 300  # Subprocess timeout in seconds
@@ -289,9 +292,11 @@ def _save_state_to_disk(state: PipelineState) -> None:
             "selected_pairs": state.selected_pairs,
             "excluded_time_windows": state.excluded_time_windows,
             "ai_enabled": state.ai_enabled,
-            "ai_suggestions": state.ai_suggestions,
+            "ai_suggestions": normalize_ai_suggestions(state.ai_suggestions),
+            "pending_ai_suggestion_id": state.pending_ai_suggestion_id,
             "ai_interactions": state.ai_interactions,
             "ollama_available": state.ollama_available,
+            "param_overrides": state.param_overrides,
             "data_healing_warmup_candles": state.data_healing_warmup_candles,
             "data_healing_timeout": state.data_healing_timeout,
             "phase1_heal_attempts": state.phase1_heal_attempts,
@@ -433,9 +438,11 @@ def load_runs_from_disk(user_data_dir: str) -> None:
                 selected_pairs=data.get("selected_pairs", []),
                 excluded_time_windows=data.get("excluded_time_windows", {}),
                 ai_enabled=data.get("ai_enabled", True),
-                ai_suggestions=data.get("ai_suggestions", {}),
+                ai_suggestions=normalize_ai_suggestions(data.get("ai_suggestions")),
+                pending_ai_suggestion_id=data.get("pending_ai_suggestion_id"),
                 ai_interactions=data.get("ai_interactions", []),
                 ollama_available=data.get("ollama_available", False),
+                param_overrides=data.get("param_overrides", {}),
                 data_healing_warmup_candles=data.get("data_healing_warmup_candles", 200),
                 data_healing_timeout=data.get("data_healing_timeout", 300),
                 phase1_heal_attempts=data.get("phase1_heal_attempts", 0),
@@ -529,6 +536,11 @@ def load_runs_from_disk(user_data_dir: str) -> None:
                 error=None,
                 created_at=data.get("created_at", ""),
                 completed_at=data.get("completed_at"),
+                ai_suggestions=normalize_ai_suggestions(
+                    data.get("ai_suggestions") or data.get("ai_assistance", {}).get("suggestions")
+                ),
+                pending_ai_suggestion_id=data.get("pending_ai_suggestion_id")
+                or data.get("ai_assistance", {}).get("pending_ai_suggestion_id"),
             )
             _states[run_id] = state
             _queues[run_id] = []
@@ -792,9 +804,12 @@ def _state_snapshot(state: PipelineState) -> dict:
         "generalization_failure": state.generalization_failure,
         "sensitivity": state.sensitivity,
         "ai_enabled": state.ai_enabled,
-        "ai_suggestions": state.ai_suggestions,
+        "ai_suggestions": normalize_ai_suggestions(state.ai_suggestions),
+        "pending_ai_suggestion_id": state.pending_ai_suggestion_id,
+        "ai_assistance": ai_assistance_summary(state),
         "ai_interactions": state.ai_interactions,
         "ollama_available": state.ollama_available,
+        "param_overrides": state.param_overrides,
         "data_healing_warmup_candles": state.data_healing_warmup_candles,
         "data_healing_timeout": state.data_healing_timeout,
         "portfolio_weights": state.portfolio_weights,
