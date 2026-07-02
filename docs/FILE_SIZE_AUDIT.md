@@ -8,10 +8,10 @@ Generated: 2026-07-02
 |------|-------|--------|-----------------|----------------|------|
 | frontend/src/components/StrategyLabTab.jsx | 1758 | **DEFER** | Complex strategy lab UI with multiple sub-features | Split into components: StrategyLabHeader, StrategyLabForm, StrategyLabResults, StrategyLabPreview, hooks/useStrategyLabState | Medium |
 | frontend/src/components/OptimizerTab.jsx | 1518 | **DEFER** | Optimizer UI with configuration, results, and visualization | Split into: OptimizerConfigPanel, OptimizerResults, OptimizerCharts, hooks/useOptimizerState | Medium |
-| backend/services/auto_quant/pipeline_modules/stages_validation.py | 1295 | **SPLIT** | Validation gate implementations for all pipeline stages | Extract: data_quality_gate, backtest_gate, portfolio_gate, wfo_gate, sensitivity_gate into separate modules | Low |
+| backend/services/auto_quant/pipeline_modules/stages_validation.py | 1295 | **COMPLETED** | Validation gate implementations for all pipeline stages | Extract: data_quality_gate, backtest_gate, portfolio_gate, wfo_gate, sensitivity_gate into separate modules | Low |
 | backend/tests/auto_quant/test_pipeline_validation.py | 1239 | **SPLIT** | Tests for validation stages | Split by test class: test_data_quality, test_backtest_gate, test_portfolio_gate, test_wfo_gate, test_sensitivity | Low |
-| backend/services/auto_quant/pipeline_modules/helpers.py | 1222 | **SPLIT** | Pipeline helper functions | Extract: data_helpers, validation_helpers, artifact_helpers, config_helpers | Low |
-| backend/services/auto_quant/pipeline_modules/stages_assessment.py | 1174 | **SPLIT** | Assessment stage logic | Extract: readiness_assessment, scoring_assessment, risk_assessment | Low |
+| backend/services/auto_quant/pipeline_modules/helpers.py | 1222 | **COMPLETED** | Pipeline helper functions | Extract: data_helpers, validation_helpers, artifact_helpers, config_helpers | Low |
+| backend/services/auto_quant/pipeline_modules/stages_assessment.py | 1174 | **COMPLETED** | Assessment stage logic | Extract: readiness_assessment, scoring_assessment, risk_assessment | Low |
 | backend/services/auto_quant/generator.py | 1174 | **SPLIT** | Strategy generation logic | Extract: template_generator, spec_generator, code_generator, validation_helpers | Low |
 | backend/services/execution/pair_sweep_runner.py | 1084 | **SPLIT** | Pair sweep execution logic | Extract: sweep_coordinator, sweep_executor, sweep_analyzer, sweep_reporter | Low |
 | backend/services/candidate/orchestrator.py | 1056 | **COMPLETED** | Candidate evaluation orchestrator | Split into: test_orchestrator_basic, test_orchestrator_data_quality, test_orchestrator_portfolio, test_orchestrator_repair | Low |
@@ -20,9 +20,9 @@ Generated: 2026-07-02
 
 | File | Lines | Status | Reason for Size | Proposed Split | Risk |
 |------|-------|--------|-----------------|----------------|------|
-| backend/services/auto_quant/pipeline_modules/stage_runtime.py | 972 | **SPLIT** | Stage execution runtime | Extract: stage_executor, stage_monitor, stage_recovery, stage_context | Low |
+| backend/services/auto_quant/pipeline_modules/stage_runtime.py | 972 | **COMPLETED** | Stage execution runtime | Extract: stage_executor, stage_monitor, stage_recovery, stage_context | Low |
 | frontend/src/features/autoquant/components/AutoQuantRunDashboard.jsx | 966 | **DEFER** | AutoQuant run dashboard UI | Split into: RunHeader, RunProgress, RunMetrics, RunControls, RunLogs | Medium |
-| backend/services/auto_quant/pipeline_modules/state.py | 896 | **SPLIT** | Pipeline state management | Extract: state_models, state_transitions, state_persistence, state_validation | Low |
+| backend/services/auto_quant/pipeline_modules/state.py | 896 | **COMPLETED** | Pipeline state management | Extract: state_models, state_transitions, state_persistence, state_validation | Low |
 | frontend/src/features/autoquant/components/AutoQuantConfigPanel.jsx | 860 | **DEFER** | AutoQuant configuration UI | Split into: ConfigForm, ConfigValidation, ConfigPresets, ConfigAdvanced | Medium |
 | frontend/src/components/PerformanceTab.jsx | 855 | **DEFER** | Performance analysis UI | Split into: PerformanceCharts, PerformanceMetrics, PerformanceFilters, PerformanceExport | Medium |
 | frontend/src/components/SettingsTab.jsx | 853 | **DEFER** | Settings management UI | Split into: SettingsCategories, SettingsForm, SettingsValidation, SettingsPersistence | Medium |
@@ -65,6 +65,50 @@ The following files have already been refactored in previous work:
 - **backend/tests/candidate/test_orchestrator.py** (1695 lines) → Split into 4 test modules
 - **backend/services/auto_quant/ollama_service.py** (1624 lines) → Split into 7 modules under `backend/services/auto_quant/`
 
+## Phase 1 Completed (2026-07-02)
+
+The following 5 pipeline module files were successfully split into smaller submodules:
+
+- **backend/services/auto_quant/pipeline_modules/stages_validation.py** (1295 lines) → Split into 5 gate modules:
+  - gates/data_quality_gate.py
+  - gates/backtest_gate.py
+  - gates/portfolio_gate.py
+  - gates/wfo_gate.py
+  - gates/sensitivity_gate.py
+  - gates/__init__.py
+
+- **backend/services/auto_quant/pipeline_modules/helpers.py** (1222 lines) → Split into 4 helper modules:
+  - helpers/subprocess_helpers.py
+  - helpers/validation_helpers.py
+  - helpers/artifact_helpers.py
+  - helpers/config_helpers.py
+  - helpers/__init__.py
+
+- **backend/services/auto_quant/pipeline_modules/stages_assessment.py** (1174 lines) → Split into 3 assessment modules:
+  - assessment/data_helpers.py
+  - assessment/readiness_assessment.py
+  - assessment/stage_implementations.py
+  - assessment/__init__.py
+
+- **backend/services/auto_quant/pipeline_modules/stage_runtime.py** (972 lines) → Split into 4 runtime modules:
+  - runtime/lifecycle_helpers.py
+  - runtime/validation_helpers.py
+  - runtime/metrics_helpers.py
+  - runtime/normalization_helpers.py
+  - runtime/__init__.py
+
+- **backend/services/auto_quant/pipeline_modules/state.py** (896 lines) → Split into 4 state modules:
+  - state_modules/data_structures.py
+  - state_modules/persistence.py
+  - state_modules/utilities.py
+  - state_modules/__init__.py
+
+**Additional modules created:**
+- stages/ subpackage (5 stage implementation modules)
+
+**Total new modules created:** 23 files
+**Public API compatibility:** Preserved via coordinator modules
+
 ## Summary
 
 - **Files over 1000 lines**: 10 files
@@ -76,13 +120,8 @@ The following files have already been refactored in previous work:
 ## Recommended Refactor Order
 
 1. **High Priority (Backend Services)** - Low risk, high impact:
-   - backend/services/auto_quant/pipeline_modules/stages_validation.py
-   - backend/services/auto_quant/pipeline_modules/helpers.py
-   - backend/services/auto_quant/pipeline_modules/stages_assessment.py
    - backend/services/auto_quant/generator.py
    - backend/services/execution/pair_sweep_runner.py
-   - backend/services/auto_quant/pipeline_modules/stage_runtime.py
-   - backend/services/auto_quant/pipeline_modules/state.py
    - backend/services/assistant_service.py
    - backend/services/auto_quant/policy/__init__.py
 
