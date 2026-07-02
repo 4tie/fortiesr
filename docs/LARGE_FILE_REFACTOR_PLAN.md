@@ -241,6 +241,32 @@ Total oversized files identified: 25
 
 **Commit**: 8d0ef184 - Refactor Phase 1: Split 5 oversized pipeline modules into smaller submodules
 
+## Phase 2 Completed (2026-07-02)
+
+**Date**: 2026-07-02
+
+**Files Split**: 1 generator module file
+- backend/services/auto_quant/generator.py (1174 lines)
+
+**New Modules Created**: 4 files
+- generator/ subpackage (3 modules)
+  - generator/basic_generators.py (adaptive, categorical, momentum strategies)
+  - generator/advanced_generators.py (omni, ensemble strategies)
+  - generator/market_aware_generators.py (market-aware, indicator library strategies)
+  - generator/__init__.py (coordinator)
+- generator.py (coordinator module for backward compatibility)
+
+**Tests Passed**:
+- python -m compileall backend/api backend/services: PASSED
+- python scripts/check_file_sizes.py: PASSED (generator.py no longer oversized)
+
+**API Contract Verification**: PASSED
+- All public function names preserved
+- Import compatibility maintained via coordinator modules
+- No changes to strategy template generation logic
+
+**Commit**: [pending commit] - Refactor Phase 2: split AutoQuant generator module
+
 ## Already Refactored Files
 
 ### backend/api/routers/auto_quant.py (1899 lines) → COMPLETED
@@ -316,11 +342,10 @@ Total oversized files identified: 25
 
 ## Remaining Oversized Files
 
-### High Priority (Backend Services) - 4 files
-1. backend/services/auto_quant/generator.py (1174 lines)
-2. backend/services/execution/pair_sweep_runner.py (1084 lines)
-3. backend/services/assistant_service.py (825 lines)
-4. backend/services/auto_quant/policy/__init__.py (812 lines)
+### High Priority (Backend Services) - 3 files
+1. backend/services/execution/pair_sweep_runner.py (1084 lines)
+2. backend/services/assistant_service.py (825 lines)
+3. backend/services/auto_quant/policy/__init__.py (812 lines)
 
 ### Medium Priority (Frontend Components) - 6 files
 1. frontend/src/components/StrategyLabTab.jsx (1758 lines)
@@ -347,8 +372,8 @@ Total oversized files identified: 25
 4. ~~backend/services/auto_quant/pipeline_modules/stage_runtime.py~~ - COMPLETED
 5. ~~backend/services/auto_quant/pipeline_modules/state.py~~ - COMPLETED
 
-### Phase 2: Backend Services (Next Priority)
-1. backend/services/auto_quant/generator.py
+### Phase 2: Backend Services (1 COMPLETED, 3 REMAINING)
+1. ~~backend/services/auto_quant/generator.py~~ - COMPLETED
 2. backend/services/execution/pair_sweep_runner.py
 3. backend/services/assistant_service.py
 4. backend/services/auto_quant/policy/__init__.py
