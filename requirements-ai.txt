@@ -10,8 +10,8 @@ scikit-optimize
 scikit-learn
 
 # Genetic algorithms
-deap>=2.3.0
-pymoo>=0.6.0
+deap
+pymoo
 
 # Hidden Markov Models
-hmmlearn>=0.3.0
+hmmlearn

@@ -4,7 +4,15 @@
 # Dependencies have been split into modular files to make installation easier,
 # especially on low-resource machines. Install only what you need.
 #
-# Installation Options:
+# QUICK INSTALL (Interactive):
+#    python install.py
+#    or
+#    ./install.sh
+#    This will prompt you to select which modules to install.
+#    Options: core, trading (or 't'), ai, rl, dev
+#    Press Enter without selection to install all modules.
+#
+# MANUAL INSTALLATION OPTIONS:
 #
 # 1. Minimal (Core only - for basic API functionality):
 #    pip install -r requirements-core.txt

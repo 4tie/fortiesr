@@ -4,7 +4,7 @@ import AutoQuantStageStepper from "./AutoQuantStageStepper";
 
 // Mock the constants and utils
 jest.mock("../../features/autoquant/constants", () => ({
-  STAGE_ICONS: ["01", "02", "03", "04", "05", "06", "07"],
+  STAGE_ICONS: ["01", "02", "03", "04", "05", "06"],
 }));
 
 jest.mock("../../features/autoquant/utils", () => ({

@@ -6,6 +6,7 @@ import {
 } from "@heroicons/react/24/outline";
 import RunDetailPanel from "./RunDetailPanel";
 import api from "../services/api";
+import { STAGE_NAMES } from "../features/autoquant/constants";
 
 const API_BASE = "";
 
@@ -256,7 +257,7 @@ function RunCard({ run, onSelect }) {
               </p>
               {run.current_stage > 0 && (
                 <p className="text-[11px] text-warning/70">
-                  Stopped at stage {run.current_stage} of 7
+                  Stopped at stage {run.current_stage} of {run.stages?.length || STAGE_NAMES.length}
                 </p>
               )}
               <p className="text-[11px] text-base-content/50">

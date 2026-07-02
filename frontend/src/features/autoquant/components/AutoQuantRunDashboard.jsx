@@ -20,6 +20,7 @@ import AutoQuantFinalReport from "../../../components/autoquant/AutoQuantFinalRe
 import AutoQuantPipelineCard from "../../../components/autoquant/AutoQuantPipelineCard";
 import AutoQuantFinalResultCard from "../../../components/autoquant/AutoQuantFinalResultCard";
 import ProfessionalChartsTab from "../../../components/ProfessionalChartsTab";
+import { STAGE_NAMES } from "../constants";
 import { formatElapsed, getEstimatedTimeRemaining, getProgressPercent, getRunStatusFlags, getRunStatusLabel } from "../viewModel";
 
 function StatusDot({ flags }) {
@@ -633,7 +634,7 @@ export default function AutoQuantRunDashboard({
             </div>
             <div className="grid grid-cols-3 gap-2 xl:w-[28rem]">
               <SummaryCell label="Progress" value={`${progress}%`} tone={flags.isFailed ? "error" : flags.isCompleted ? "success" : "primary"} />
-              <SummaryCell label="Stage" value={`${pipelineState.current_stage || 0}/7`} />
+              <SummaryCell label="Stage" value={`${pipelineState.current_stage || 0}/${pipelineState.stages?.length || STAGE_NAMES.length}`} />
               <SummaryCell
                 label="Status"
                 value={pipelineState.status || "starting"}
