@@ -140,8 +140,8 @@ def test_max_open_trades_zero_raises_value_error(tmp_path):
 # -------------------------------------------------------------------
 
 
-@patch("backend.services.execution.pair_sweep_runner.ResultParser.parse_run_artifacts")
-@patch("backend.services.execution.pair_sweep_runner.subprocess.Popen")
+@patch("backend.services.execution.pair_sweep.portfolio_backtest.ResultParser.parse_run_artifacts")
+@patch("backend.services.execution.pair_sweep.portfolio_backtest.subprocess.Popen")
 def test_portfolio_passes_all_thresholds(mock_popen, mock_parse, tmp_path):
     mock_popen.side_effect = _popen_side_effect_create_raw_result
     mock_parse.return_value = (_good_summary(), _good_pair_results())
@@ -173,8 +173,8 @@ def test_portfolio_passes_all_thresholds(mock_popen, mock_parse, tmp_path):
     assert result["config_used"]["max_open_trades"] == 5
 
 
-@patch("backend.services.execution.pair_sweep_runner.ResultParser.parse_run_artifacts")
-@patch("backend.services.execution.pair_sweep_runner.subprocess.Popen")
+@patch("backend.services.execution.pair_sweep.portfolio_backtest.ResultParser.parse_run_artifacts")
+@patch("backend.services.execution.pair_sweep.portfolio_backtest.subprocess.Popen")
 def test_portfolio_fails_drawdown(mock_popen, mock_parse, tmp_path):
     mock_popen.side_effect = _popen_side_effect_create_raw_result
     mock_parse.return_value = (
@@ -203,8 +203,8 @@ def test_portfolio_fails_drawdown(mock_popen, mock_parse, tmp_path):
     assert "MAX_DRAWDOWN" in result["failure_reasons"]
 
 
-@patch("backend.services.execution.pair_sweep_runner.ResultParser.parse_run_artifacts")
-@patch("backend.services.execution.pair_sweep_runner.subprocess.Popen")
+@patch("backend.services.execution.pair_sweep.portfolio_backtest.ResultParser.parse_run_artifacts")
+@patch("backend.services.execution.pair_sweep.portfolio_backtest.subprocess.Popen")
 def test_portfolio_fails_low_trades(mock_popen, mock_parse, tmp_path):
     mock_popen.side_effect = _popen_side_effect_create_raw_result
     mock_parse.return_value = (
@@ -238,7 +238,7 @@ def test_portfolio_fails_low_trades(mock_popen, mock_parse, tmp_path):
 # -------------------------------------------------------------------
 
 
-@patch("backend.services.execution.pair_sweep_runner.subprocess.Popen")
+@patch("backend.services.execution.pair_sweep.portfolio_backtest.subprocess.Popen")
 def test_max_open_trades_in_command(mock_popen, tmp_path):
     captured_cmds = []
 
@@ -279,7 +279,7 @@ def test_max_open_trades_in_command(mock_popen, tmp_path):
 # -------------------------------------------------------------------
 
 
-@patch("backend.services.execution.pair_sweep_runner.subprocess.Popen")
+@patch("backend.services.execution.pair_sweep.portfolio_backtest.subprocess.Popen")
 def test_all_pairs_in_one_command(mock_popen, tmp_path):
     captured_cmds = []
 
@@ -323,7 +323,7 @@ def test_all_pairs_in_one_command(mock_popen, tmp_path):
 # -------------------------------------------------------------------
 
 
-@patch("backend.services.execution.pair_sweep_runner.subprocess.Popen")
+@patch("backend.services.execution.pair_sweep.portfolio_backtest.subprocess.Popen")
 def test_backtest_crash_returns_backtest_failed(mock_popen, tmp_path):
     mock_popen.side_effect = _popen_side_effect_failure
 

@@ -347,6 +347,17 @@ E   ModuleNotFoundError: No module named 'backend.services.auto_quant.pipeline_m
 
 **Tests Run**: PASSED
 
+### backend/services/execution/pair_sweep_runner.py (1084 lines) → COMPLETED
+**Split Into**:
+- backend/services/execution/pair_sweep/__init__.py (facade, 22 lines)
+- backend/services/execution/pair_sweep/runner.py (557 lines)
+- backend/services/execution/pair_sweep/individual_sweep.py (172 lines)
+- backend/services/execution/pair_sweep/portfolio_backtest.py (234 lines)
+- backend/services/execution/pair_sweep/pair_decision.py (143 lines)
+
+**API Contract Verification**: PASSED
+**Tests Run**: PASSED
+
 ## First File Refactored
 
 **File**: backend/api/routers/auto_quant.py (1899 lines)
@@ -364,10 +375,9 @@ E   ModuleNotFoundError: No module named 'backend.services.auto_quant.pipeline_m
 
 ## Remaining Oversized Files
 
-### High Priority (Backend Services) - 3 files
-1. backend/services/execution/pair_sweep_runner.py (1084 lines)
-2. backend/services/assistant_service.py (825 lines)
-3. backend/services/auto_quant/policy/__init__.py (812 lines)
+### High Priority (Backend Services) - 2 files
+1. backend/services/assistant_service.py (825 lines)
+2. backend/services/auto_quant/policy/__init__.py (812 lines)
 
 ### Medium Priority (Frontend Components) - 6 files
 1. frontend/src/components/StrategyLabTab.jsx (1758 lines)
@@ -394,9 +404,9 @@ E   ModuleNotFoundError: No module named 'backend.services.auto_quant.pipeline_m
 4. ~~backend/services/auto_quant/pipeline_modules/stage_runtime.py~~ - COMPLETED
 5. ~~backend/services/auto_quant/pipeline_modules/state.py~~ - COMPLETED
 
-### Phase 2: Backend Services (1 COMPLETED, 3 REMAINING)
+### Phase 2: Backend Services (2 COMPLETED, 2 REMAINING)
 1. ~~backend/services/auto_quant/generator.py~~ - COMPLETED
-2. backend/services/execution/pair_sweep_runner.py
+2. ~~backend/services/execution/pair_sweep_runner.py~~ - COMPLETED
 3. backend/services/assistant_service.py
 4. backend/services/auto_quant/policy/__init__.py
 
