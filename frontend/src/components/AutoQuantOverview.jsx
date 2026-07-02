@@ -31,13 +31,14 @@ function Eyebrow({ isRunning }) {
 
 function PipelineStatsStrip({ pipelineState }) {
   const stats = pipelineState || {};
-  
+  const totalStages = stats.stages?.length || STAGE_NAMES.length;
+
   const statsArray = [
-    { 
-      label: 'Stage', 
-      value: stats.current_stage !== undefined ? `${stats.current_stage + 1}/7` : '0/7', 
-      color: 'mint', 
-      subtext: stats.current_stage !== undefined ? STAGE_NAMES[stats.current_stage] : 'Not started' 
+    {
+      label: 'Stage',
+      value: stats.current_stage !== undefined ? `${stats.current_stage + 1}/${totalStages}` : `0/${totalStages}`,
+      color: 'mint',
+      subtext: stats.current_stage !== undefined ? STAGE_NAMES[stats.current_stage] : 'Not started'
     },
     { 
       label: 'Progress', 
@@ -134,7 +135,8 @@ function PipelineProgress({ pipelineState }) {
       ctx.clearRect(0, 0, width, height);
       ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
 
-      const data = progressData.length > 0 ? progressData : Array.from({ length: 7 }, () => 0);
+      const totalStages = pipelineState?.stages?.length || STAGE_NAMES.length;
+      const data = progressData.length > 0 ? progressData : Array.from({ length: totalStages }, () => 0);
       const maxVal = 1.0;
       const displayWidth = width / window.devicePixelRatio;
       const displayHeight = height / window.devicePixelRatio;
