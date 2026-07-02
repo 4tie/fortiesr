@@ -143,7 +143,7 @@ def _extract_per_pair_results(data: dict, strategy_name: str) -> list[dict]:
 
 def _extract_trade_distribution(data: dict, strategy_name: str) -> dict:
     """Extract trade distribution data for visualization."""
-    from ..profit_lockin import extract_strategy_trades
+    from ...profit_lockin import extract_strategy_trades
     
     trades = extract_strategy_trades(data, strategy_name)
     if not trades:

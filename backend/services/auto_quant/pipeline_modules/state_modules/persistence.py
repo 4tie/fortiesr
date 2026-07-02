@@ -6,9 +6,9 @@ import json
 from pathlib import Path
 from typing import Any
 
-from ..ai_suggestions import normalize_ai_suggestions
+from ...ai_suggestions import normalize_ai_suggestions
 from ..logging import logger
-from ..policy import get_policy_versions
+from ...policy import get_policy_versions
 from .data_structures import PipelineState
 
 

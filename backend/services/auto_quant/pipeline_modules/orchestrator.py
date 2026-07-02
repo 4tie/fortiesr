@@ -14,8 +14,8 @@ from ..variants import ensure_working_copy
 from .config import DEFAULT_STRESS_PAIRS
 from .discovery import apply_discovery_results, run_discovery
 from .helpers import _emit, _run_subprocess
-from .logging import _rlog, logger
-from .stages_assessment import _stage_delivery, _stage_joint_portfolio_backtest
+from .logging import _rlog, logger, get_queues
+from .stages_assessment import _stage_joint_portfolio_backtest
 from .stages_optimization import _stage_hyperopt, _stage_patch
 from .stages_genetic import _stage_genetic_evolution
 from .stages_regime import _stage_regime_detection
@@ -28,8 +28,6 @@ from .state import (
     _Cancelled,
     _cancelled,
     _save_state_to_disk,
-    get_queues,
-    get_states,
     _now,
 )
 

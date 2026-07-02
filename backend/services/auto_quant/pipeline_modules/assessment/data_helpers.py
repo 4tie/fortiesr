@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 from ..logging import logger
-from ..profit_lockin import extract_strategy_trades
+from backend.services.auto_quant.profit_lockin import extract_strategy_trades
 
 
 def _load_stage4_result(out_dir: Path) -> dict:

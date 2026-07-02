@@ -18,7 +18,7 @@ from ..config import (
     STAGE_NAMES,
 )
 from ..logging import logger
-from ..policy import get_policy_versions, normalize_decimal
+from ...policy import get_policy_versions, normalize_decimal
 from .data_structures import PipelineState, StageState, _states, _cancel_flags, _queues, _event_history, _EVENT_HISTORY_MAX
 from .persistence import _run_dir, _save_state_to_disk, _write_versioned_json
 

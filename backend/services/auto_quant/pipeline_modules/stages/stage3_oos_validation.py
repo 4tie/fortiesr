@@ -5,8 +5,8 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from ..profit_lockin import compute_profit_giveback_metrics, extract_strategy_trades
-from .helpers import (
+from backend.services.auto_quant.profit_lockin import compute_profit_giveback_metrics, extract_strategy_trades
+from ..helpers import (
     _backtest_cmd,
     _classify_subprocess_error,
     _emit,
@@ -20,8 +20,8 @@ from .helpers import (
     _run_subprocess,
     _start_stage,
 )
-from .logging import _rlog
-from .state import PipelineState, _Cancelled, _cancelled
+from ..logging import _rlog
+from ..state import PipelineState, _Cancelled, _cancelled
 
 
 async def _stage_oos_validation(

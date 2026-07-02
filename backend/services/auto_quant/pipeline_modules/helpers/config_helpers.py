@@ -33,7 +33,7 @@ def _backtest_cmd(
         "--cache", "none",
     ]
     try:
-        from ..variants import strategy_path_args
+        from ...variants import strategy_path_args
 
         cmd += strategy_path_args(state)
     except Exception:
@@ -72,7 +72,7 @@ async def _extract_hyperopt_best(
         "--no-color",
     ]
     try:
-        from ..variants import strategy_path_args
+        from ...variants import strategy_path_args
 
         cmd += strategy_path_args(state)
     except Exception:
@@ -422,5 +422,5 @@ def _extract_last_close_price(
 # Export strategy_path_args for use in other modules
 def strategy_path_args(state: PipelineState) -> list[str]:
     """Get strategy path arguments for freqtrade commands."""
-    from ..variants import strategy_path_args as _strategy_path_args
+    from ...variants import strategy_path_args as _strategy_path_args
     return _strategy_path_args(state)
