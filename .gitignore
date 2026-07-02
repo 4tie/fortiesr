@@ -1,34 +1,50 @@
 # Environment and Virtual Environments
 .env
+.env.*
+!.env.example
 .venv/
+venv/
 venv_test/
 
 # Python
 __pycache__/
-*.pyc
+*.py[cod]
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
 # Frontend
 node_modules/
 frontend/dist/
+frontend/.vite/
 coverage/
 playwright-report/
 test-results/
 
 # Logs
 *.log
+logs/
 
-# Data Folder - Application data (non-Freqtrade)
+# App local data
 data/
 
-# User Data - Sensitive Settings (API keys, tokens)
+# Sensitive user config
 user_data/config.json
+user_data/*.secret.json
+user_data/*token*
+user_data/*key*
 
-# User Data - Heavy Results and Data (Freqtrade-specific)
+# Freqtrade/runtime artifacts
 user_data/backtest_results/
 user_data/hyperopt_results/
 user_data/data_downloads/
+user_data/auto_quant/
+user_data/logs/
+user_data/data/
 
-# User Data - Specific Patterns
-user_data/auto_quant/*/state.json
+# Generated/rendered strategies only
 user_data/strategies/rendered/
+
+# Intentionally tracked source strategies:
+# user_data/strategies/*.py
+# user_data/strategies/*.json
