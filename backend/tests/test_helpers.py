@@ -36,9 +36,17 @@ def _make_state(tmp_dir: str, **overrides) -> PipelineState:
     """Create and register a minimal PipelineState."""
     run_id = str(uuid.uuid4())
     stages = [StageState(index=i + 1, name=STAGE_NAMES[i]) for i in range(len(STAGE_NAMES))]
+    
+    # Create strategies directory and strategy file
+    strategies_dir = Path(tmp_dir) / "strategies"
+    strategies_dir.mkdir(parents=True, exist_ok=True)
+    strategy_name = overrides.get("strategy", "AuditStrategy")
+    strategy_file = strategies_dir / f"{strategy_name}.py"
+    strategy_file.write_text("# fake strategy", encoding="utf-8")
+    
     state = PipelineState(
         run_id=run_id,
-        strategy="AuditStrategy",
+        strategy=strategy_name,
         timeframe="1h",
         in_sample_range="20230101-20230601",
         out_sample_range="20230601-20231201",
