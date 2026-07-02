@@ -1,5 +1,5 @@
 {
-  "strategy": "GAProfitableStrategy",
+  "strategy": "AIStrategy",
   "strategy_source": "existing",
   "trading_style": "intraday",
   "risk_profile": "balanced",
