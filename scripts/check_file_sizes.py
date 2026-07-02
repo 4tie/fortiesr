@@ -53,14 +53,6 @@ ALLOWLIST = {
     "backend/tests/auto_quant/test_pipeline_validation.py": "Deferred - refactor alongside stages_validation.py",
     "backend/tests/test_candidate_api.py": "Deferred - refactor alongside candidate service",
     # Backend services - Phase 1 and 2 refactors
-    "backend/services/auto_quant/pipeline_modules/stages_validation.py": "Phase 1 - ready to split",
-    "backend/services/auto_quant/pipeline_modules/helpers.py": "Phase 1 - ready to split",
-    "backend/services/auto_quant/pipeline_modules/stages_assessment.py": "Phase 1 - ready to split",
-    "backend/services/auto_quant/generator.py": "Phase 2 - ready to split",
-    "backend/services/execution/pair_sweep_runner.py": "Phase 2 - ready to split",
-    "backend/services/auto_quant/pipeline_modules/stage_runtime.py": "Phase 1 - ready to split",
-    "backend/services/auto_quant/pipeline_modules/state.py": "Phase 1 - ready to split",
-    "backend/services/auto_quant/pipeline_modules/scoring.py": "Phase 1 - ready to split",
     "backend/services/assistant_service.py": "Phase 2 - ready to split",
     "backend/services/auto_quant/policy/__init__.py": "Phase 2 - ready to split",
 }

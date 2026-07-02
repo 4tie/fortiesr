@@ -36,9 +36,9 @@ Total oversized files identified: 25
 **Test Command**: `cd frontend && npm test -- --testPathPattern=OptimizerTab`
 
 ### 3. backend/services/auto_quant/pipeline_modules/stages_validation.py (1295 lines)
-**Status**: READY TO SPLIT
+**Status**: COMPLETED
 **Reason**: Validation gate implementations for all pipeline stages
-**Proposed Split**:
+**Split Completed**: Split into 5 gate modules
 - gates/data_quality_gate.py (data quality validation)
 - gates/backtest_gate.py (backtest validation)
 - gates/portfolio_gate.py (portfolio validation)
@@ -61,10 +61,10 @@ Total oversized files identified: 25
 **Test Command**: `.venv/bin/python -m pytest backend/tests/auto_quant/test_pipeline_validation.py -q`
 
 ### 5. backend/services/auto_quant/pipeline_modules/helpers.py (1222 lines)
-**Status**: READY TO SPLIT
+**Status**: COMPLETED
 **Reason**: Pipeline helper functions
-**Proposed Split**:
-- helpers/data_helpers.py (data processing helpers)
+**Split Completed**: Split into 4 helper modules
+- helpers/subprocess_helpers.py (subprocess management)
 - helpers/validation_helpers.py (validation helpers)
 - helpers/artifact_helpers.py (artifact path helpers)
 - helpers/config_helpers.py (configuration helpers)
@@ -73,12 +73,12 @@ Total oversized files identified: 25
 **Test Command**: `.venv/bin/python -m pytest backend/tests/test_pipeline_helpers.py -q`
 
 ### 6. backend/services/auto_quant/pipeline_modules/stages_assessment.py (1174 lines)
-**Status**: READY TO SPLIT
+**Status**: COMPLETED
 **Reason**: Assessment stage logic
-**Proposed Split**:
+**Split Completed**: Split into 3 assessment modules
+- assessment/data_helpers.py (data loading helpers)
 - assessment/readiness_assessment.py (readiness checks)
-- assessment/scoring_assessment.py (scoring logic)
-- assessment/risk_assessment.py (risk evaluation)
+- assessment/stage_implementations.py (stage implementations)
 - __init__.py (exports)
 **Risk**: Low - Business logic split
 **Test Command**: `.venv/bin/python -m pytest backend/tests/auto_quant/ -k assessment -q`
@@ -121,13 +121,13 @@ Total oversized files identified: 25
 ## Files Over 800 Lines (Should Split)
 
 ### 10. backend/services/auto_quant/pipeline_modules/stage_runtime.py (972 lines)
-**Status**: READY TO SPLIT
+**Status**: COMPLETED
 **Reason**: Stage execution runtime
-**Proposed Split**:
-- runtime/stage_executor.py (execution logic)
-- runtime/stage_monitor.py (monitoring logic)
-- runtime/stage_recovery.py (recovery logic)
-- runtime/stage_context.py (context management)
+**Split Completed**: Split into 4 runtime modules
+- runtime/lifecycle_helpers.py (stage lifecycle)
+- runtime/validation_helpers.py (validation workflow)
+- runtime/metrics_helpers.py (metrics tracking)
+- runtime/normalization_helpers.py (API normalization)
 - __init__.py (exports)
 **Risk**: Low - Runtime logic split
 **Test Command**: `.venv/bin/python -m pytest backend/tests/auto_quant/ -k runtime -q`
@@ -145,14 +145,13 @@ Total oversized files identified: 25
 **Test Command**: `cd frontend && npm test -- --testPathPattern=AutoQuantRunDashboard`
 
 ### 12. backend/services/auto_quant/pipeline_modules/state.py (896 lines)
-**Status**: READY TO SPLIT
+**Status**: COMPLETED
 **Reason**: Pipeline state management
-**Proposed Split**:
-- state/state_models.py (data models)
-- state/state_transitions.py (transition logic)
-- state/state_persistence.py (persistence logic)
-- state/state_validation.py (validation logic)
-- __init__.py (exports)
+**Split Completed**: Split into 4 state modules
+- state_modules/data_structures.py (data models)
+- state_modules/persistence.py (persistence logic)
+- state_modules/utilities.py (public utilities)
+- state_modules/__init__.py (exports)
 **Risk**: Low - State management split
 **Test Command**: `.venv/bin/python -m pytest backend/tests/auto_quant/ -k state -q`
 

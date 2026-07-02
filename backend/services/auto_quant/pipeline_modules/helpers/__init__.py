@@ -1,27 +1,25 @@
-"""Subprocess helpers, result extraction, and backtest commands for the Auto-Quant pipeline.
+"""Helpers package for pipeline modules."""
 
-This module acts as a coordinator, importing and re-exporting helper functions
-from the helpers subpackage to maintain backward compatibility.
-"""
-
-from .helpers import (
-    # Subprocess helpers
+from .subprocess_helpers import (
     _run_subprocess,
     _should_forward,
     _classify_subprocess_error,
-    # Validation helpers
+)
+from .validation_helpers import (
     _start_stage,
     _pass_stage,
     _fail_stage,
     _emit,
-    # Artifact helpers
+)
+from .artifact_helpers import (
     _find_backtest_result,
     _read_latest_freqtrade_backtest,
     _extract_backtest_summary,
     _extract_trade_count,
     _extract_per_pair_results,
     _extract_trade_distribution,
-    # Config helpers
+)
+from .config_helpers import (
     _backtest_cmd,
     _extract_hyperopt_best,
     _inject_params,
