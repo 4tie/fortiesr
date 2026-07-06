@@ -665,6 +665,15 @@ class AssistantService:
                                 buffer = ""
                                 break
                     if data.get("done"):
+                        # Flush any remaining buffer content before finishing
+                        if buffer:
+                            if in_thinking:
+                                thinking_parts.append(buffer)
+                                yield self._sse("thinking", {"content": buffer})
+                            else:
+                                assistant_parts.append(buffer)
+                                yield self._sse("token", {"content": buffer})
+                            buffer = ""
                         break
             ollama_time = time.time() - ollama_start
         except Exception as exc:
