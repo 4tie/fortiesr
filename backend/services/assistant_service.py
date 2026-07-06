@@ -631,12 +631,7 @@ class AssistantService:
                                 buffer = buffer[thinking_start + len("<thinking>"):]
                                 in_thinking = True
                             else:
-                                # Check if buffer might contain partial <thinking> tag
-                                # If buffer is a prefix of '<thinking>' but not the complete tag, wait for more data
-                                if "<thinking>".startswith(buffer) and buffer != "<thinking>":
-                                    # Wait for more data
-                                    break
-                                # No thinking tag or partial tag, yield all as token
+                                # No thinking tag found, yield all as token
                                 assistant_parts.append(buffer)
                                 yield self._sse("token", {"content": buffer})
                                 buffer = ""
@@ -654,12 +649,7 @@ class AssistantService:
                                 # Continue processing the buffer to handle content after </thinking>
                                 continue
                             else:
-                                # Check if buffer might contain partial </thinking> tag
-                                # If buffer is a prefix of '</thinking>' but not the complete tag, wait for more data
-                                if "</thinking>".startswith(buffer) and buffer != "</thinking>":
-                                    # Wait for more data
-                                    break
-                                # Still in thinking, yield partial thinking content
+                                # No </thinking> tag found, yield all as thinking
                                 thinking_parts.append(buffer)
                                 yield self._sse("thinking", {"content": buffer})
                                 buffer = ""
