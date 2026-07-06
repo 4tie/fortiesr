@@ -54,7 +54,7 @@ export default function ResultsTable({
           className="btn btn-xs btn-primary gap-1 disabled:opacity-40"
         >
           {applying ? <span className="loading loading-spinner loading-xs" /> : null}
-          Apply {checkedPairs.size > 0 ? `(${checkedPairs.size})` : ""}
+          Apply to Optimizer {checkedPairs.size > 0 ? `(${checkedPairs.size})` : ""}
         </button>
       </div>
 

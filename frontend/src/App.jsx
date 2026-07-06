@@ -11,6 +11,7 @@ import AssistantDrawer from "./components/appShell/AssistantDrawer.jsx";
 import TabContentRenderer from "./components/appShell/TabContentRenderer.jsx";
 import UnsavedChangesDialog from "./components/appShell/UnsavedChangesDialog.jsx";
 import { buildAgentContext } from "./components/appShell/agentContext.js";
+import GuidanceBubble from "./components/GuidanceBubble.jsx";
 
 function App() {
   const [activeNavTab, setActiveNavTab] = useState("auto-quant");
@@ -129,6 +130,8 @@ function App() {
               onClose={() => setAssistantOpen(false)}
             />
           )}
+
+          <GuidanceBubble activeTab={activeTab} onNavigate={handleNavTabChange} />
 
           {pendingTab && (
             <UnsavedChangesDialog

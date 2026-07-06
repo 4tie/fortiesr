@@ -170,6 +170,30 @@ export default function OptimizerTab({
     validDateRange,
   } = useOptimizerForm({ sharedState, sharedLoading, syncSharedState });
 
+  const [pairsImported, setPairsImported] = useState(false);
+
+  const addToast = useCallback((message, type = "success") => {
+    toastIdRef.current += 1;
+    const id = toastIdRef.current;
+    setToasts(prev => [...prev, { id, message, type }]);
+    
+    const timeoutId = setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+      toastTimeoutsRef.current.delete(id);
+    }, 4000);
+    
+    toastTimeoutsRef.current.set(id, timeoutId);
+  }, []);
+
+  // Auto-populate pairs from sharedState (from Pair Explorer)
+  useEffect(() => {
+    if (sharedState?.pairs?.length > 0 && !pairsImported && !pairsText) {
+      setPairsText(sharedState.pairs.join(", "));
+      setPairsImported(true);
+      addToast(`${sharedState.pairs.length} pairs imported from Pair Explorer`, "success");
+    }
+  }, [sharedState?.pairs, pairsImported, pairsText, setPairsText, addToast]);
+
   const {
     searchSpaces,
     spacesLoading,
@@ -393,19 +417,6 @@ export default function OptimizerTab({
     clearToastTimeouts();
     if (esRef.current) esRef.current.close();
   }, [abortPendingRequests, stopPolling, clearToastTimeouts]);
-
-  const addToast = useCallback((message, type = "success") => {
-    toastIdRef.current += 1;
-    const id = toastIdRef.current;
-    setToasts(prev => [...prev, { id, message, type }]);
-    
-    const timeoutId = setTimeout(() => {
-      setToasts(prev => prev.filter(t => t.id !== id));
-      toastTimeoutsRef.current.delete(id);
-    }, 4000);
-    
-    toastTimeoutsRef.current.set(id, timeoutId);
-  }, []);
 
   const viewModel = useMemo(
     () => buildOptimizerViewModel({ session, apiStatus, totalTrials }),
