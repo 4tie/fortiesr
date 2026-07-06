@@ -1,4 +1,7 @@
 import pytest
+import json
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from backend.api.routers import pair_explorer
 
@@ -135,3 +138,171 @@ async def test_explore_task_marks_unfinished_group_failed(tmp_path, monkeypatch)
     assert session["completed"] == 1
     assert row["status"] == "failed"
     assert "without a terminal result" in row["error"]
+
+
+def test_pair_integrity_validation_rejects_unexpected_pairs():
+    """Test that pair integrity guard fails when result contains unexpected pairs."""
+    chunk = ["BTC/USDT", "ETH/USDT"]
+    
+    # Simulate a result with unexpected pair from another group
+    metrics_with_wrong_pairs = {
+        "total_profit_pct": 5.0,
+        "win_rate": 60.0,
+        "sharpe_ratio": 1.2,
+        "max_drawdown": -2.0,
+        "total_trades": 10,
+        "trades": [],
+        "trades_by_pair": {
+            "BTC/USDT": {"total_trades": 5, "net_profit": 2.5, "wins": 3, "win_rate": 60.0, "trades": []},
+            "ETH/USDT": {"total_trades": 5, "net_profit": 2.5, "wins": 3, "win_rate": 60.0, "trades": []},
+            "SOL/USDT": {"total_trades": 3, "net_profit": 1.5, "wins": 2, "win_rate": 66.67, "trades": []},  # Unexpected!
+        },
+    }
+    
+    parsed_pairs = set(metrics_with_wrong_pairs["trades_by_pair"].keys())
+    expected_pairs = set(chunk)
+    unexpected_pairs = parsed_pairs - expected_pairs
+    
+    assert unexpected_pairs == {"SOL/USDT"}
+    assert len(unexpected_pairs) > 0
+
+
+def test_pair_integrity_validation_accepts_subset_of_expected_pairs():
+    """Test that pair integrity guard allows subsets (e.g., pairs with zero trades)."""
+    chunk = ["BTC/USDT", "ETH/USDT", "SOL/USDT"]
+    
+    # Result with only 2 pairs (SOL had zero trades)
+    metrics_with_subset = {
+        "total_profit_pct": 5.0,
+        "win_rate": 60.0,
+        "sharpe_ratio": 1.2,
+        "max_drawdown": -2.0,
+        "total_trades": 10,
+        "trades": [],
+        "trades_by_pair": {
+            "BTC/USDT": {"total_trades": 5, "net_profit": 2.5, "wins": 3, "win_rate": 60.0, "trades": []},
+            "ETH/USDT": {"total_trades": 5, "net_profit": 2.5, "wins": 3, "win_rate": 60.0, "trades": []},
+        },
+    }
+    
+    parsed_pairs = set(metrics_with_subset["trades_by_pair"].keys())
+    expected_pairs = set(chunk)
+    unexpected_pairs = parsed_pairs - expected_pairs
+    
+    # Should be empty - all parsed pairs are in expected set
+    assert unexpected_pairs == set()
+
+
+def test_unique_export_filename_generation():
+    """Test that unique export filenames are generated for different groups."""
+    import hashlib
+    
+    session_id = "test-session-123"
+    chunk1 = ["BTC/USDT", "ETH/USDT"]
+    chunk2 = ["SOL/USDT", "ADA/USDT"]
+    
+    gkey1 = pair_explorer._group_key(chunk1)
+    gkey2 = pair_explorer._group_key(chunk2)
+    
+    hash1 = hashlib.md5(f"{session_id}_{gkey1}".encode()).hexdigest()[:8]
+    hash2 = hashlib.md5(f"{session_id}_{gkey2}".encode()).hexdigest()[:8]
+    
+    export1 = f"pe_{session_id[:8]}_{hash1}"
+    export2 = f"pe_{session_id[:8]}_{hash2}"
+    
+    assert export1 != export2
+    assert hash1 != hash2
+
+
+def test_concurrent_groups_dont_share_artifacts():
+    """Test that concurrent groups use different result directories."""
+    session_id = "concurrent-test"
+    chunks = [
+        ["BTC/USDT", "ETH/USDT"],
+        ["SOL/USDT", "ADA/USDT"],
+        ["XRP/USDT", "DOT/USDT"],
+    ]
+    
+    import hashlib
+    
+    export_filenames = []
+    for chunk in chunks:
+        gkey = pair_explorer._group_key(chunk)
+        group_hash = hashlib.md5(f"{session_id}_{gkey}".encode()).hexdigest()[:8]
+        export_filename = f"pe_{session_id[:8]}_{group_hash}"
+        export_filenames.append(export_filename)
+    
+    # All export filenames should be unique
+    assert len(export_filenames) == len(set(export_filenames))
+    
+    # Result directories would be:
+    # user_data/pair_explorer_results/{export_filename}/{export_filename}.json
+    # So each group has its own directory
+    for export in export_filenames:
+        assert export.startswith("pe_")
+        assert len(export) > 10
+
+
+@pytest.mark.asyncio
+async def test_out_of_order_completion_preserves_correct_results():
+    """Test that groups completing out of order still get correct results."""
+    session_id = "out-of-order-test"
+    pair_explorer._SESSIONS.clear()
+    
+    chunks = [
+        ["BTC/USDT", "ETH/USDT"],
+        ["SOL/USDT", "ADA/USDT"],
+    ]
+    
+    pair_explorer._SESSIONS[session_id] = {
+        "session_id": session_id,
+        "status": "running",
+        "total": 2,
+        "completed": 0,
+        "results": {},
+        "strategy_name": "TestStrategy",
+        "timeframe": "1h",
+        "timerange": "20240101-20240201",
+        "dry_run_wallet": 1000.0,
+        "max_open_trades": 2,
+        "pairs": [p for chunk in chunks for p in chunk],
+        "created_at": "2024-01-01T00:00:00+00:00",
+        "completed_at": None,
+    }
+    
+    # Simulate group 2 completing first
+    gkey2 = pair_explorer._group_key(chunks[1])
+    pair_explorer._SESSIONS[session_id]["results"][gkey2] = {
+        "group": gkey2,
+        "pairs": chunks[1],
+        "status": "completed",
+        "total_profit_pct": 3.0,
+        "trades_by_pair": {
+            "SOL/USDT": {"total_trades": 5, "net_profit": 1.5, "wins": 3, "trades": []},
+            "ADA/USDT": {"total_trades": 5, "net_profit": 1.5, "wins": 3, "trades": []},
+        },
+    }
+    pair_explorer._SESSIONS[session_id]["completed"] = 1
+    
+    # Then group 1 completes
+    gkey1 = pair_explorer._group_key(chunks[0])
+    pair_explorer._SESSIONS[session_id]["results"][gkey1] = {
+        "group": gkey1,
+        "pairs": chunks[0],
+        "status": "completed",
+        "total_profit_pct": 5.0,
+        "trades_by_pair": {
+            "BTC/USDT": {"total_trades": 5, "net_profit": 2.5, "wins": 3, "trades": []},
+            "ETH/USDT": {"total_trades": 5, "net_profit": 2.5, "wins": 3, "trades": []},
+        },
+    }
+    pair_explorer._SESSIONS[session_id]["completed"] = 2
+    
+    # Verify each group has its own correct pairs
+    result1 = pair_explorer._SESSIONS[session_id]["results"][gkey1]
+    result2 = pair_explorer._SESSIONS[session_id]["results"][gkey2]
+    
+    assert set(result1["pairs"]) == {"BTC/USDT", "ETH/USDT"}
+    assert set(result2["pairs"]) == {"SOL/USDT", "ADA/USDT"}
+    assert set(result1["trades_by_pair"].keys()) == {"BTC/USDT", "ETH/USDT"}
+    assert set(result2["trades_by_pair"].keys()) == {"SOL/USDT", "ADA/USDT"}

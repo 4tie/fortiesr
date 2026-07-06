@@ -9,6 +9,7 @@ POST /api/strategy/add-pair            — append a pair to the strategy's confi
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import tempfile
@@ -99,14 +100,20 @@ async def _run_pair_group(
 ) -> None:
     """Auto-download data for each pair in the chunk, then run one backtest for the group."""
     gkey = _group_key(chunk)
-    print(f"[DEBUG] Pair Explorer: Starting task for group {gkey} with {len(chunk)} pairs")
-    print(f"[DEBUG] Pair Explorer: Acquiring semaphore for group {gkey}")
+    start_time = datetime.now(tz=UTC)
+    # Create unique export filename for this group to avoid race conditions
+    group_hash = hashlib.md5(f"{session_id}_{gkey}".encode()).hexdigest()[:8]
+    export_filename = f"pe_{session_id[:8]}_{group_hash}"
+    
+    logger.info(
+        "[Pair Explorer] Starting group %s (session=%s, pairs=%s, export=%s)",
+        gkey, session_id[:8], chunk, export_filename
+    )
 
     async with semaphore:
-        print(f"[DEBUG] Pair Explorer: Semaphore acquired for group {gkey}")
         session = _SESSIONS.get(session_id)
         if session is None:
-            print(f"[ERROR] Pair Explorer: Session {session_id} not found")
+            logger.error("[Pair Explorer] Session %s not found", session_id)
             return
 
         # ── 1. Auto-download data for every pair in the group ─────────────────
@@ -140,27 +147,22 @@ async def _run_pair_group(
             group_cfg["exchange"] = {}
         group_cfg["exchange"]["pair_whitelist"] = chunk
         
-        # Debug: log the config to verify pair_whitelist is set
-        print(f"[DEBUG] Pair Explorer config for group {gkey}: pair_whitelist={chunk}")
-        print(f"[DEBUG] Full exchange config: {group_cfg.get('exchange', {})}")
-        print(f"[DEBUG] Pair Explorer: Setting up backtest results directory")
-        backtest_results_dir = Path(user_data_dir) / "backtest_results"
-        backtest_results_dir.mkdir(parents=True, exist_ok=True)
-        print(f"[DEBUG] Pair Explorer: Snapshotting zips in {backtest_results_dir}")
-        zips_before = _snapshot_zips(backtest_results_dir)
-        print(f"[DEBUG] Pair Explorer: Snapshot complete, found {len(zips_before)} zips")
+        # Create unique result directory for this group
+        pe_results_dir = Path(user_data_dir) / "pair_explorer_results"
+        pe_results_dir.mkdir(parents=True, exist_ok=True)
+        group_result_dir = pe_results_dir / export_filename
+        group_result_dir.mkdir(parents=True, exist_ok=True)
+        
+        logger.debug(
+            "[Pair Explorer] Group %s: result dir=%s, pairs=%s",
+            gkey, group_result_dir, chunk
+        )
 
-        # Write config to user_data directory instead of temp directory
-        # to avoid potential path resolution issues
-        print(f"[DEBUG] Pair Explorer: Creating config directory")
+        # Write per-group config
         pe_config_dir = Path(user_data_dir) / "pair_explorer_configs"
         pe_config_dir.mkdir(parents=True, exist_ok=True)
         tmp_config = pe_config_dir / _safe_config_filename(session_id, gkey)
-        print(f"[DEBUG] Pair Explorer: Writing config to {tmp_config}")
         config_json = json.dumps(group_cfg, indent=2)
-        print(f"[DEBUG] Pair Explorer: Config JSON prepared, length {len(config_json)}")
-        print(f"[DEBUG] Pair Explorer: About to write to file")
-        # Try writing to a temp file first, then move it atomically.
         with tempfile.NamedTemporaryFile(
             mode="w",
             suffix=".json",
@@ -171,9 +173,7 @@ async def _run_pair_group(
         ) as f:
             f.write(config_json)
             temp_path = f.name
-        print(f"[DEBUG] Pair Explorer: Written to temp file {temp_path}")
         Path(temp_path).replace(tmp_config)
-        print(f"[DEBUG] Pair Explorer: Config written successfully")
 
         cmd = [
             freqtrade_exe,
@@ -185,23 +185,24 @@ async def _run_pair_group(
             "--timerange", timerange,
             "--timeframe", timeframe,
             "--export", "trades",
+            "--export-filename", str(group_result_dir / export_filename),
+            "--cache", "none",
             "--pairs",
         ] + chunk + [
             "--dry-run-wallet", str(dry_run_wallet),
             "--max-open-trades", str(max_open_trades),
         ]
 
-        print(f"[DEBUG] Freqtrade command: {' '.join(cmd)}")
+        logger.debug("[Pair Explorer] Group %s: freqtrade cmd=%s", gkey, " ".join(cmd))
 
         try:
-            print(f"[DEBUG] Pair Explorer: Starting subprocess for group {gkey}")
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=str(Path(user_data_dir).parent),
             )
-            print(f"[DEBUG] Pair Explorer: Subprocess started with PID {proc.pid}")
+            logger.info("[Pair Explorer] Group %s: subprocess started PID=%d", gkey, proc.pid)
             try:
                 stdout_bytes, stderr_bytes = await asyncio.wait_for(
                     proc.communicate(), timeout=300
@@ -217,6 +218,7 @@ async def _run_pair_group(
                     "error": "Timed out after 5 minutes",
                 }
                 session["completed"] += 1
+                _save_session(session, user_data_dir)
                 return
 
             exit_code = proc.returncode
@@ -239,6 +241,7 @@ async def _run_pair_group(
                 "group": gkey, "pairs": chunk, "status": "failed", "error": str(exc),
             }
             session["completed"] += 1
+            _save_session(session, user_data_dir)
             return
 
         if exit_code != 0:
@@ -247,24 +250,96 @@ async def _run_pair_group(
                 "error": stderr_text or f"freqtrade exited with code {exit_code}",
             }
             session["completed"] += 1
+            _save_session(session, user_data_dir)
             return
 
-        # ── 3. Find and parse the result zip ──────────────────────────────────
-        result_zip = _find_new_zip(zips_before, backtest_results_dir)
-        if result_zip is None:
+        # ── 3. Parse the result from the unique export path ─────────────────────
+        finish_time = datetime.now(tz=UTC)
+        duration = (finish_time - start_time).total_seconds()
+        
+        # Try to load result from the unique export path first
+        result_json = group_result_dir / f"{export_filename}.json"
+        result_zip = group_result_dir / f"{export_filename}.zip"
+        
+        metrics = {}
+        artifact_used = None
+        
+        if result_json.exists():
+            try:
+                with open(result_json, encoding="utf-8") as f:
+                    payload = json.load(f)
+                metrics = _extract_metrics(payload, strategy_name)
+                artifact_used = str(result_json)
+                logger.info(
+                    "[Pair Explorer] Group %s: loaded result from JSON %s",
+                    gkey, result_json
+                )
+            except Exception as exc:
+                logger.warning(
+                    "[Pair Explorer] Group %s: failed to load JSON result %s: %s",
+                    gkey, result_json, exc
+                )
+        
+        if not metrics and result_zip.exists():
+            metrics = _parse_zip_result(result_zip, strategy_name)
+            artifact_used = str(result_zip)
+            logger.info(
+                "[Pair Explorer] Group %s: loaded result from ZIP %s",
+                gkey, result_zip
+            )
+        
+        if not metrics:
             session["results"][gkey] = {
                 "group": gkey, "pairs": chunk, "status": "failed",
                 "error": stderr_text or "No result file produced by freqtrade",
             }
             session["completed"] += 1
+            _save_session(session, user_data_dir)
+            logger.error(
+                "[Pair Explorer] Group %s: no result found at %s or %s",
+                gkey, result_json, result_zip
+            )
             return
-
-        metrics = _parse_zip_result(result_zip, strategy_name)
+        
+        # ── 4. Validate pair integrity ───────────────────────────────────────────
+        parsed_pairs = set(metrics.get("trades_by_pair", {}).keys())
+        expected_pairs = set(chunk)
+        unexpected_pairs = parsed_pairs - expected_pairs
+        
+        if unexpected_pairs:
+            session["results"][gkey] = {
+                "group": gkey, "pairs": chunk, "status": "failed",
+                "error": (
+                    f"Artifact mismatch: expected pairs {expected_pairs}, "
+                    f"but found pairs {parsed_pairs} in result. "
+                    f"Unexpected: {unexpected_pairs}. "
+                    f"Artifact: {artifact_used}"
+                ),
+            }
+            session["completed"] += 1
+            _save_session(session, user_data_dir)
+            logger.error(
+                "[Pair Explorer] Group %s: PAIR INTEGRITY VIOLATION - "
+                "expected=%s, parsed=%s, unexpected=%s, artifact=%s",
+                gkey, expected_pairs, parsed_pairs, unexpected_pairs, artifact_used
+            )
+            return
+        
         result = {"group": gkey, "pairs": chunk, "status": "completed", **metrics}
         if download_warnings:
             result["download_warning"] = "; ".join(download_warnings)
         session["results"][gkey] = result
         session["completed"] += 1
+        
+        # Persist session after each group completes for crash recovery
+        _save_session(session, user_data_dir)
+        
+        logger.info(
+            "[Pair Explorer] Group %s: completed in %.1fs, pairs=%s, "
+            "trades=%d, profit=%.2f%%, artifact=%s",
+            gkey, duration, chunk, metrics.get("total_trades", 0),
+            metrics.get("total_profit_pct", 0), artifact_used
+        )
 
 
 async def _explore_task(

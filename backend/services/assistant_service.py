@@ -572,14 +572,20 @@ class AssistantService:
         context_overrides: dict[str, Any] | None = None,
         include_strategy_source: bool = False,
     ) -> AsyncIterator[str]:
+        import time
+        start_time = time.time()
+        
         settings = self.settings_store.load()
         resolved_mode = self._resolve_mode(mode, message)
         base_model, resolved_model = self._resolve_model_pair(settings, model, resolved_mode)
+        
+        context_start = time.time()
         session = self._get_or_create_session(session_id, resolved_model)
         context = self._build_context(context_overrides, include_strategy_source=include_strategy_source)
         summary = self.context_summary(context)
         messages = self._prompt_messages(session, message, context, mode=resolved_mode)
         actions = self.available_actions(context) if resolved_mode == "analysis" else []
+        context_time = time.time() - context_start
 
         yield self._sse("meta", {
             "session_id": session["session_id"],
@@ -587,6 +593,7 @@ class AssistantService:
             "mode": resolved_mode,
             "context_summary": summary,
             "available_actions": actions,
+            "context_build_time_ms": round(context_time * 1000, 2),
         })
 
         config = config_from_settings(settings, model_override=resolved_model, require_model=True)
@@ -594,9 +601,13 @@ class AssistantService:
             yield self._sse("error", {"detail": "No AI model configured."})
             return
         assistant_parts: list[str] = []
+        thinking_parts: list[str] = []
+        in_thinking = False
+        buffer = ""
         client = OllamaClient(config=config)
 
         try:
+            ollama_start = time.time()
             async for data in client.stream_chat(
                 messages,
                 model=resolved_model,
@@ -604,10 +615,58 @@ class AssistantService:
             ):
                 chunk = data.get("message", {}).get("content", "")
                 if chunk:
-                    assistant_parts.append(chunk)
-                    yield self._sse("token", {"content": chunk})
-                if data.get("done"):
-                    break
+                    buffer += chunk
+                    
+                    # Parse thinking tags from buffer
+                    while True:
+                        if not in_thinking:
+                            # Look for <thinking> tag
+                            thinking_start = buffer.find("<thinking>")
+                            if thinking_start != -1:
+                                # Yield content before thinking tag as token
+                                if thinking_start > 0:
+                                    pre_content = buffer[:thinking_start]
+                                    assistant_parts.append(pre_content)
+                                    yield self._sse("token", {"content": pre_content})
+                                buffer = buffer[thinking_start + len("<thinking>"):]
+                                in_thinking = True
+                            else:
+                                # Check if buffer might contain partial <thinking> tag
+                                # If buffer is a prefix of '<thinking>' but not the complete tag, wait for more data
+                                if "<thinking>".startswith(buffer) and buffer != "<thinking>":
+                                    # Wait for more data
+                                    break
+                                # No thinking tag or partial tag, yield all as token
+                                assistant_parts.append(buffer)
+                                yield self._sse("token", {"content": buffer})
+                                buffer = ""
+                                break
+                        else:
+                            # Inside thinking, look for </thinking> tag
+                            thinking_end = buffer.find("</thinking>")
+                            if thinking_end != -1:
+                                # Yield thinking content
+                                thinking_content = buffer[:thinking_end]
+                                thinking_parts.append(thinking_content)
+                                yield self._sse("thinking", {"content": thinking_content})
+                                buffer = buffer[thinking_end + len("</thinking>"):]
+                                in_thinking = False
+                                # Continue processing the buffer to handle content after </thinking>
+                                continue
+                            else:
+                                # Check if buffer might contain partial </thinking> tag
+                                # If buffer is a prefix of '</thinking>' but not the complete tag, wait for more data
+                                if "</thinking>".startswith(buffer) and buffer != "</thinking>":
+                                    # Wait for more data
+                                    break
+                                # Still in thinking, yield partial thinking content
+                                thinking_parts.append(buffer)
+                                yield self._sse("thinking", {"content": buffer})
+                                buffer = ""
+                                break
+                    if data.get("done"):
+                        break
+            ollama_time = time.time() - ollama_start
         except Exception as exc:
             yield self._sse("error", {"detail": self._friendly_ollama_error(exc)})
             return
@@ -615,6 +674,9 @@ class AssistantService:
             await client.close()
 
         response_text = "".join(assistant_parts).strip() or "Ollama returned an empty response."
+        thinking_text = "".join(thinking_parts).strip() if thinking_parts else ""
+        total_time = time.time() - start_time
+        
         user_record = self._message_record("user", message)
         assistant_record = self._message_record("assistant", response_text)
         session.setdefault("messages", []).extend([user_record, assistant_record])
@@ -626,6 +688,9 @@ class AssistantService:
             "message": assistant_record,
             "context_summary": summary,
             "available_actions": actions,
+            "thinking": thinking_text,
+            "total_time_ms": round(total_time * 1000, 2),
+            "ollama_time_ms": round(ollama_time * 1000, 2),
         })
 
     def _sse(self, event: str, payload: dict[str, Any]) -> str:

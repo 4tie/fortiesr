@@ -179,6 +179,34 @@ function CodeBlock({ language, content }) {
   );
 }
 
+function ThinkingSection({ thinking }) {
+  const [expanded, setExpanded] = useState(true);
+  
+  if (!thinking) return null;
+  
+  return (
+    <div className="my-2 rounded-lg border border-info/30 bg-info/5 overflow-hidden">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center justify-between px-3 py-1.5 bg-info/10 border-b border-info/20 hover:bg-info/15 transition-colors"
+      >
+        <span className="text-[10px] font-semibold text-info flex items-center gap-1.5">
+          <SparklesIcon className="h-3 w-3" />
+          Thinking
+        </span>
+        <span className="text-[10px] text-info/60">
+          {expanded ? '▼' : '▶'}
+        </span>
+      </button>
+      {expanded && (
+        <div className="p-3 text-xs text-base-content/70 italic whitespace-pre-wrap break-all">
+          {thinking}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SafetyBadge({ safety }) {
   const classes = safety === "Needs confirmation"
     ? "border-warning/30 bg-warning/10 text-warning"
@@ -240,6 +268,7 @@ export default function AssistantChatPanel({
   const [error, setError] = useState("");
   const [pendingAction, setPendingAction] = useState(null);
   const [actionBusy, setActionBusy] = useState(false);
+  const [performanceMetrics, setPerformanceMetrics] = useState(null);
   const scrollerRef = useRef(null);
 
   useEffect(() => {
@@ -386,6 +415,16 @@ export default function AssistantChatPanel({
           setSessionId(event.data.session_id);
           setContextSummary(event.data.context_summary);
           setActions(event.data.available_actions || []);
+          setPerformanceMetrics({
+            contextBuildTimeMs: event.data.context_build_time_ms,
+          });
+        }
+        if (event.type === "thinking") {
+          setMessages(prev => prev.map(msg => (
+            msg.id === assistantId 
+              ? { ...msg, thinking: `${(msg.thinking || "")}${event.data.content || ""}` } 
+              : msg
+          )));
         }
         if (event.type === "token") {
           setMessages(prev => prev.map(msg => (
@@ -396,6 +435,11 @@ export default function AssistantChatPanel({
           setSessionId(event.data.session_id);
           setContextSummary(event.data.context_summary);
           setActions(event.data.available_actions || []);
+          setPerformanceMetrics(prev => ({
+            ...prev,
+            totalTimeMs: event.data.total_time_ms,
+            ollamaTimeMs: event.data.ollama_time_ms,
+          }));
         }
         if (event.type === "error") {
           throw new Error(event.data.detail || "Assistant stream failed.");
@@ -477,7 +521,9 @@ export default function AssistantChatPanel({
               ? "Checking Ollama..."
               : modelState.reachable
                 ? `${modelState.models.length || 0} model${modelState.models.length === 1 ? "" : "s"} available` +
-                  (modelState.health?.latency_ms ? ` (${modelState.health.latency_ms}ms)` : "")
+                  (modelState.health?.latency_ms ? ` (${modelState.health.latency_ms}ms)` : "") +
+                  (performanceMetrics?.contextBuildTimeMs ? ` | Context: ${performanceMetrics.contextBuildTimeMs}ms` : "") +
+                  (performanceMetrics?.ollamaTimeMs ? ` | Ollama: ${performanceMetrics.ollamaTimeMs}ms` : "")
                 : modelState.error || "Ollama Offline"}
           </div>
         </div>
@@ -587,6 +633,7 @@ export default function AssistantChatPanel({
                     ? "bg-primary text-primary-content border-primary"
                     : "bg-base-200 border-base-300 text-base-content/85"
                 }`}>
+                  {message.role === "assistant" && message.thinking && <ThinkingSection thinking={message.thinking} />}
                   {message.content ? (
                     isCodeBlock(message.content) ? renderMessageWithCode(message.content) : renderContent(message.content)
                   ) : (
