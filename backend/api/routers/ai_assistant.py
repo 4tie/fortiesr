@@ -26,6 +26,9 @@ from ...core.errors import BackendError
 from ...services.agent_context import AgentContextService
 from ...services.ai.ollama_client import OllamaClient, build_headers
 from ...services.ai.ollama_config import config_from_settings
+from ...services.ai.copilot_session_store import CopilotSessionStore
+from ...services.ai.workflow_copilot import WorkflowCopilot
+from ...services.ai.workflow_tool_executor import WorkflowToolExecutor
 from ...services.assistant_service import AssistantService
 from . import candidate
 
@@ -301,6 +304,22 @@ class ConfirmActionRequest(BaseModel):
     confirmation_token: str | None = None
 
 
+class CopilotChatRequest(BaseModel):
+    message: str = Field(..., description="User message for the copilot.")
+    session_id: str | None = Field(default=None, description="Existing copilot session id.")
+    model: str | None = Field(default=None, description="Optional Ollama model override.")
+    mode: str = Field(default="analysis", description="Copilot mode: analysis, autoquant, strategylab.")
+    context_overrides: dict | None = Field(
+        default=None,
+        description="Optional active context ids: strategy_name, optimizer_session_id, etc.",
+    )
+
+
+class ConfirmToolActionRequest(BaseModel):
+    action_id: str = Field(..., description="Action ID to confirm.")
+    session_id: str = Field(..., description="Copilot session ID.")
+
+
 # ── chat assistant endpoints ──────────────────────────────────────────────────
 
 @router.post(
@@ -378,6 +397,167 @@ async def confirm_action(body: ConfirmActionRequest, request: Request) -> dict:
         )
     except BackendError as exc:
         _raise_backend(exc)
+
+
+# ── workflow copilot endpoints ───────────────────────────────────────────────────
+
+
+def _workflow_copilot(request: Request) -> WorkflowCopilot:
+    """Build WorkflowCopilot instance for request."""
+    services = request.app.state.services
+    settings = services.settings_store.load()
+    
+    # Build dependencies
+    copilot_store = CopilotSessionStore(settings.user_data_directory_path)
+    session_store = request.app.state.session_store
+    context_service = AgentContextService(
+        root_dir=services.root_dir,
+        run_repository=services.run_repository,
+        settings_store=services.settings_store,
+        version_manager=services.version_manager,
+        strategy_optimizer=getattr(services, "strategy_optimizer", None),
+        backtest_runner=services.backtest_runner,
+        optimizer_store=getattr(services, "optimizer_store", None),
+        sweep_store=getattr(services, "sweep_store", None),
+        run_detail_callable=services.run_detail,
+        log_broadcaster=getattr(request.app.state, "log_broadcaster", None),
+        session_store=session_store,
+        candidate_run_lookup=candidate.candidate_run_manager.get_run,
+    )
+    
+    executor = WorkflowToolExecutor(
+        services=services,
+        session_store=session_store,
+        copilot_store=copilot_store,
+        root_dir=services.root_dir,
+    )
+    
+    ollama_config = config_from_settings(settings)
+    ollama_client = OllamaClient(config=ollama_config)
+    
+    return WorkflowCopilot(
+        services=services,
+        session_store=session_store,
+        copilot_store=copilot_store,
+        executor=executor,
+        context_service=context_service,
+        ollama_client=ollama_client,
+        root_dir=services.root_dir,
+    )
+
+
+@router.post(
+    "/copilot/chat",
+    summary="Chat with the unified workflow copilot",
+    description=(
+        "Processes user requests through the model-tool-result loop. "
+        "Supports tool execution, confirmation, and long-running job observation."
+    ),
+)
+async def copilot_chat(body: CopilotChatRequest, request: Request) -> dict:
+    """Non-streaming copilot chat endpoint."""
+    copilot = _workflow_copilot(request)
+    session_id = body.session_id or str(uuid.uuid4())
+    
+    # Collect all events from the async generator
+    events = []
+    async for event in copilot.process_turn(
+        session_id=session_id,
+        user_message=body.message,
+        model=body.model,
+        mode=body.mode,
+        stream=False,
+    ):
+        events.append(event)
+    
+    # Return final state
+    final_event = events[-1] if events else {"type": "error", "message": "No events generated"}
+    
+    return {
+        "session_id": session_id,
+        "events": events,
+        "final": final_event,
+    }
+
+
+@router.post(
+    "/copilot/chat/stream",
+    summary="Stream workflow copilot response",
+    description=(
+        "Streams copilot events including messages, tool calls, and results "
+        "via Server-Sent Events."
+    ),
+)
+async def copilot_chat_stream(body: CopilotChatRequest, request: Request) -> StreamingResponse:
+    """Streaming copilot chat endpoint."""
+    copilot = _workflow_copilot(request)
+    session_id = body.session_id or str(uuid.uuid4())
+    
+    async def event_stream():
+        async for event in copilot.process_turn(
+            session_id=session_id,
+            user_message=body.message,
+            model=body.model,
+            mode=body.mode,
+            stream=True,
+        ):
+            yield f"data: {json.dumps(event)}\n\n"
+    
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+@router.post(
+    "/copilot/actions/confirm",
+    summary="Confirm a pending tool action",
+    description=(
+        "Confirms and executes a pending tool action that requires user confirmation."
+    ),
+)
+async def copilot_confirm_action(body: ConfirmToolActionRequest, request: Request) -> dict:
+    """Confirm and execute a pending tool action."""
+    copilot = _workflow_copilot(request)
+    
+    try:
+        result = await copilot.confirm_action(
+            session_id=body.session_id,
+            action_id=body.action_id,
+        )
+        return {"status": "executed", "result": result}
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get(
+    "/copilot/sessions",
+    summary="List copilot sessions",
+    description="Returns all copilot sessions with metadata.",
+)
+async def list_copilot_sessions(request: Request) -> dict:
+    """List all copilot sessions."""
+    services = request.app.state.services
+    settings = services.settings_store.load()
+    copilot_store = CopilotSessionStore(settings.user_data_directory_path)
+    
+    sessions = copilot_store.list_sessions()
+    return {"sessions": sessions}
+
+
+@router.get(
+    "/copilot/sessions/{session_id}",
+    summary="Get copilot session",
+    description="Returns full copilot session data including messages and tool runs.",
+)
+async def get_copilot_session(session_id: str, request: Request) -> dict:
+    """Get a copilot session by ID."""
+    services = request.app.state.services
+    settings = services.settings_store.load()
+    copilot_store = CopilotSessionStore(settings.user_data_directory_path)
+    
+    try:
+        session = copilot_store.load_session(session_id)
+        return session
+    except Exception as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
 
 
 # ── explain endpoint ──────────────────────────────────────────────────────────
