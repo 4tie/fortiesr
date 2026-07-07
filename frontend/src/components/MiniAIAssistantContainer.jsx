@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useAssistantChat } from "../hooks/useAssistantChat.js";
+import WorkflowCard from "./WorkflowCard.jsx";
 
 const TABS = [
   { id: "chat", label: "Chat", placeholder: "Chat will appear here." },
@@ -7,11 +8,72 @@ const TABS = [
   { id: "history", label: "History", placeholder: "No run history yet." },
 ];
 
+const TEMP_WORKFLOW_CARD = {
+  id: "temp-run-backtest-card",
+  type: "workflow_card",
+  title: "Run Backtest",
+  description: "Test the selected strategy using the current page context.",
+  status: "proposed",
+  toolName: "run_backtest",
+  arguments: {
+    strategy_name: "DemoStrategy",
+    timeframe: "5m",
+    timerange: "20240101-20241231",
+  },
+};
+
+function MessageBubble({ message }) {
+  return (
+    <div className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
+      <div
+        className={`max-w-[85%] whitespace-pre-wrap rounded-lg px-3 py-2 text-sm leading-relaxed ${
+          message.role === "user"
+            ? "bg-violet-600 text-white"
+            : message.error
+              ? "border border-red-200 bg-red-50 text-red-700 shadow-sm"
+              : "border border-gray-200 bg-white text-gray-700 shadow-sm"
+        }`}
+      >
+        {message.content || (
+          <span className="inline-flex items-center gap-1 text-gray-400">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current" />
+            Thinking
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TimelineItem({ item }) {
+  if (item.type === "workflow_card") {
+    return (
+      <div className="flex justify-start">
+        <div className="w-full max-w-[92%]">
+          <WorkflowCard
+            title={item.title}
+            description={item.description}
+            status={item.status}
+            toolName={item.toolName}
+            arguments={item.arguments}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  return <MessageBubble message={item} />;
+}
+
 function ChatPanel({ contextOverrides = {} }) {
   const [draft, setDraft] = useState("");
   const { messages, status, sendMessage } = useAssistantChat({ contextOverrides });
   const scrollerRef = useRef(null);
   const isActive = status === "sending" || status === "streaming";
+  const timelineItems = [
+    ...messages.map((message) => ({ ...message, type: "message" })),
+    TEMP_WORKFLOW_CARD,
+  ];
 
   useEffect(() => {
     if (scrollerRef.current) {
@@ -36,34 +98,12 @@ function ChatPanel({ contextOverrides = {} }) {
   return (
     <div className="flex h-full min-h-0 flex-col rounded-lg border border-gray-200 bg-gray-50">
       <div ref={scrollerRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
-        {messages.length === 0 ? (
+        {timelineItems.length === 0 ? (
           <div className="flex h-full items-center justify-center text-center text-sm text-gray-500">
             Chat will appear here.
           </div>
         ) : (
-          messages.map((message) => (
-            <div
-              key={message.id}
-              className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
-            >
-              <div
-                className={`max-w-[85%] whitespace-pre-wrap rounded-lg px-3 py-2 text-sm leading-relaxed ${
-                  message.role === "user"
-                    ? "bg-violet-600 text-white"
-                    : message.error
-                      ? "border border-red-200 bg-red-50 text-red-700 shadow-sm"
-                      : "border border-gray-200 bg-white text-gray-700 shadow-sm"
-                }`}
-              >
-                {message.content || (
-                  <span className="inline-flex items-center gap-1 text-gray-400">
-                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current" />
-                    Thinking
-                  </span>
-                )}
-              </div>
-            </div>
-          ))
+          timelineItems.map((item) => <TimelineItem key={item.id} item={item} />)
         )}
       </div>
 
