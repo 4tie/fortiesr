@@ -124,7 +124,7 @@ async def _stage_pre_flight_filtering(
     _start_stage(run_id, state, 1)
     
     # OOS Isolation Check - ensure OOS never contaminates validation
-    from .oos_guard import log_oos_contamination_warning
+    from ..oos_guard import log_oos_contamination_warning
     log_oos_contamination_warning(run_id, state, "validation")
     
     # ── Sub-step 1: Data Healing ─────────────────────────────────────────────
@@ -291,7 +291,7 @@ async def _stage_pre_flight_filtering(
                   msg_type="pair_selection_request")
             
             # Set status to awaiting user approval and save state
-            from .state import _save_state_to_disk
+            from ..state import _save_state_to_disk
             state.status = "awaiting_user_approval"
             state.current_stage = 1
             state.stages[0].data = summary
