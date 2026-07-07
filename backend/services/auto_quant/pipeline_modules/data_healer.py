@@ -259,6 +259,8 @@ async def _download_pair_data(
     user_data_dir: str,
     run_id: str = "data_healer",
     timeout_seconds: int = 300,
+    prepend: bool = False,
+    erase: bool = False,
 ) -> dict[str, Any]:
     """Download historical data for a single pair using freqtrade download-data.
     
@@ -289,6 +291,11 @@ async def _download_pair_data(
             "--user-data-dir", user_data_dir,
             "--no-color",
         ]
+        
+        if prepend:
+            cmd.append("--prepend")
+        if erase:
+            cmd.append("--erase")
         
         logger.info("Data_Healer | downloading data for %s: %s", pair, " ".join(cmd))
         
@@ -500,9 +507,30 @@ async def _stage_data_healing(
         
         # Calculate extended timerange for download (include warm-up)
         warmup_delta = timedelta(minutes=tf_minutes * warmup_candles)
-        download_start = (start_date - warmup_delta).strftime("%Y%m%d")
+        download_start_dt = start_date - warmup_delta
+        download_start = download_start_dt.strftime("%Y%m%d")
         download_end = end_date.strftime("%Y%m%d")
         download_timerange = f"{download_start}-{download_end}"
+        
+        # Determine if we need prepend, erase, or normal append
+        needs_prepend = False
+        needs_erase = False
+        earliest = gap_check.get("earliest_available")
+        latest = gap_check.get("latest_available")
+        
+        if earliest is not None and latest is not None:
+            needs_prepend = earliest > download_start_dt
+            needs_append = latest < end_date
+            
+            # Check for middle gaps
+            middle_gaps = False
+            for gap_start, gap_end in gap_check.get("missing_ranges", []):
+                if gap_start > earliest and gap_end < latest:
+                    middle_gaps = True
+                    break
+                    
+            if middle_gaps or (needs_prepend and needs_append):
+                needs_erase = True
         
         # Download data
         download_result = await _download_pair_data(
@@ -514,6 +542,8 @@ async def _stage_data_healing(
             state.user_data_dir,
             run_id,
             timeout_seconds,
+            prepend=(needs_prepend and not needs_erase),
+            erase=needs_erase,
         )
         
         candles_after = download_result["candles_downloaded"]
