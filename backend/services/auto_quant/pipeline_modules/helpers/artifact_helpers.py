@@ -143,10 +143,14 @@ def _extract_per_pair_results(data: dict, strategy_name: str) -> list[dict]:
             })
         return result
     
-    # Fallback to old format (strategy[strategy_name].per_pair)
+    # Fallback to old format (strategy[strategy_name].results_per_pair or .per_pair)
     strategy_data = data.get("strategy", {})
     if strategy_name in strategy_data:
-        per_pair = strategy_data[strategy_name].get("per_pair", [])
+        # Try results_per_pair first (newer old format)
+        per_pair = strategy_data[strategy_name].get("results_per_pair", [])
+        if not per_pair:
+            # Fallback to per_pair (older format)
+            per_pair = strategy_data[strategy_name].get("per_pair", [])
         result = []
         for pair_data in per_pair:
             result.append({
