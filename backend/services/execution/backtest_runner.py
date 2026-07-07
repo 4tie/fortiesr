@@ -686,14 +686,25 @@ class BacktestRunner(IBacktestRunner):
     def _build_command(self, executable, user_data_dir, config_file, strategy_name,
                        run_dir, timerange, timeframe, pairs, max_open_trades,
                        dry_run_wallet) -> list[str]:
-        command = [
-            executable, "backtesting", "--user-data-dir", user_data_dir,
-            "--config", config_file, "--strategy-path", str(run_dir),
-            "--strategy", strategy_name, "--timerange", timerange,
-            "--timeframe", timeframe,
-            "--dry-run-wallet", str(dry_run_wallet),
-            "--max-open-trades", str(max_open_trades),
-        ]
+        # Handle "py -m freqtrade" command by splitting it
+        if executable == "py -m freqtrade":
+            command = [
+                "py", "-m", "freqtrade", "backtesting", "--user-data-dir", user_data_dir,
+                "--config", config_file, "--strategy-path", str(run_dir),
+                "--strategy", strategy_name, "--timerange", timerange,
+                "--timeframe", timeframe,
+                "--dry-run-wallet", str(dry_run_wallet),
+                "--max-open-trades", str(max_open_trades),
+            ]
+        else:
+            command = [
+                executable, "backtesting", "--user-data-dir", user_data_dir,
+                "--config", config_file, "--strategy-path", str(run_dir),
+                "--strategy", strategy_name, "--timerange", timerange,
+                "--timeframe", timeframe,
+                "--dry-run-wallet", str(dry_run_wallet),
+                "--max-open-trades", str(max_open_trades),
+            ]
         command.extend(["--export", "trades", "--export-filename", str(run_dir / "raw_result.json")])
         if pairs:
             # Deduplicate pairs to prevent Freqtrade configuration error

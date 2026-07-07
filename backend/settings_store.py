@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 import shutil
+import sys
 from pathlib import Path
 
 from .core.errors import BackendError
@@ -17,11 +18,8 @@ class SettingsStore(ISettingsStore):
         self.settings_file = root_dir / "data" / "strategy_lab_settings.json"
 
     def defaults(self) -> SettingsModel:
-        preferred_freqtrade = self.root_dir / ".venv" / "bin" / "freqtrade"
         return SettingsModel(
-            freqtrade_executable_path=(
-                str(preferred_freqtrade) if preferred_freqtrade.exists() else "freqtrade"
-            ),
+            freqtrade_executable_path="py -m freqtrade",
             strategies_directory_path=str(self.root_dir / "user_data" / "strategies"),
             user_data_directory_path=str(self.root_dir / "user_data"),
             default_config_file_path=str(self.root_dir / "user_data" / "config.json"),
@@ -64,7 +62,14 @@ class SettingsStore(ISettingsStore):
         return settings
 
     def _validate(self, settings: SettingsModel) -> None:
-        if shutil.which(settings.freqtrade_executable_path) is None and not Path(
+        # For "py -m freqtrade" command, check if python is available
+        if settings.freqtrade_executable_path == "py -m freqtrade":
+            if shutil.which("py") is None and shutil.which("python") is None:
+                raise BackendError(
+                    "Invalid freqtrade_executable_path: python executable was not found.",
+                    status_code=400,
+                )
+        elif shutil.which(settings.freqtrade_executable_path) is None and not Path(
             settings.freqtrade_executable_path
         ).is_file():
             raise BackendError(

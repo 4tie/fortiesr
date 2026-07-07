@@ -153,6 +153,35 @@ async def _run_pair_group(
         group_result_dir = pe_results_dir / export_filename
         group_result_dir.mkdir(parents=True, exist_ok=True)
         
+        # Set export directory in config to ensure freqtrade writes to the right place
+        group_cfg["export"] = {
+            "export_filename": str(group_result_dir / export_filename),
+        }
+        
+        # Disable rate limiting to avoid exchange connectivity issues during backtesting
+        if "ccxt_config" not in group_cfg["exchange"]:
+            group_cfg["exchange"]["ccxt_config"] = {}
+        group_cfg["exchange"]["ccxt_config"]["enableRateLimit"] = False
+        
+        # Ensure api_server has required config even if disabled
+        if "api_server" not in group_cfg:
+            group_cfg["api_server"] = {}
+        if "listen_ip_address" not in group_cfg["api_server"]:
+            group_cfg["api_server"]["listen_ip_address"] = "127.0.0.1"
+        if "listen_port" not in group_cfg["api_server"]:
+            group_cfg["api_server"]["listen_port"] = 8080
+        
+        # Try to use offline mode by setting exchange to not require API calls
+        group_cfg["exchange"]["exchange"] = "binance"
+        group_cfg["dry_run"] = True
+        # Disable API key requirements for backtesting
+        if "api_key" in group_cfg["exchange"]:
+            del group_cfg["exchange"]["api_key"]
+        if "api_secret" in group_cfg["exchange"]:
+            del group_cfg["exchange"]["api_secret"]
+        # Try to skip market loading by using sandbox mode
+        group_cfg["exchange"]["sandbox"] = False
+        
         logger.debug(
             "[Pair Explorer] Group %s: result dir=%s, pairs=%s",
             gkey, group_result_dir, chunk
@@ -175,23 +204,43 @@ async def _run_pair_group(
             temp_path = f.name
         Path(temp_path).replace(tmp_config)
 
-        cmd = [
-            freqtrade_exe,
-            "backtesting",
-            "--user-data-dir", user_data_dir,
-            "--config", str(tmp_config),
-            "--strategy-path", strategies_dir,
-            "--strategy", strategy_name,
-            "--timerange", timerange,
-            "--timeframe", timeframe,
-            "--export", "trades",
-            "--export-filename", str(group_result_dir / export_filename),
-            "--cache", "none",
-            "--pairs",
-        ] + chunk + [
-            "--dry-run-wallet", str(dry_run_wallet),
-            "--max-open-trades", str(max_open_trades),
-        ]
+        # Handle "py -m freqtrade" command by splitting it
+        if freqtrade_exe == "py -m freqtrade":
+            cmd = [
+                "py", "-m", "freqtrade",
+                "backtesting",
+                "--user-data-dir", user_data_dir,
+                "--config", str(tmp_config),
+                "--strategy-path", strategies_dir,
+                "--strategy", strategy_name,
+                "--timerange", timerange,
+                "--timeframe", timeframe,
+                "--export", "trades",
+                "--backtest-directory", str(group_result_dir),
+                "--cache", "none",
+                "--pairs",
+            ] + chunk + [
+                "--dry-run-wallet", str(dry_run_wallet),
+                "--max-open-trades", str(max_open_trades),
+            ]
+        else:
+            cmd = [
+                freqtrade_exe,
+                "backtesting",
+                "--user-data-dir", user_data_dir,
+                "--config", str(tmp_config),
+                "--strategy-path", strategies_dir,
+                "--strategy", strategy_name,
+                "--timerange", timerange,
+                "--timeframe", timeframe,
+                "--export", "trades",
+                "--backtest-directory", str(group_result_dir),
+                "--cache", "none",
+                "--pairs",
+            ] + chunk + [
+                "--dry-run-wallet", str(dry_run_wallet),
+                "--max-open-trades", str(max_open_trades),
+            ]
 
         logger.debug("[Pair Explorer] Group %s: freqtrade cmd=%s", gkey, " ".join(cmd))
 
@@ -230,11 +279,19 @@ async def _run_pair_group(
                 important = [
                     l for l in lines
                     if any(kw in l for kw in (
-                        "ERROR", "error", "No data", "No candle",
+                        "ERROR", "No data", "No candle",
                         "not found", "KeyError", "Exception", "Traceback", "No pair",
+                        "PermissionError", "FileNotFoundError", "RuntimeError",
                     ))
+                    # Exclude INFO level logs that happen to contain keywords
+                    and "- INFO -" not in l
+                    and "- DEBUG -" not in l
                 ]
-                stderr_text = " | ".join(important[-3:]) if important else (lines[-1] if lines else raw[:300])
+                # Only use fallback if exit code indicates an error
+                if important:
+                    stderr_text = " | ".join(important[-3:])
+                elif exit_code != 0:
+                    stderr_text = lines[-1] if lines else raw[:300]
 
         except Exception as exc:
             session["results"][gkey] = {

@@ -50,15 +50,27 @@ def _build_gate_command(
     max_open_trades: int,
     dry_run_wallet: float,
 ) -> list[str]:
-    command = [
-        executable, "backtesting", "--user-data-dir", user_data_dir,
-        "--config", config_file, "--strategy-path", str(run_dir),
-        "--strategy", strategy_name, "--timerange", timerange,
-        "--timeframe", timeframe,
-        "--dry-run-wallet", str(dry_run_wallet),
-        "--max-open-trades", str(max_open_trades),
-        "--export", "trades", "--backtest-directory", str(run_dir),
-    ]
+    # Handle "py -m freqtrade" command by splitting it
+    if executable == "py -m freqtrade":
+        command = [
+            "py", "-m", "freqtrade", "backtesting", "--user-data-dir", user_data_dir,
+            "--config", config_file, "--strategy-path", str(run_dir),
+            "--strategy", strategy_name, "--timerange", timerange,
+            "--timeframe", timeframe,
+            "--dry-run-wallet", str(dry_run_wallet),
+            "--max-open-trades", str(max_open_trades),
+            "--export", "trades", "--backtest-directory", str(run_dir),
+        ]
+    else:
+        command = [
+            executable, "backtesting", "--user-data-dir", user_data_dir,
+            "--config", config_file, "--strategy-path", str(run_dir),
+            "--strategy", strategy_name, "--timerange", timerange,
+            "--timeframe", timeframe,
+            "--dry-run-wallet", str(dry_run_wallet),
+            "--max-open-trades", str(max_open_trades),
+            "--export", "trades", "--backtest-directory", str(run_dir),
+        ]
     if pairs:
         unique_pairs = list(dict.fromkeys(pairs))
         command.extend(["--pairs", *unique_pairs])

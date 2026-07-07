@@ -33,18 +33,6 @@ class AIStrategy_Optimized(IStrategy):
         "MANA/USDT": 100.0,
     }
 
-    def confirm_trade_entry(self, pair: str, order_type: str, rate: float, time_in_force: str, 
-                           current_time: datetime, entry_tag: str | None, side: str, **kwargs) -> bool:
-        """Risk guard: prevent over-trading and excessive drawdown."""
-        # Get current open trades
-        open_trades = len(self.trade_handler.order_open_trades)
-        
-        # Limit concurrent trades to prevent overexposure
-        max_open_trades = 5
-        if open_trades >= max_open_trades:
-            return False
-            
-        return True
 
 
     def custom_stoploss(self, pair: str, trade, current_time, current_rate: float,

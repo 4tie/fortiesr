@@ -334,8 +334,13 @@ def register_strategy_tool_endpoints(router: APIRouter) -> None:
             
             try:
                 temp_strat_file.write_text(patched, encoding="utf-8")
+                # Handle "py -m freqtrade" command by splitting it
+                if freqtrade_exe == "py -m freqtrade":
+                    cmd = ["py", "-m", "freqtrade", "test-strategy", "--userdir", str(user_data_dir), "--strategy", temp_strat_name]
+                else:
+                    cmd = [freqtrade_exe, "test-strategy", "--userdir", str(user_data_dir), "--strategy", temp_strat_name]
                 proc = subprocess.run(
-                    [freqtrade_exe, "test-strategy", "--userdir", str(user_data_dir), "--strategy", temp_strat_name],
+                    cmd,
                     capture_output=True, text=True, timeout=60,
                     cwd=str(strategies_dir.parent.parent),
                 )

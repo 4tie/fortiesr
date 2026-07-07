@@ -95,20 +95,37 @@ def run_portfolio_backtest(
     (run_dir / "strategy_snapshot.py").write_text(strategy_source, encoding="utf-8")
 
     unique_pairs = list(dict.fromkeys(pairs))
-    command = [
-        freqtrade_executable_path, "backtesting",
-        "--user-data-dir", user_data_dir,
-        "--config", config_file,
-        "--strategy-path", str(run_dir),
-        "--strategy", strategy_name,
-        "--timerange", timerange,
-        "--timeframe", timeframe,
-        "--dry-run-wallet", str(dry_run_wallet),
-        "--max-open-trades", str(max_open_trades),
-        "--export", "trades",
-        "--export-filename", str(run_dir / "raw_result.json"),
-        "--pairs", *unique_pairs,
-    ]
+    # Handle "py -m freqtrade" command by splitting it
+    if freqtrade_executable_path == "py -m freqtrade":
+        command = [
+            "py", "-m", "freqtrade", "backtesting",
+            "--user-data-dir", user_data_dir,
+            "--config", config_file,
+            "--strategy-path", str(run_dir),
+            "--strategy", strategy_name,
+            "--timerange", timerange,
+            "--timeframe", timeframe,
+            "--dry-run-wallet", str(dry_run_wallet),
+            "--max-open-trades", str(max_open_trades),
+            "--export", "trades",
+            "--export-filename", str(run_dir / "raw_result.json"),
+            "--pairs", *unique_pairs,
+        ]
+    else:
+        command = [
+            freqtrade_executable_path, "backtesting",
+            "--user-data-dir", user_data_dir,
+            "--config", config_file,
+            "--strategy-path", str(run_dir),
+            "--strategy", strategy_name,
+            "--timerange", timerange,
+            "--timeframe", timeframe,
+            "--dry-run-wallet", str(dry_run_wallet),
+            "--max-open-trades", str(max_open_trades),
+            "--export", "trades",
+            "--export-filename", str(run_dir / "raw_result.json"),
+            "--pairs", *unique_pairs,
+        ]
 
     try:
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)

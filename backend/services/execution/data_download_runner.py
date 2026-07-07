@@ -75,14 +75,25 @@ class DataDownloadRunner:
 
         try:
             # Build and run the freqtrade download-data command
-            command = [
-                settings.freqtrade_executable_path,
-                "download-data",
-                "--user-data-dir",
-                settings.user_data_directory_path,
-                "--config",
-                request.config_file,
-            ]
+            # Handle "py -m freqtrade" command by splitting it
+            if settings.freqtrade_executable_path == "py -m freqtrade":
+                command = [
+                    "py", "-m", "freqtrade",
+                    "download-data",
+                    "--user-data-dir",
+                    settings.user_data_directory_path,
+                    "--config",
+                    request.config_file,
+                ]
+            else:
+                command = [
+                    settings.freqtrade_executable_path,
+                    "download-data",
+                    "--user-data-dir",
+                    settings.user_data_directory_path,
+                    "--config",
+                    request.config_file,
+                ]
             if request.timerange:
                 command.extend(["--timerange", request.timerange])
             if request.timeframes:
