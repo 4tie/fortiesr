@@ -53,11 +53,16 @@ def _bootstrap_project_venv() -> None:
 _bootstrap_project_venv()
 
 from dotenv import load_dotenv
+import asyncio
 import uvicorn
 
 from backend.api.app import create_app
 
 load_dotenv()
+
+# Windows requires ProactorEventLoop for subprocess support
+if os.name == "nt":
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 app = create_app()
 

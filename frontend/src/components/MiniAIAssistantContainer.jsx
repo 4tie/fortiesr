@@ -15,6 +15,7 @@ import { useAssistantChat } from "../hooks/useAssistantChat.js";
 import WorkflowCard from "./WorkflowCard.jsx";
 import AssistantRunSummary from "./AssistantRunSummary.jsx";
 import AssistantRunHistory from "./AssistantRunHistory.jsx";
+import ContextualPromptSuggestions from "./ContextualPromptSuggestions.jsx";
 
 const TABS = [
   { id: "chat",    label: "Chat" },
@@ -107,6 +108,7 @@ function ChatPanel({
   onConfirm,
   onExecute,
   onNavigate,
+  contextOverrides,
 }) {
   const [draft, setDraft] = useState("");
   const scrollerRef = useRef(null);
@@ -140,6 +142,10 @@ function ChatPanel({
     await onSend(text);
   };
 
+  const handleSelectPrompt = (prompt) => {
+    setDraft(prompt);
+  };
+
   const handleKeyDown = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -154,9 +160,10 @@ function ChatPanel({
       {/* Timeline */}
       <div ref={scrollerRef} className="min-h-0 flex-1 space-y-2.5 overflow-y-auto p-3">
         {isEmpty ? (
-          <div className="flex h-full items-center justify-center text-center text-xs text-gray-400 px-4">
-            Ask anything about the current page context, strategies, runs, or optimizer sessions.
-          </div>
+          <ContextualPromptSuggestions
+            context={contextOverrides}
+            onSelectPrompt={handleSelectPrompt}
+          />
         ) : (
           timelineItems.map((item) => (
             <TimelineItem
@@ -323,6 +330,7 @@ export default function MiniAIAssistantContainer({
               onConfirm={confirmAction}
               onExecute={executeAction}
               onNavigate={handleNavigate}
+              contextOverrides={contextOverrides}
             />
           </div>
         )}
