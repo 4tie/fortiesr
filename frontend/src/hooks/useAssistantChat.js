@@ -6,7 +6,7 @@
  * AssistantChatPanel surface — all connected to the same backend session.
  */
 import { useCallback, useRef, useState } from "react";
-import { useAssistantWorkflow, cardKeyFromEvent } from "./useAssistantWorkflow.js";
+import { useAssistantWorkflow } from "./useAssistantWorkflow.js";
 
 // SSE event types that drive workflow cards (not raw text messages)
 const WORKFLOW_EVENT_TYPES = new Set([

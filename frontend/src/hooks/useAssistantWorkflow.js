@@ -195,18 +195,45 @@ function cardsReducer(state, action) {
 
     case "observation_timeout": {
       // The assistant stopped monitoring — the job may still be running.
-      // Use observation_paused status (NOT a failure state).
-      // Map by job_type since there's no action_id in observation_timeout.
-      const obsKey = event.api_session_id
-        ? `obs:${event.api_session_id}`
-        : key;
-      const obsExisting = state[obsKey] || existing;
-      if (!obsExisting) return state;
+      // Strategy: find the card to update by trying multiple matching approaches:
+      // 1. Direct api_session_id match against tool_call_id (most specific)
+      // 2. The tool_name key (synthesised key)
+      // 3. Any running card for this tool_name
+
+      const apiSessionId = event.api_session_id;
+      const toolName = event.tool_name;
+
+      // Try to find the card by tool_call_id stored in existing cards
+      let targetKey = null;
+      if (apiSessionId) {
+        // Check if any card was created with this api_session_id as toolCallId
+        const byCallId = `call:${apiSessionId}`;
+        if (state[byCallId]) {
+          targetKey = byCallId;
+        }
+      }
+      // Fall back to tool_name key
+      if (!targetKey && toolName) {
+        const byToolName = `tool:${toolName}`;
+        if (state[byToolName]) targetKey = byToolName;
+      }
+      // Fall back to scanning all cards for one with matching toolName that is running
+      if (!targetKey && toolName) {
+        for (const [k, c] of Object.entries(state)) {
+          if (c.toolName === toolName && ["starting", "queued", "running"].includes(c.status)) {
+            targetKey = k;
+            break;
+          }
+        }
+      }
+
+      if (!targetKey) return state;
+
       return {
         ...state,
-        [obsKey]: {
-          ...obsExisting,
-          status: CARD_STATUS.OBSERVATION_PAUSED,
+        [targetKey]: {
+          ...state[targetKey],
+          status:   CARD_STATUS.OBSERVATION_PAUSED,
           progress: null,
         },
       };
@@ -230,17 +257,6 @@ export function useAssistantWorkflow() {
 
   const applyEvent = useCallback((event) => {
     dispatch({ event });
-  }, []);
-
-  const setCardConfirming = useCallback((key, confirming) => {
-    dispatch({
-      event: {
-        // synthetic event to track in-flight confirmation
-        type:       "__set_confirming",
-        __key:      key,
-        __confirming: confirming,
-      },
-    });
   }, []);
 
   // Patch for confirming state (handled outside main reducer for simplicity)

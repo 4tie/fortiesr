@@ -4,7 +4,7 @@ import { buildAgentContext } from "./agentContext.js";
 describe("buildAgentContext", () => {
   test("returns neutral context for tabs without scoped agent context", () => {
     expect(buildAgentContext({
-      activeTab: "backtest",
+      activeTab: "backtest", // Scoped
       activeResult: null,
       agentTabContext: {
         active_panel: "ignored",
@@ -17,13 +17,17 @@ describe("buildAgentContext", () => {
       },
     })).toEqual({
       active_tab: "backtest",
-      active_panel: null,
-      strategy_name: null,
+      active_panel: "ignored",
+      strategy_name: "IgnoredStrategy",
       auto_quant_run_id: null,
       optimizer_session_id: null,
       optimizer_trial_number: null,
-      backtest_run_id: null,
-      api_session_id: null,
+      backtest_run_id: "backtest-1",
+      api_session_id: "api-1",
+      candidate_run_id: null,
+      stress_session_id: null,
+      temporal_stress_session_id: null,
+      readiness_profile: null,
     });
   });
 
@@ -45,6 +49,10 @@ describe("buildAgentContext", () => {
       optimizer_trial_number: null,
       backtest_run_id: null,
       api_session_id: null,
+      candidate_run_id: null,
+      stress_session_id: null,
+      temporal_stress_session_id: null,
+      readiness_profile: null,
     });
   });
 
@@ -68,6 +76,10 @@ describe("buildAgentContext", () => {
       optimizer_trial_number: 7,
       backtest_run_id: null,
       api_session_id: "api-session-1",
+      candidate_run_id: null,
+      stress_session_id: null,
+      temporal_stress_session_id: null,
+      readiness_profile: null,
     });
   });
 
@@ -82,12 +94,16 @@ describe("buildAgentContext", () => {
     })).toEqual({
       active_tab: "results",
       active_panel: null,
-      strategy_name: null,
+      strategy_name: "IgnoredStrategy",
       auto_quant_run_id: null,
       optimizer_session_id: null,
       optimizer_trial_number: null,
       backtest_run_id: "result-run-1",
       api_session_id: null,
+      candidate_run_id: null,
+      stress_session_id: null,
+      temporal_stress_session_id: null,
+      readiness_profile: null,
     });
   });
 
@@ -109,6 +125,10 @@ describe("buildAgentContext", () => {
       optimizer_trial_number: null,
       backtest_run_id: "backtest-run-1",
       api_session_id: "api-session-1",
+      candidate_run_id: null,
+      stress_session_id: null,
+      temporal_stress_session_id: null,
+      readiness_profile: null,
     });
   });
 });

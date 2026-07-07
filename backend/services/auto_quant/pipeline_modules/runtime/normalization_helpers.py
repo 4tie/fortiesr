@@ -137,16 +137,16 @@ def build_stage_card(state: PipelineState, stage: StageState) -> dict[str, Any]:
         "message": message,
         "started_at": stage.started_at,
         "duration_s": stage.duration_s,
-        "input_summary": payload["input_summary"],
-        "output_summary": payload["output_summary"],
-        "metrics": payload["metrics"],
-        "warnings": payload["warnings"],
-        "errors": payload["errors"],
-        "retry_attempts": payload["retry_attempts"],
-        "suggestions": payload["suggestions"],
-        "auto_fix": payload["auto_fix"],
-        "stage_progress": payload["stage_progress"],
-        "status_kind": payload["status_kind"],
+        "input_summary": payload.get("input_summary", {}),
+        "output_summary": payload.get("output_summary", {}),
+        "metrics": payload.get("metrics", []),
+        "warnings": payload.get("warnings", []),
+        "errors": payload.get("errors", []),
+        "retry_attempts": payload.get("retry_attempts", []),
+        "suggestions": payload.get("suggestions", []),
+        "auto_fix": payload.get("auto_fix", {}),
+        "stage_progress": payload.get("stage_progress", None),
+        "status_kind": payload.get("status_kind", "neutral"),
         "raw_data": _strip_ui_keys(raw_data),
     }
 
@@ -218,6 +218,42 @@ def _input_summary_for(state: PipelineState, stage_idx: int, raw: dict[str, Any]
     }
     keys = _STAGE_INPUT_KEYS.get(stage_idx, tuple(base.keys()))
     return {key: base.get(key) for key in keys if key in base}
+
+
+def _metrics_from(raw: dict[str, Any]) -> dict[str, Any]:
+    """Extract performance metrics from raw stage data."""
+    metrics: dict[str, Any] = {}
+    
+    # Common backtest metrics
+    for key in (
+        "profit_total",
+        "profit_percent",
+        "profit_factor",
+        "win_rate",
+        "drawdown",
+        "max_drawdown",
+        "sharpe",
+        "sortino",
+        "calmar",
+        "trade_count",
+        "avg_profit",
+        "avg_loss",
+        "expectancy",
+    ):
+        if key in raw:
+            metrics[key] = raw[key]
+    
+    # Hyperopt-specific metrics
+    if "best_trial" in raw:
+        metrics["best_trial"] = raw["best_trial"]
+    if "total_trials" in raw:
+        metrics["total_trials"] = raw["total_trials"]
+    
+    # Validation-specific metrics
+    if raw.get("_failed_metrics"):
+        metrics["failed_metrics"] = raw["_failed_metrics"]
+    
+    return metrics
 
 
 def _output_summary_for(stage_idx: int, raw: dict[str, Any]) -> dict[str, Any]:
