@@ -5,6 +5,9 @@ from fastapi import APIRouter
 # Create the main router
 router = APIRouter(prefix="/api/auto-quant", tags=["Auto-Quant Factory"])
 
+# Export StartAutoQuantRequest for tests
+from .schemas import StartAutoQuantRequest
+
 # Import and register all endpoint modules
 from . import (
     pipeline_start,
@@ -33,4 +36,4 @@ genetic_endpoints.register_genetic_endpoints(router)
 rl_endpoints.register_rl_endpoints(router)
 websocket_endpoint.register_websocket_endpoint(router)
 
-__all__ = ["router"]
+__all__ = ["router", "StartAutoQuantRequest"]

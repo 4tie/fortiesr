@@ -46,7 +46,7 @@ class TestStateManagement:
         assert state.strategy == "TestStrategy"
         assert state.status == "pending"
         assert state.current_stage == 0
-        assert len(state.stages) == 7
+        assert len(state.stages) == 6
 
     def test_queue_management(self):
         """Test queue creation and release."""
@@ -156,8 +156,8 @@ class TestStateManagement:
         )
         
         state = get_state(run_id)
-        assert state.max_drawdown_threshold == 30.0
-        assert state.min_win_rate == 40.0
+        assert state.max_drawdown_threshold == 0.3
+        assert state.min_win_rate == 0.4
         assert state.retry_count == 0
         assert state.max_retries == 3
         assert state.hyperopt_loss == "ProfitLockinHyperOptLoss"
