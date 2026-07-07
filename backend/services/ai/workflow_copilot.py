@@ -33,6 +33,7 @@ from typing import TYPE_CHECKING, Any, AsyncIterator
 
 from ...services.agent_context import AgentContextService
 from .copilot_session_store import CopilotSessionStore
+from .intent_router import route_intent, WorkflowPlan
 from .ollama_client import OllamaClient
 from .workflow_tool_executor import WorkflowToolExecutor
 from .workflow_tool_models import (
@@ -119,6 +120,19 @@ class WorkflowCopilot:
         # Add user message
         self.copilot_store.add_message(session, "user", user_message)
         self.copilot_store.save_session(session)
+
+        # Try deterministic intent routing first
+        workflow_plan = route_intent(user_message)
+        if workflow_plan and workflow_plan["steps"]:
+            logger.info(f"Intent detected: {workflow_plan['intent']} with confidence {workflow_plan['confidence']}")
+            async for event in self._execute_workflow_plan(
+                session_id,
+                workflow_plan,
+                session,
+                mode,
+            ):
+                yield event
+            return
 
         # Resolve model
         resolved_model = model or session.get("model") or "llama3"
@@ -694,6 +708,175 @@ class WorkflowCopilot:
             payload = {**payload, "error": result.error}
         payload.setdefault("status", result.status.value if isinstance(result.status, ToolRunStatus) else str(result.status))
         return json.dumps(payload)
+
+    async def _execute_workflow_plan(
+        self,
+        session_id: str,
+        workflow_plan: WorkflowPlan,
+        session: dict[str, Any],
+        mode: str,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Execute a deterministic workflow plan from intent router.
+        
+        Executes workflow steps sequentially, yielding events for each step.
+        The model is only used for final explanation, not orchestration.
+        """
+        intent = workflow_plan["intent"]
+        steps = workflow_plan["steps"]
+        extracted_slots = workflow_plan["extracted_slots"]
+        
+        yield {"type": "status", "message": f"Executing {intent} workflow..."}
+        
+        # Execute each step in the workflow
+        for step in steps:
+            tool_name = step.get("tool")
+            action = step.get("action")
+            args = step.get("args", {})
+            requires_confirmation = step.get("requires_confirmation", False)
+            
+            # Handle meta-actions (e.g., ask for missing information)
+            if action == "ask_missing":
+                slot = args.get("slot")
+                prompt = args.get("prompt", f"Please provide {slot}")
+                yield {
+                    "type": "message",
+                    "content": prompt,
+                }
+                yield {
+                    "type": "final",
+                    "content": prompt,
+                }
+                return  # Wait for user response
+            
+            # Execute tool calls
+            if tool_name:
+                # Validate tool
+                is_valid, error_msg, validated = validate_tool_arguments(tool_name, args)
+                if not is_valid:
+                    logger.warning(f"Invalid tool call in workflow: {error_msg}")
+                    yield {"type": "error", "message": error_msg}
+                    continue
+                
+                # Check safety
+                safety = get_tool_safety(tool_name)
+                if safety == ToolSafety.FORBIDDEN:
+                    yield {"type": "error", "message": f"Tool '{tool_name}' is forbidden"}
+                    continue
+                
+                # Create workflow tool call
+                workflow_call = WorkflowToolCall(
+                    tool_name=tool_name,
+                    arguments=args,
+                    safety=safety,
+                )
+                
+                # If confirmation required, pause and yield action card
+                if requires_confirmation:
+                    pending_action = PendingToolAction(
+                        session_id=session_id,
+                        tool_call_id=workflow_call.tool_call_id,
+                        tool_name=tool_name,
+                        arguments=args,
+                        arguments_hash=calculate_arguments_hash(tool_name, args),
+                        safety=safety,
+                    )
+                    self.copilot_store.add_pending_action(session, pending_action.model_dump())
+                    self.copilot_store.save_session(session)
+                    
+                    yield {
+                        "type": "tool_confirmation_required",
+                        "action_id": pending_action.action_id,
+                        "tool_name": tool_name,
+                        "arguments": args,
+                        "confirmation_endpoint": "/api/ai/actions/confirm",
+                        "confirmation_action_type": "confirm_tool_action",
+                        "confirmation_payload": {"action_id": pending_action.action_id},
+                    }
+                    return  # Pause for user confirmation
+                
+                # Execute read-only tools immediately
+                yield {"type": "tool_started", "tool_name": tool_name}
+                
+                result = await self.executor.execute(
+                    tool_call=workflow_call,
+                    copilot_session_id=session_id,
+                    confirmed=False,
+                )
+                
+                # Record tool run
+                tool_run = ToolRunRecord(
+                    tool_call_id=workflow_call.tool_call_id,
+                    tool_name=tool_name,
+                    arguments=args,
+                    safety=safety,
+                    status=result.status,
+                    started_at=result.started_at,
+                    completed_at=result.completed_at,
+                    result_summary=result.result_summary,
+                    error=result.error,
+                )
+                self.copilot_store.add_tool_run(session, tool_run.model_dump())
+                self.copilot_store.save_session(session)
+                
+                # Yield result
+                if result.status == ToolRunStatus.COMPLETED:
+                    yield {
+                        "type": "tool_result",
+                        "tool_name": tool_name,
+                        "result": result.result_summary,
+                    }
+                else:
+                    yield {
+                        "type": "tool_failed",
+                        "tool_name": tool_name,
+                        "error": result.error,
+                    }
+                    continue  # Stop workflow on tool failure
+        
+        # Workflow completed successfully - use model for final explanation
+        yield {"type": "status", "message": "Workflow completed. Generating explanation..."}
+        
+        # Build context for model explanation
+        context = self._build_context(session, mode)
+        messages = self._build_messages(session, context, mode)
+        
+        # Add system prompt for explanation
+        explanation_prompt = (
+            f"The {intent} workflow has been executed successfully. "
+            f"Review the tool results above and provide a clear, concise explanation "
+            f"of what was done and the key findings. Base your answer only on the "
+            f"actual tool results - do not hallucinate or make claims without evidence."
+        )
+        messages.append({"role": "system", "content": explanation_prompt})
+        
+        # Call model for explanation
+        try:
+            resolved_model = session.get("model") or "llama3"
+            response = await self.ollama_client.chat(
+                messages=messages,
+                tools=[],  # No tools needed for explanation
+                model=resolved_model,
+            )
+            
+            content = getattr(response, "content", "")
+            
+            # Add assistant message to session
+            self.copilot_store.add_message(session, "assistant", content)
+            self.copilot_store.save_session(session)
+            
+            yield {"type": "message", "content": content}
+            yield {"type": "final", "content": content}
+            
+        except Exception as exc:
+            logger.error(f"Model explanation failed: {exc}")
+            yield {
+                "type": "message",
+                "content": f"Workflow completed. {exc}",
+            }
+            yield {
+                "type": "final",
+                "content": f"Workflow completed. {exc}",
+            }
 
     def _build_context(self, session: dict[str, Any], mode: str) -> dict[str, Any]:
         """Build bounded context from app state using real AgentContextService contract."""
