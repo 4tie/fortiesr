@@ -372,7 +372,7 @@ def test_autoquant_endpoint_delegates_to_workflow_copilot_via_fastapi(tmp_path):
     [
         ("completed", "tool_result", "Backtest finished successfully."),
         ("failed", "tool_failed", "Backtest failed and needs attention."),
-        ("timed_out", "tool_timed_out", "Backtest is still running after timeout."),
+        ("timed_out", "observation_timeout", "Backtest is still running after timeout."),
     ],
 )
 def test_public_assistant_confirmation_lifecycle_streams_progress_and_resumes_model(

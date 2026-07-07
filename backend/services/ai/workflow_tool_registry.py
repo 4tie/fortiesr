@@ -20,6 +20,7 @@ from pydantic import ValidationError
 
 from .workflow_tool_models import (
     EditStrategySectionArgs,
+    GetPairUniverseArgs,
     InspectAppStructureArgs,
     ListStrategiesArgs,
     ReadStrategyFileArgs,
@@ -153,6 +154,20 @@ _TOOL_REGISTRY: dict[str, ToolSpec] = {
         exposed_to_model=True,
         long_running=False,
     ),
+    "get_pair_universe": ToolSpec(
+        name="get_pair_universe",
+        description=(
+            "Return the real application pair universe from PairSelectorService. "
+            "Supports optional filters: quote_currency (e.g. 'USDT' keeps only */USDT pairs), "
+            "exclude_pairs (list of pairs to omit), and max_candidates (cap). "
+            "Does NOT claim profitability — returns available candidates only. "
+            "Call this before run_pair_explorer to determine which pairs to test."
+        ),
+        argument_model=GetPairUniverseArgs,
+        safety=ToolSafety.READ_ONLY,
+        exposed_to_model=True,
+        long_running=False,
+    ),
     # CONFIRMATION REQUIRED
     "run_backtest": ToolSpec(
         name="run_backtest",
@@ -178,7 +193,7 @@ _TOOL_REGISTRY: dict[str, ToolSpec] = {
         description="Run Pair Explorer to test a strategy across a broad pair universe. Tests multiple pairs and returns performance metrics for each pair including net profit, profit factor, drawdown, trade count, expectancy, and win rate.",
         argument_model=RunPairExplorerArgs,
         safety=ToolSafety.CONFIRMATION_REQUIRED,
-        exposed_to_model=False,  # Hidden until implemented
+        exposed_to_model=True,
         long_running=True,
         handler_name="run_pair_explorer",
     ),

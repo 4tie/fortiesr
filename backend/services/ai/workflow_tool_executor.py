@@ -22,8 +22,14 @@ from typing import TYPE_CHECKING, Any, Callable
 
 from ...core.errors import BackendError
 from .copilot_session_store import CopilotSessionStore
+from .strategy_resolver import (
+    AmbiguousStrategyError,
+    StrategyNotFoundError,
+    resolve_strategy,
+)
 from .workflow_tool_models import (
     EditStrategySectionArgs,
+    GetPairUniverseArgs,
     InspectAppStructureArgs,
     JobReference,
     ListStrategiesArgs,
@@ -230,6 +236,8 @@ class WorkflowToolExecutor:
             return await self._handle_view_best_params(arguments)
         if handler_name == "view_trial_params":
             return await self._handle_view_trial_params(arguments)
+        if handler_name == "get_pair_universe":
+            return await self._handle_get_pair_universe(arguments)
         
         # CONFIRMATION-REQUIRED handlers
         if handler_name == "run_backtest":
@@ -272,77 +280,86 @@ class WorkflowToolExecutor:
         """Handle list_strategies tool."""
         settings = self.services.settings_store.load()
         strategies_dir = Path(settings.strategies_directory_path)
-        
-        py_files = {p.stem: p.name for p in strategies_dir.glob("*.py")}
+
+        py_files = {p.stem: p for p in strategies_dir.glob("*.py")}
         json_files = {p.stem: p.name for p in strategies_dir.glob("*.json")}
         all_stems = sorted(set(py_files) | set(json_files))
-        
+
         strategies = []
         for stem in all_stems:
-            py_f = py_files.get(stem)
+            py_path = py_files.get(stem)
             json_f = json_files.get(stem)
-            if py_f:
+            if py_path:
+                # Extract class name from file
+                from .strategy_resolver import _extract_class_name
+                class_name = _extract_class_name(py_path)
                 strategies.append({
                     "name": stem,
-                    "py_file": py_f,
+                    "class_name": class_name,
+                    "py_file": py_path.name,
                     "json_file": json_f,
-                    "has_json": json_f is not None
+                    "has_json": json_f is not None,
                 })
-        
+
         return {
             "summary": {
                 "strategies": strategies,
-                "count": len(strategies)
+                "count": len(strategies),
             }
         }
 
     async def _handle_read_strategy_file(self, arguments: dict[str, Any]) -> dict[str, Any]:
-        """Handle read_strategy_file tool."""
+        """Handle read_strategy_file tool — uses strategy resolver for flexible name matching."""
         args = ReadStrategyFileArgs(**arguments)
         settings = self.services.settings_store.load()
         strategies_dir = Path(settings.strategies_directory_path)
-        
-        py_path = strategies_dir / f"{args.strategy_name}.py"
-        json_path = strategies_dir / f"{args.strategy_name}.json"
-        
-        if not py_path.exists():
-            raise BackendError(f"Strategy file '{args.strategy_name}.py' not found", status_code=404)
-        
-        python_content = py_path.read_text(encoding="utf-8", errors="replace")
+
+        try:
+            resolution = resolve_strategy(args.strategy_name, strategies_dir)
+        except StrategyNotFoundError as exc:
+            raise BackendError(str(exc), status_code=404) from exc
+        except AmbiguousStrategyError as exc:
+            raise BackendError(str(exc), status_code=409) from exc
+
+        python_content = resolution.py_path.read_text(encoding="utf-8", errors="replace")
         json_content = None
-        if json_path.exists():
-            json_content = json_path.read_text(encoding="utf-8", errors="replace")
-        
+        if resolution.has_json and resolution.json_path is not None:
+            json_content = resolution.json_path.read_text(encoding="utf-8", errors="replace")
+
         # Truncate if too large
         if len(python_content) > self.MAX_TOOL_RESULT_SIZE:
             python_content = python_content[:self.MAX_TOOL_RESULT_SIZE] + "\n...[truncated]"
-        
+
         return {
             "summary": {
-                "strategy_name": args.strategy_name,
+                "strategy_name": resolution.stem,
+                "class_name": resolution.class_name,
                 "python_content": python_content,
                 "json_content": json_content,
             }
         }
 
     async def _handle_validate_strategy_syntax(self, arguments: dict[str, Any]) -> dict[str, Any]:
-        """Handle validate_strategy_syntax tool."""
+        """Handle validate_strategy_syntax tool — uses strategy resolver for flexible name matching."""
         args = ValidateStrategySyntaxArgs(**arguments)
-        
+
         # Import validation helpers
-        import tempfile
         import py_compile
-        
+        import tempfile
+
         settings = self.services.settings_store.load()
         strategies_dir = Path(settings.strategies_directory_path)
-        py_path = strategies_dir / f"{args.strategy_name}.py"
-        
-        if not py_path.exists():
-            raise BackendError(f"Strategy file '{args.strategy_name}.py' not found", status_code=404)
-        
-        content = py_path.read_text(encoding="utf-8", errors="replace")
+
+        try:
+            resolution = resolve_strategy(args.strategy_name, strategies_dir)
+        except StrategyNotFoundError as exc:
+            raise BackendError(str(exc), status_code=404) from exc
+        except AmbiguousStrategyError as exc:
+            raise BackendError(str(exc), status_code=409) from exc
+
+        content = resolution.py_path.read_text(encoding="utf-8", errors="replace")
         errors = []
-        
+
         # py_compile check
         try:
             with tempfile.NamedTemporaryFile(mode="w", suffix=".py", encoding="utf-8", delete=False) as tf:
@@ -351,15 +368,16 @@ class WorkflowToolExecutor:
             try:
                 py_compile.compile(str(tmp_path), doraise=True)
             except py_compile.PyCompileError as exc:
-                errors.append(str(exc).replace(str(tmp_path), f"{args.strategy_name}.py"))
+                errors.append(str(exc).replace(str(tmp_path), f"{resolution.stem}.py"))
             finally:
                 tmp_path.unlink(missing_ok=True)
         except Exception as exc:
             errors.append(str(exc))
-        
+
         return {
             "summary": {
-                "strategy_name": args.strategy_name,
+                "strategy_name": resolution.stem,
+                "class_name": resolution.class_name,
                 "valid": len(errors) == 0,
                 "errors": errors,
             }
@@ -433,6 +451,57 @@ class WorkflowToolExecutor:
                 "trial_number": trial.trial_number,
                 "parameters": trial.parameters or {},
                 "metrics": trial.metrics.model_dump() if trial.metrics else {},
+            }
+        }
+
+    async def _handle_get_pair_universe(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        """Handle get_pair_universe tool — reads real PairSelectorService state."""
+        args = GetPairUniverseArgs(**arguments)
+
+        pair_selector = getattr(self.services, "pair_selector", None)
+        if pair_selector is None:
+            raise BackendError(
+                "PairSelectorService is not available on services.",
+                status_code=503,
+            )
+
+        state = pair_selector.get_state()
+        # Union of available + extended pairs
+        all_pairs: list[str] = list(state.available_pairs)
+        extended = getattr(state, "extended_pairs", []) or []
+        seen: set[str] = set(all_pairs)
+        for p in extended:
+            if p not in seen:
+                all_pairs.append(p)
+                seen.add(p)
+
+        # Apply quote_currency filter
+        if args.quote_currency:
+            suffix = f"/{args.quote_currency.upper()}"
+            all_pairs = [p for p in all_pairs if p.upper().endswith(suffix)]
+
+        # Apply exclude filter
+        if args.exclude_pairs:
+            excluded = {p.upper() for p in args.exclude_pairs}
+            all_pairs = [p for p in all_pairs if p.upper() not in excluded]
+
+        # Cap at max_candidates
+        if args.max_candidates is not None:
+            all_pairs = all_pairs[: args.max_candidates]
+
+        return {
+            "summary": {
+                "pairs": all_pairs,
+                "total": len(all_pairs),
+                "filtered_by": {
+                    "quote_currency": args.quote_currency,
+                    "excluded": args.exclude_pairs or [],
+                    "max_candidates": args.max_candidates,
+                },
+                "note": (
+                    "These are available pairs from PairSelectorService. "
+                    "Profitability is NOT implied — use run_pair_explorer to measure performance."
+                ),
             }
         }
 
@@ -681,13 +750,93 @@ class WorkflowToolExecutor:
         copilot_session_id: str,
         progress_callback: ProgressCallback | None,
     ) -> dict[str, Any]:
-        """Handle run_pair_explorer tool."""
-        # Placeholder - implement based on pair_explorer router
-        raise BackendError(
-            "Pair Explorer tool execution not yet implemented. "
-            "Extract from backend/api/routers/pair_explorer.py",
-            status_code=501,
+        """Handle run_pair_explorer tool using reusable job function and observe to completion."""
+        from ..workflow_jobs import start_pair_explorer_job
+        from .job_observer import observe_pair_explorer_job
+
+        args = RunPairExplorerArgs(**arguments)
+
+        if progress_callback:
+            progress_callback("tool_started", {"tool_name": "run_pair_explorer"})
+
+        # Call reusable job start function
+        pe_session_id, initial_status = await start_pair_explorer_job(
+            services=self.services,
+            strategy_name=args.strategy_name,
+            pairs=args.pairs,
+            timeframe=args.timeframe,
+            timerange=args.timerange,
+            dry_run_wallet=args.dry_run_wallet,
+            max_open_trades=args.max_open_trades,
         )
+
+        # Add job reference to copilot session
+        job_ref = JobReference(
+            job_type="pair_explorer",
+            api_session_id=pe_session_id,
+            status=initial_status,
+        )
+
+        copilot_session = self.copilot_store.load_session(copilot_session_id)
+        self.copilot_store.add_active_job(copilot_session, job_ref.model_dump())
+        self.copilot_store.save_session(copilot_session)
+
+        # Observe job to terminal status
+        final_status = initial_status
+        final_results = []
+        timed_out = False
+
+        async for event in observe_pair_explorer_job(
+            services=self.services,
+            pe_session_id=pe_session_id,
+        ):
+            if progress_callback:
+                progress_callback("job_active", {"job_ref": job_ref.model_dump(), "event": event})
+
+            if event["type"] == "observation_timeout":
+                timed_out = True
+                break
+
+            if event["type"] == "pair_explorer_progress":
+                final_status = event.get("status", final_status)
+                final_results = event.get("results", [])
+
+                # Update copilot session
+                copilot_session = self.copilot_store.load_session(copilot_session_id)
+                self.copilot_store.update_job_status(copilot_session, "pair_explorer", final_status)
+                self.copilot_store.save_session(copilot_session)
+
+            if event["type"] == "error":
+                final_status = "failed"
+                break
+
+        # Final terminal update
+        if progress_callback:
+            if timed_out:
+                progress_callback("tool_timed_out", {"tool_name": "run_pair_explorer"})
+            elif final_status == "failed":
+                progress_callback("tool_failed", {"tool_name": "run_pair_explorer"})
+            else:
+                progress_callback("tool_result", {"tool_name": "run_pair_explorer"})
+
+        # Compile final structured result
+        if timed_out:
+            return {
+                "status": "timed_out",
+                "message": (
+                    f"Pair Explorer (session {pe_session_id}) is still running "
+                    "in the background after 5 minutes."
+                ),
+            }
+
+        return {
+            "summary": {
+                "pair_explorer_session_id": pe_session_id,
+                "status": final_status,
+                "total_pairs_tested": sum(len(g.get("pairs", [])) for g in final_results),
+                "results": final_results,
+            }
+        }
 
     async def _handle_edit_strategy_section(
         self,

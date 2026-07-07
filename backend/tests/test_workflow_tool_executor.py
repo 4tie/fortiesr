@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -227,3 +228,64 @@ async def test_view_trial_params_uses_real_optimizer_model_fields(tmp_path):
     assert result.result_summary["trial_number"] == 1
     assert result.result_summary["parameters"] == {"buy": {"window": 12}}
     assert result.result_summary["metrics"]["profit_factor"] == 1.4
+
+
+@pytest.mark.asyncio
+async def test_read_strategy_file_uses_resolver(tmp_path):
+    executor = _executor(tmp_path)
+    
+    # Create the strategy file with case mismatch
+    strat_dir = Path(executor.services.settings_store.load().strategies_directory_path)
+    (strat_dir / "AIStrategy.py").write_text("class AIStrategy:\n    pass")
+    
+    # Execute with lowercase stem
+    result = await executor.execute(
+        tool_call=WorkflowToolCall(
+            tool_name="read_strategy_file",
+            arguments={"strategy_name": "aistrategy"},
+            safety=ToolSafety.READ_ONLY,
+        ),
+        copilot_session_id="test-session",
+    )
+    
+    assert result.status == ToolRunStatus.COMPLETED
+    assert result.result_summary["strategy_name"] == "AIStrategy"
+    assert "class AIStrategy" in result.result_summary["python_content"]
+
+
+@pytest.mark.asyncio
+async def test_get_pair_universe_returns_available_pairs(tmp_path):
+    executor = _executor(tmp_path)
+    
+    # Mock pair_selector
+    mock_state = MagicMock()
+    mock_state.available_pairs = {"BTC/USDT", "ETH/USDT", "JTO/USDT", "SOL/BTC"}
+    mock_state.extended_pairs = ["ADA/USDT"]
+    
+    mock_pair_selector = MagicMock()
+    mock_pair_selector.get_state.return_value = mock_state
+    
+    executor.services.pair_selector = mock_pair_selector
+    
+    # Test with quote_currency and max_candidates filters
+    result = await executor.execute(
+        tool_call=WorkflowToolCall(
+            tool_name="get_pair_universe",
+            arguments={
+                "quote_currency": "USDT",
+                "exclude_pairs": ["ETH/USDT"],
+                "max_candidates": 2,
+            },
+            safety=ToolSafety.READ_ONLY,
+        ),
+        copilot_session_id="test-session",
+    )
+    
+    assert result.status == ToolRunStatus.COMPLETED
+    summary = result.result_summary
+    assert summary["total"] == 2
+    assert len(summary["pairs"]) == 2
+    assert "ETH/USDT" not in summary["pairs"]
+    assert "SOL/BTC" not in summary["pairs"]
+    assert "BTC/USDT" in summary["pairs"] or "JTO/USDT" in summary["pairs"] or "ADA/USDT" in summary["pairs"]
+

@@ -18,6 +18,23 @@ from ...services.execution.data_download_runner import DataDownloadRunner
 DOWNLOAD_LOCK = asyncio.Lock()
 TERMINAL_GROUP_STATUSES = {"completed", "failed"}
 
+# ── Shared in-memory session store ────────────────────────────────────────────
+# The router and the AI pair-explorer job function share this dict so that
+# the existing poll endpoint works regardless of which code path started the job.
+SESSIONS: dict[str, dict[str, Any]] = {}
+
+
+def register_session(session: dict[str, Any]) -> None:
+    """Register a new pair-explorer session in the shared in-memory store."""
+    SESSIONS[session["session_id"]] = session
+
+
+def get_session(session_id: str) -> dict[str, Any] | None:
+    """Return the in-memory session dict, or None if not found."""
+    return SESSIONS.get(session_id)
+
+
+
 
 def sessions_dir(user_data_dir: str) -> Path:
     directory = Path(user_data_dir) / "pair_explorer_sessions"

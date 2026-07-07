@@ -105,12 +105,24 @@ class ListStrategiesArgs(BaseModel):
 
 class ReadStrategyFileArgs(BaseModel):
     """Arguments for read_strategy_file tool."""
-    strategy_name: str = Field(..., description="Strategy name without .py extension")
+    strategy_name: str = Field(
+        ...,
+        description=(
+            "Strategy identifier — accepts filename (AIStrategy.py), stem (AIStrategy), "
+            "or class name — case-insensitive."
+        ),
+    )
 
 
 class ValidateStrategySyntaxArgs(BaseModel):
     """Arguments for validate_strategy_syntax tool."""
-    strategy_name: str = Field(..., description="Strategy name without .py extension")
+    strategy_name: str = Field(
+        ...,
+        description=(
+            "Strategy identifier — accepts filename (AIStrategy.py), stem (AIStrategy), "
+            "or class name — case-insensitive."
+        ),
+    )
 
 
 class InspectAppStructureArgs(BaseModel):
@@ -205,3 +217,21 @@ class EditStrategySectionArgs(BaseModel):
     section: str = Field(..., description="Section to edit")
     changes: str = Field(..., description="New content for the section")
     reason: str = Field(..., description="Reason for the edit (for audit trail)")
+
+
+class GetPairUniverseArgs(BaseModel):
+    """Arguments for get_pair_universe tool."""
+    quote_currency: str | None = Field(
+        None,
+        description="Filter by quote currency, e.g. 'USDT' returns only */USDT pairs.",
+    )
+    exclude_pairs: list[str] | None = Field(
+        None,
+        description="Pairs to exclude from the returned universe.",
+    )
+    max_candidates: int | None = Field(
+        None,
+        ge=1,
+        le=500,
+        description="Maximum number of pairs to return.",
+    )

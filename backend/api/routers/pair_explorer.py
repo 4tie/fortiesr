@@ -29,7 +29,7 @@ router = APIRouter(prefix="/api/strategy", tags=["Pair Explorer"])
 logger = logging.getLogger(__name__)
 
 # ── in-memory session store ────────────────────────────────────────────────────
-_SESSIONS: dict[str, dict[str, Any]] = {}
+_SESSIONS = pair_explorer_api.SESSIONS
 
 # ── one download at a time across all concurrent pair tasks ───────────────────
 _DOWNLOAD_LOCK = pair_explorer_api.DOWNLOAD_LOCK
@@ -111,7 +111,7 @@ async def _run_pair_group(
     )
 
     async with semaphore:
-        session = _SESSIONS.get(session_id)
+        session = pair_explorer_api.get_session(session_id)
         if session is None:
             logger.error("[Pair Explorer] Session %s not found", session_id)
             return
@@ -452,7 +452,7 @@ async def _explore_task(
     ]
     task_results = await asyncio.gather(*tasks, return_exceptions=True)
 
-    session = _SESSIONS.get(session_id)
+    session = pair_explorer_api.get_session(session_id)
     if session:
         for chunk, task_result in zip(chunks, task_results, strict=False):
             if isinstance(task_result, Exception):

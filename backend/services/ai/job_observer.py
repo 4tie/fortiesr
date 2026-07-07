@@ -188,3 +188,93 @@ async def observe_optimizer_job(
         
         # Wait before next poll
         await asyncio.sleep(poll_interval)
+
+
+async def observe_pair_explorer_job(
+    services,
+    pe_session_id: str,
+    timeout: int = DEFAULT_OBSERVATION_TIMEOUT,
+) -> AsyncIterator[dict[str, Any]]:
+    """Observe a Pair Explorer job.
+    
+    Args:
+        services: App services container
+        pe_session_id: Internal Pair Explorer session ID
+        timeout: Maximum observation time in seconds
+    
+    Yields:
+        Progress events with pair-explorer specific data
+    """
+    from ...services.pairs import pair_explorer_service as pair_explorer_api
+
+    poll_interval = INITIAL_POLL_INTERVAL
+    start_time = datetime.now(tz=UTC)
+    
+    while True:
+        # Check timeout
+        elapsed = (datetime.now(tz=UTC) - start_time).total_seconds()
+        if elapsed > timeout:
+            yield {
+                "type": "observation_timeout",
+                "api_session_id": pe_session_id,
+                "job_type": "pair_explorer",
+                "elapsed_seconds": elapsed,
+            }
+            return
+        
+        # Get pair explorer session state
+        try:
+            # Check in-memory store first
+            session = pair_explorer_api.get_session(pe_session_id)
+            if not session:
+                # Fallback to loading from disk via load_all_sessions
+                user_data_dir = services.settings_store.load().user_data_directory_path
+                all_sessions = pair_explorer_api.load_all_sessions(user_data_dir)
+                session = all_sessions.get(pe_session_id)
+        except Exception as exc:
+            logger.error(f"Failed to get pair explorer session: {exc}")
+            yield {
+                "type": "error",
+                "api_session_id": pe_session_id,
+                "error": str(exc),
+            }
+            return
+        
+        if session is None:
+            yield {
+                "type": "error",
+                "api_session_id": pe_session_id,
+                "error": "Pair Explorer session not found",
+            }
+            return
+        
+        status = session.get("status", "unknown")
+        total = session.get("total", 0)
+        completed = session.get("completed", 0)
+        results = pair_explorer_api.session_results_list(session)
+        
+        yield {
+            "type": "pair_explorer_progress",
+            "api_session_id": pe_session_id,
+            "job_type": "pair_explorer",
+            "status": status,
+            "total_groups": total,
+            "completed_groups": completed,
+            "results": results,
+            "started_at": session.get("created_at"),
+            "completed_at": session.get("completed_at"),
+        }
+        
+        # Check if terminal
+        if status in ("completed", "failed", "cancelled"):
+            logger.info(f"Pair Explorer {pe_session_id} reached terminal phase: {status}")
+            return
+        
+        # Backoff poll interval
+        poll_interval = min(
+            poll_interval * POLL_BACKOFF_MULTIPLIER,
+            MAX_POLL_INTERVAL
+        )
+        
+        # Wait before next poll
+        await asyncio.sleep(poll_interval)
