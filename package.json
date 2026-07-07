@@ -8,7 +8,15 @@
     "test": "cd frontend && npm test",
     "lint": "cd frontend && npm run lint"
   },
-  "keywords": ["trading", "backtesting", "freqtrade", "auto-quant"],
+  "keywords": [
+    "trading",
+    "backtesting",
+    "freqtrade",
+    "auto-quant"
+  ],
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "agent-browser": "^0.31.1"
+  }
 }

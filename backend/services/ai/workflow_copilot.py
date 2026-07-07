@@ -156,7 +156,13 @@ class WorkflowCopilot:
             content = getattr(response, "content", "")
             tool_calls = self._extract_tool_calls(response)
 
-            # Add assistant message
+            # Resolve the tool_call_id assigned to each tool call so we can later
+            # attach the tool result to the exact assistant message that
+            # requested it (Ollama/OpenAI tool-call protocol invariant).
+            for idx, tc in enumerate(tool_calls):
+                tc.setdefault("tool_call_id", f"call_{step}_{idx}")
+
+            # Add assistant message (preserve tool_calls in the in-memory list)
             self.copilot_store.add_message(
                 session,
                 "assistant",
@@ -271,7 +277,9 @@ class WorkflowCopilot:
                     }
                     # Continue with other tools even if one fails
 
-                # Add tool result to messages for next model turn
+                # Add tool result to messages for next model turn.
+                # Must follow the assistant message that carried the tool call
+                # and carry the matching tool_call_id (protocol invariant).
                 messages.append({
                     "role": "tool",
                     "content": json.dumps(result.result_summary or {"error": result.error}),
@@ -518,7 +526,9 @@ class WorkflowCopilot:
                         "error": result.error,
                     }
                 
-                # Add tool result to messages for next model turn
+                # Add tool result to messages for next model turn.
+                # Must follow the assistant message that carried the tool call
+                # and carry the matching tool_call_id (protocol invariant).
                 messages.append({
                     "role": "tool",
                     "content": json.dumps(result.result_summary or {"error": result.error}),
@@ -574,7 +584,11 @@ class WorkflowCopilot:
         context_msg = f"Current application context:\n{json.dumps(context, indent=2)}"
         messages.append({"role": "system", "content": context_msg})
         
-        # Add conversation history, preserving tool_calls
+        # Add conversation history, preserving tool_calls and tool_call_id.
+        # The model/tool message protocol requires:
+        #  - assistant messages that requested tools keep their tool_calls
+        #  - tool messages keep the matching tool_call_id so the model can
+        #    associate each result with the call that produced it.
         for msg in session.get("messages", []):
             message_dict = {
                 "role": msg["role"],
@@ -583,8 +597,11 @@ class WorkflowCopilot:
             # Preserve tool_calls if present (for assistant messages with tool calls)
             if "tool_calls" in msg and msg["tool_calls"]:
                 message_dict["tool_calls"] = msg["tool_calls"]
+            # Preserve tool_call_id for tool-result messages
+            if msg.get("role") == "tool" and msg.get("tool_call_id"):
+                message_dict["tool_call_id"] = msg["tool_call_id"]
             messages.append(message_dict)
-        
+
         return messages
 
     def _get_system_prompt(self, mode: str, context: dict[str, Any]) -> str:

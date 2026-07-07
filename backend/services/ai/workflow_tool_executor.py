@@ -437,7 +437,8 @@ class WorkflowToolExecutor:
         final_status = initial_status
         final_result = {}
         run_id = None
-        
+        timed_out = False
+
         async for event in observe_job(
             session_store=self.session_store,
             api_session_id=api_session_id,
@@ -445,42 +446,54 @@ class WorkflowToolExecutor:
         ):
             if progress_callback:
                 progress_callback("tool_progress", event)
-            
+
+            if event["type"] == "observation_timeout":
+                # Backend never reached a terminal status within the window.
+                # The job is still running from the backend's perspective, so it
+                # must NOT be reported as COMPLETED.
+                timed_out = True
+                final_status = "timed_out"
+                if run_id is None and event.get("result"):
+                    final_result = event.get("result", {})
+                    if "run_id" in final_result:
+                        run_id = final_result["run_id"]
+                continue
+
             if event["type"] == "job_progress":
                 backend_status = event["status"]
                 final_result = event.get("result", {})
-                
-                # Map backend status to ToolRunStatus
+
+                # Map backend status to ToolRunStatus (never silently COMPLETED)
                 if backend_status == "completed":
-                    final_status = "completed"
+                    final_status = ToolRunStatus.COMPLETED.value
                 elif backend_status == "failed":
-                    final_status = "failed"
+                    final_status = ToolRunStatus.FAILED.value
                 elif backend_status == "cancelled":
-                    final_status = "cancelled"
+                    final_status = ToolRunStatus.CANCELLED.value
                 else:
-                    # queued, running, or timeout while still running
-                    final_status = "running"
-                
+                    # queued, running, or any non-terminal status
+                    final_status = ToolRunStatus.RUNNING.value
+
                 # Extract run_id from result when available
                 if "run_id" in final_result:
                     run_id = final_result["run_id"]
-            
+
             if event["type"] == "error":
                 return {
                     "summary": {
                         "api_session_id": api_session_id,
                         "strategy_name": args.strategy_name,
-                        "status": "failed",
+                        "status": ToolRunStatus.FAILED.value,
                         "error": event.get("error"),
                     },
                     "context_patch": {},
                 }
-        
+
         # Build context patch with real run_id if available
         context_patch = {}
         if run_id:
             context_patch["backtest_run_id"] = run_id
-        
+
         return {
             "summary": {
                 "api_session_id": api_session_id,
@@ -490,6 +503,7 @@ class WorkflowToolExecutor:
                 "timeframe": args.timeframe,
                 "timerange": args.timerange,
                 "status": final_status,
+                "timed_out": timed_out,
                 "result": final_result,
             },
             "context_patch": context_patch,
@@ -548,7 +562,8 @@ class WorkflowToolExecutor:
         # Observe optimizer to terminal status
         final_phase = initial_status
         final_metrics = {}
-        
+        timed_out = False
+
         async for event in observe_optimizer_job(
             services=self.services,
             api_session_id=api_session_id,
@@ -556,7 +571,15 @@ class WorkflowToolExecutor:
         ):
             if progress_callback:
                 progress_callback("tool_progress", event)
-            
+
+            if event["type"] == "observation_timeout":
+                # Optimizer never reached a terminal phase within the window.
+                # It is still running from the backend's perspective, so it
+                # must NOT be reported as COMPLETED.
+                timed_out = True
+                final_phase = ToolRunStatus.TIMED_OUT.value
+                continue
+
             if event["type"] == "optimizer_progress":
                 backend_phase = event["phase"]
                 final_metrics = {
@@ -567,30 +590,30 @@ class WorkflowToolExecutor:
                     "best_metrics": event["best_metrics"],
                     "stop_reason": event["stop_reason"],
                 }
-                
-                # Map optimizer phase to ToolRunStatus
+
+                # Map optimizer phase to ToolRunStatus (never silently COMPLETED)
                 if backend_phase in ("completed", "stopped"):
-                    final_phase = "completed"
+                    final_phase = ToolRunStatus.COMPLETED.value
                 elif backend_phase == "failed":
-                    final_phase = "failed"
+                    final_phase = ToolRunStatus.FAILED.value
                 elif backend_phase == "cancelled":
-                    final_phase = "cancelled"
+                    final_phase = ToolRunStatus.CANCELLED.value
                 else:
-                    # queued, running, or timeout while still running
-                    final_phase = "running"
-            
+                    # queued, running, or any non-terminal phase
+                    final_phase = ToolRunStatus.RUNNING.value
+
             if event["type"] == "error":
                 return {
                     "summary": {
                         "api_session_id": api_session_id,
                         "optimizer_session_id": optimizer_session_id,
                         "strategy_name": args.strategy_name,
-                        "status": "failed",
+                        "status": ToolRunStatus.FAILED.value,
                         "error": event.get("error"),
                     },
                     "context_patch": {},
                 }
-        
+
         return {
             "summary": {
                 "api_session_id": api_session_id,
@@ -599,6 +622,7 @@ class WorkflowToolExecutor:
                 "pairs": args.pairs,
                 "total_trials": args.total_trials,
                 "status": final_phase,
+                "timed_out": timed_out,
                 "metrics": final_metrics,
             },
             "context_patch": {
