@@ -95,12 +95,15 @@ def extract_strategy_name(message: str) -> Optional[str]:
     
     Matches patterns like:
     - "for AIStrategy.py"
+    - "for AIStrategy"
     - "strategy MyStrategy"
     - "test MyStrategy"
+    
+    Prioritizes more specific patterns (with .py or "for" keyword).
     """
     patterns = [
-        r'for\s+(\w+\.py)',  # "for AIStrategy.py"
-        r'for\s+(\w+)',  # "for AIStrategy"
+        r'for\s+(\w+\.py)',  # "for AIStrategy.py" - highest priority
+        r'for\s+([A-Z]\w+)',  # "for AIStrategy" - capital letter indicates proper noun
         r'strategy\s+(\w+)',  # "strategy MyStrategy"
         r'test\s+(\w+)',  # "test MyStrategy"
         r'(\w+\.py)',  # "AIStrategy.py"
@@ -113,6 +116,10 @@ def extract_strategy_name(message: str) -> Optional[str]:
             # Remove .py extension if present
             if name.endswith('.py'):
                 name = name[:-3]
+            # Filter out common words that aren't strategy names
+            common_words = {'a', 'the', 'for', 'with', 'and', 'or', 'but', 'in', 'on', 'at', 'to'}
+            if name.lower() in common_words:
+                continue
             return name
     
     return None
@@ -128,10 +135,11 @@ def extract_timerange(message: str) -> Optional[str]:
     - "from January to March"
     """
     patterns = [
-        r'for\s+(\d{4})',  # "for 2025"
+        r'for\s+(\d{4})\b',  # "for 2025" - word boundary to avoid partial matches
         r'for\s+(\d{8}-\d{8})',  # "for 20250101-20251231"
         r'for\s+(\w+\s+\d{4})',  # "for January 2025"
         r'last\s+(\d+)\s+(month|months|year|years)',  # "last 6 months"
+        r'\bfor\s+(\d{4})\b',  # "for 2025" at end of sentence
     ]
     
     for pattern in patterns:
@@ -185,17 +193,23 @@ def calculate_confidence(message: str, patterns: List[str]) -> float:
                 matches += 1
                 # Longer patterns are more specific = higher weight
                 total_weight += len(pattern)
+                logger.debug(f"Pattern matched: {pattern} in message: {message_lower}")
         except re.error:
             logger.warning(f"Invalid regex pattern: {pattern}")
     
     if matches == 0:
         return 0.0
     
-    # Normalize by number of patterns and average pattern length
-    base_confidence = matches / len(patterns)
-    specificity_bonus = min(total_weight / (len(patterns) * 20), 0.3)  # Max 0.3 bonus
+    # Improved confidence calculation:
+    # - Any match gives at least 0.5 base confidence
+    # - Additional matches increase confidence
+    # - Pattern specificity adds bonus
+    base_confidence = 0.5 + (matches - 1) * 0.15  # 0.5 for 1 match, up to 0.8 for 3+ matches
+    specificity_bonus = min(total_weight / (len(patterns) * 15), 0.2)  # Max 0.2 bonus
     
-    return min(base_confidence + specificity_bonus, 1.0)
+    confidence = min(base_confidence + specificity_bonus, 1.0)
+    logger.debug(f"Confidence: {confidence:.2f} (matches: {matches}/{len(patterns)})")
+    return confidence
 
 
 # ── Intent Handlers ─────────────────────────────────────────────────────────────
@@ -337,9 +351,13 @@ _INTENT_REGISTRY: Dict[str, IntentSpec] = {
             r'test\s+pairs\s+for\s+\w+',
             r'pair\s+discovery',
             r'explore\s+pairs',
+            r'find\s+pairs',
+            r'search\s+pairs',
+            r'need\s+better\s+pairs',
+            r'want\s+better\s+pairs',
         ],
-        required_slots=["strategy_name"],
-        confidence_threshold=0.7,
+        required_slots=["strategy_name", "timerange"],  # timerange is optional but we extract it
+        confidence_threshold=0.55,  # Lowered to catch "find pairs" variations
         handler=handle_pair_discovery,
     ),
     "strategy_analysis": IntentSpec(
@@ -349,9 +367,10 @@ _INTENT_REGISTRY: Dict[str, IntentSpec] = {
             r'how\s+does\s+\w+\s+work',
             r'analyze\s+strategy',
             r'what\s+does\s+\w+\s+do',
+            r'explain\s+how\s+\w+\s+works',
         ],
         required_slots=["strategy_name"],
-        confidence_threshold=0.6,
+        confidence_threshold=0.55,  # Lowered for conversational variations
         handler=handle_strategy_analysis,
     ),
     "backtest_run": IntentSpec(
@@ -362,7 +381,7 @@ _INTENT_REGISTRY: Dict[str, IntentSpec] = {
             r'test\s+\w+\s+with\s+backtest',
         ],
         required_slots=["strategy_name"],
-        confidence_threshold=0.7,
+        confidence_threshold=0.65,  # Lowered slightly
         handler=handle_backtest_run,
     ),
     "optimizer_run": IntentSpec(
@@ -372,9 +391,10 @@ _INTENT_REGISTRY: Dict[str, IntentSpec] = {
             r'find\s+best\s+parameters',
             r'hyperopt',
             r'tune\s+parameters',
+            r'optimize\s+parameters',
         ],
         required_slots=["strategy_name"],
-        confidence_threshold=0.7,
+        confidence_threshold=0.60,  # Lowered to catch "optimize X"
         handler=handle_optimizer_run,
     ),
 }
