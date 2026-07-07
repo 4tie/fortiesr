@@ -364,8 +364,23 @@ export const api = {
      * @returns {Promise<object>}
      */
     async getContext(contextOverrides = {}) {
+      const validParams = {
+        active_tab: contextOverrides.active_tab,
+        active_panel: contextOverrides.active_panel,
+        strategy_name: contextOverrides.strategy_name,
+        auto_quant_run_id: contextOverrides.auto_quant_run_id,
+        optimizer_session_id: contextOverrides.optimizer_session_id,
+        optimizer_trial_number: contextOverrides.optimizer_trial_number,
+        backtest_run_id: contextOverrides.backtest_run_id,
+        candidate_run_id: contextOverrides.candidate_run_id,
+        stress_session_id: contextOverrides.stress_session_id,
+        temporal_stress_session_id: contextOverrides.temporal_stress_session_id,
+        readiness_profile: contextOverrides.readiness_profile,
+        api_session_id: contextOverrides.api_session_id,
+      };
+      
       const query = new URLSearchParams(
-        Object.entries(contextOverrides).filter(([, v]) => v !== undefined)
+        Object.entries(validParams).filter(([, v]) => v != null)
       ).toString();
       const res = await fetch(`${API_BASE}/agent/context${query ? `?${query}` : ""}`);
       return parseJsonResponse(res, "Failed to load agent context.");
