@@ -1,20 +1,23 @@
 # FortiesR - Strategy Lab
 
-A comprehensive Freqtrade-based trading strategy discovery, validation, optimization, and export platform with a modern React frontend and Python FastAPI backend.
+A comprehensive Freqtrade-based trading strategy discovery, validation, optimization, and export platform with a modern React frontend and Python FastAPI backend. Built on top of Freqtrade, a leading cryptocurrency trading bot framework.
 
 ## Architecture
 
 ### Backend
 - **Python 3.11+** with FastAPI and uvicorn
+- **Freqtrade Integration**: Full integration with Freqtrade trading bot framework
 - **AutoQuant Pipeline**: Modular pipeline system for automated strategy discovery
 - **Services Layer**: Consolidated service architecture with clear separation of concerns
 - **API Layer**: RESTful endpoints with WebSocket support for real-time updates
+- **Strategy Management**: Dynamic strategy generation, optimization, and validation
 
 ### Frontend
 - **React 19 + Vite 8** with Tailwind CSS 4 and daisyUI 5
 - **Pure JSX** (no TypeScript) following project conventions
 - **Custom Hooks**: Modular state management with dedicated hooks for different concerns
 - **Component Architecture**: Extracted components from monolithic AutoQuantTab
+- **Real-time UI**: WebSocket integration for live pipeline updates
 
 ## Key Features
 
@@ -23,6 +26,7 @@ A comprehensive Freqtrade-based trading strategy discovery, validation, optimiza
 - 6-stage pipeline with pause/resume support
 - Real-time progress updates via WebSocket
 - Comprehensive reporting with metrics and visualizations
+- Multi-strategy comparison and analysis
 
 ### Strategy Management
 - Strategy generation with multiple templates
@@ -30,6 +34,15 @@ A comprehensive Freqtrade-based trading strategy discovery, validation, optimiza
 - Walk-forward optimization (WFO)
 - Monte Carlo stress testing
 - Robustness validation
+- Strategy parameter optimization
+- Export strategies for Freqtrade deployment
+
+### Freqtrade Integration
+- Seamless integration with Freqtrade configuration system
+- Support for Freqtrade strategy format and parameters
+- Compatible with Freqtrade backtesting and hyperopt
+- Strategy parameter management via JSON files
+- Live trading support through Freqtrade bot
 
 ### Testing Infrastructure
 - **Backend**: Unit tests, integration tests, router tests
@@ -41,7 +54,8 @@ A comprehensive Freqtrade-based trading strategy discovery, validation, optimiza
 ### Prerequisites
 - Python 3.11+
 - Node.js 18+
-- Freqtrade
+- Freqtrade (installed and configured)
+- TA-Lib (technical analysis library)
 
 ### Backend Setup
 ```bash
@@ -130,7 +144,18 @@ fortiesr/
 │   │   └── App.jsx             # Main application component
 │   ├── e2e/                    # E2E tests
 │   └── tests/                  # Frontend unit/integration tests
-└── user_data/                  # Runtime data directory
+├── docs/
+│   └── freqtrade/              # Freqtrade documentation reference
+│       ├── configuration.md    # Configuration reference
+│       ├── strategy-101.md     # Strategy development guide
+│       ├── backtesting.md      # Backtesting documentation
+│       ├── stoploss.md         # Stop loss configuration
+│       └── README.md           # Documentation overview
+├── user_data/                  # Runtime data directory
+│   ├── config.json             # Freqtrade main configuration
+│   └── strategies/             # Strategy files and parameters
+└── data/                       # Application data
+    └── strategy_lab_settings.json  # App settings
 ```
 
 ## Refactoring Summary
@@ -182,6 +207,30 @@ The frontend uses custom hooks for state management:
 ## Configuration
 
 Settings are persisted in `data/strategy_lab_settings.json` using Pydantic models for validation.
+
+### Freqtrade Configuration
+
+The main Freqtrade configuration is located in `user_data/config.json`. Strategy-specific parameters (ROI, stoploss, trailing) are managed in individual strategy JSON files in `user_data/strategies/`.
+
+## Documentation
+
+### Freqtrade Documentation Reference
+
+Comprehensive Freqtrade documentation is available in `docs/freqtrade/` for reference:
+
+- **configuration.md** - Complete configuration reference with all parameters and best practices
+- **strategy-101.md** - Strategy development quick start guide with examples
+- **backtesting.md** - Backtesting commands and result interpretation
+- **stoploss.md** - Stop loss configuration and implementation
+- **README.md** - Overview with quick reference commands
+
+This documentation serves as a reference for AI assistants and developers working on Freqtrade integration within the project.
+
+### External Resources
+
+- [Freqtrade Official Documentation](https://docs.freqtrade.io/)
+- [Freqtrade GitHub Repository](https://github.com/freqtrade/freqtrade)
+- [Freqtrade Example Strategies](https://github.com/freqtrade/freqtrade-strategies)
 
 ## Contributing
 
