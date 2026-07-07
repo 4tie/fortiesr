@@ -396,14 +396,13 @@ class WorkflowToolExecutor:
             services=self.services,
             store=self.session_store,
             strategy_name=args.strategy_name,
-            version_id=None,  # Use current version
-            timeframe=args.timeframe,
+            version_id=args.version_id,
             timerange=args.timerange,
+            timeframe=args.timeframe,
             pairs=args.pairs,
             max_open_trades=args.max_open_trades,
-            fee_rate=args.fee_rate,
-            config_file=args.config_file,
             dry_run_wallet=args.dry_run_wallet,
+            config_file=args.config_file,
         )
         
         # Add job reference to copilot session
@@ -460,13 +459,13 @@ class WorkflowToolExecutor:
             parameter_mode=args.parameter_mode,
             score_metric=args.score_metric,
             max_open_trades=args.max_open_trades,
+            dry_run_wallet=args.dry_run_wallet,
             fee_rate=args.fee_rate,
             enable_vectorbt_screening=args.enable_vectorbt_screening,
             vectorbt_candidate_count=args.vectorbt_candidate_count,
             vectorbt_keep_ratio=args.vectorbt_keep_ratio,
             vectorbt_timeout_seconds=args.vectorbt_timeout_seconds,
             config_file=args.config_file,
-            dry_run_wallet=args.dry_run_wallet,
         )
         
         # Add job reference to copilot session

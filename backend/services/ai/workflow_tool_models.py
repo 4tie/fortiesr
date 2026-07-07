@@ -133,31 +133,37 @@ class ViewTrialParamsArgs(BaseModel):
 class RunBacktestArgs(BaseModel):
     """Arguments for run_backtest tool - matches current BacktestApiRequest."""
     strategy_name: str = Field(..., description="Strategy name")
-    timeframe: str = Field(default="5m", description="Candle timeframe")
+    version_id: str | None = Field(None, description="Specific version ID to run")
     timerange: str = Field(..., description="Date range (e.g., '20230101-20240101')")
-    pairs: list[str] = Field(..., description="List of pairs to backtest")
-    max_open_trades: int = Field(default=1, description="Maximum open trades")
-    fee_rate: float = Field(default=0.001, description="Trading fee rate")
+    timeframe: str | None = Field(None, description="Candle timeframe")
+    pairs: list[str] | None = Field(None, description="List of pairs to backtest")
+    max_open_trades: int = Field(default=1, ge=1, description="Maximum open trades")
+    dry_run_wallet: float = Field(default=1000.0, gt=0, description="Dry run wallet amount")
     config_file: str | None = Field(None, description="Optional config file override")
-    dry_run_wallet: float = Field(default=1000.0, description="Dry run wallet amount")
 
 
 class RunOptimizerArgs(BaseModel):
     """Arguments for run_optimizer tool - matches current OptimizerApiRequest."""
-    strategy_name: str = Field(..., description="Strategy name")
-    timeframe: str = Field(default="5m", description="Candle timeframe")
-    timerange: str = Field(..., description="Date range")
-    pairs: list[str] = Field(..., description="List of pairs")
-    search_spaces: list[dict[str, Any]] = Field(..., description="Parameter search spaces")
-    total_trials: int = Field(default=100, description="Total optimization trials")
-    search_strategy: str = Field(default="random", description="Search strategy")
-    parameter_mode: str = Field(default="default", description="Parameter mode")
-    score_metric: str = Field(default="sharpe", description="Score metric")
-    max_open_trades: int = Field(default=1, description="Maximum open trades")
-    fee_rate: float = Field(default=0.001, description="Trading fee rate")
-    enable_vectorbt_screening: bool = Field(default=False, description="Enable VectorBT screening")
-    config_file: str | None = Field(None, description="Optional config file override")
-    dry_run_wallet: float = Field(default=1000.0, description="Dry run wallet amount")
+    strategy_name: str = Field(..., description="Strategy class name to optimize")
+    timerange: str = Field(..., description="Date range YYYYMMDD-YYYYMMDD")
+    timeframe: str = Field(default="1h", description="Candle size, e.g. '1h'")
+    pairs: list[str] = Field(default_factory=list, description="Trading pairs")
+    config_file: str | None = Field(default=None, description="Path to Freqtrade config")
+    total_trials: int = Field(default=50, ge=1, le=500, description="Number of parameter-search trials")
+    search_strategy: str = Field(default="random", description="random | grid | bayesian | evolutionary")
+    parameter_mode: str = Field(default="auto_safe", description="manual | auto_safe")
+    score_metric: str = Field(default="composite", description="Metric used to rank trials")
+    max_open_trades: int = Field(default=1, ge=1)
+    dry_run_wallet: float = Field(default=1000.0, gt=0)
+    fee_rate: float = Field(default=0.001, ge=0)
+    enable_vectorbt_screening: bool = Field(default=True, description="Run fast VectorBT pre-screening before Freqtrade trials")
+    vectorbt_candidate_count: int = Field(default=1000, ge=1, le=100000, description="Maximum VectorBT candidates to evaluate")
+    vectorbt_keep_ratio: float = Field(default=0.10, gt=0, le=1, description="Fraction of VectorBT candidates to keep")
+    vectorbt_timeout_seconds: int = Field(default=120, ge=1, le=3600, description="Maximum VectorBT screening time")
+    search_spaces: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="Parameter search spaces from the frontend parameters table",
+    )
 
 
 class RunPairExplorerArgs(BaseModel):

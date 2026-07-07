@@ -25,6 +25,7 @@ Key invariants:
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from datetime import UTC, datetime
 from pathlib import Path
@@ -325,6 +326,195 @@ class WorkflowCopilot:
         self.copilot_store.save_session(session)
         
         return result.model_dump()
+
+    async def resume_after_confirmation(
+        self,
+        session_id: str,
+        action_id: str,
+        stream: bool = False,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Resume orchestration after tool confirmation.
+        
+        This method:
+        1. Confirms and executes the pending action
+        2. Adds the tool result to the conversation
+        3. Continues the model-tool-result loop
+        
+        Yields events for streaming.
+        """
+        # Confirm and execute
+        result = await self.confirm_action(session_id, action_id)
+        
+        yield {"type": "tool_result", "result": result}
+        
+        # Load session
+        session = self.copilot_store.load_session(session_id)
+        
+        # Get the tool that was just executed
+        tool_run = session.get("tool_runs", [])[-1] if session.get("tool_runs") else None
+        if not tool_run:
+            yield {"type": "error", "message": "Tool run record not found"}
+            return
+        
+        # Build context and continue reasoning
+        context = await self._build_context(session, session.get("mode", "analysis"))
+        messages = self._build_messages(session, context, session.get("mode", "analysis"))
+        
+        # Add tool result message for the model
+        messages.append({
+            "role": "tool",
+            "content": json.dumps(result.get("result_summary") or {"error": result.get("error")}),
+            "tool_call_id": tool_run.get("tool_call_id"),
+        })
+        
+        # Continue orchestration loop
+        step = 0
+        seen_hashes: set[str] = set()
+        
+        while step < MAX_ORCHESTRATION_STEPS:
+            step += 1
+            logger.info(f"Resume orchestration step {step}/{MAX_ORCHESTRATION_STEPS}")
+            
+            yield {"type": "status", "message": f"Thinking (step {step})..."}
+            
+            try:
+                model = session.get("model") or "llama3"
+                tools = get_model_tools(session.get("mode", "analysis"))
+                response = await self.ollama_client.chat(
+                    messages=messages,
+                    tools=tools,
+                    model=model,
+                )
+            except Exception as exc:
+                logger.error(f"Model call failed: {exc}")
+                yield {"type": "error", "message": f"Model call failed: {exc}"}
+                return
+            
+            # Extract content and tool calls
+            content = getattr(response, "content", "")
+            tool_calls = self._extract_tool_calls(response)
+            
+            # Add assistant message
+            self.copilot_store.add_message(
+                session,
+                "assistant",
+                content,
+                tool_calls=tool_calls,
+            )
+            self.copilot_store.save_session(session)
+            
+            # Yield content
+            if content:
+                yield {"type": "message", "content": content}
+            
+            # If no tool calls, we're done
+            if not tool_calls:
+                yield {"type": "final", "content": content}
+                return
+            
+            # Process tool calls
+            for tool_call_data in tool_calls:
+                tool_name = tool_call_data.get("name")
+                arguments = tool_call_data.get("arguments", {})
+                
+                # Validate tool
+                is_valid, error_msg, validated = validate_tool_arguments(tool_name, arguments)
+                if not is_valid:
+                    logger.warning(f"Invalid tool call: {error_msg}")
+                    yield {"type": "error", "message": error_msg}
+                    continue
+                
+                # Check for duplicate
+                tool_hash = calculate_arguments_hash(tool_name, arguments)
+                if tool_hash in seen_hashes:
+                    logger.warning(f"Duplicate tool call detected: {tool_name}")
+                    yield {"type": "error", "message": f"Duplicate tool call: {tool_name}"}
+                    continue
+                seen_hashes.add(tool_hash)
+                
+                # Check safety
+                safety = get_tool_safety(tool_name)
+                if safety == ToolSafety.FORBIDDEN:
+                    yield {"type": "error", "message": f"Tool '{tool_name}' is forbidden"}
+                    continue
+                
+                # Create workflow tool call
+                workflow_call = WorkflowToolCall(
+                    tool_name=tool_name,
+                    arguments=arguments,
+                    safety=safety,
+                )
+                
+                # If confirmation required, pause again
+                if safety == ToolSafety.CONFIRMATION_REQUIRED:
+                    pending_action = PendingToolAction(
+                        session_id=session_id,
+                        tool_name=tool_name,
+                        arguments=arguments,
+                        arguments_hash=tool_hash,
+                        safety=safety,
+                    )
+                    self.copilot_store.add_pending_action(session, pending_action.model_dump())
+                    self.copilot_store.save_session(session)
+                    
+                    yield {
+                        "type": "tool_confirmation_required",
+                        "action_id": pending_action.action_id,
+                        "tool_name": tool_name,
+                        "arguments": arguments,
+                    }
+                    return  # Pause again for user confirmation
+                
+                # Execute read-only tools immediately
+                yield {"type": "tool_started", "tool_name": tool_name}
+                
+                result = await self.executor.execute(
+                    tool_call=workflow_call,
+                    copilot_session_id=session_id,
+                    confirmed=False,
+                )
+                
+                # Record tool run
+                tool_run = ToolRunRecord(
+                    tool_call_id=workflow_call.tool_call_id,
+                    tool_name=tool_name,
+                    arguments=arguments,
+                    safety=safety,
+                    status=result.status,
+                    started_at=result.started_at,
+                    completed_at=result.completed_at,
+                    result_summary=result.result_summary,
+                    error=result.error,
+                )
+                self.copilot_store.add_tool_run(session, tool_run.model_dump())
+                self.copilot_store.save_session(session)
+                
+                # Yield result
+                if result.status == ToolRunStatus.COMPLETED:
+                    yield {
+                        "type": "tool_result",
+                        "tool_name": tool_name,
+                        "result": result.result_summary,
+                    }
+                else:
+                    yield {
+                        "type": "tool_failed",
+                        "tool_name": tool_name,
+                        "error": result.error,
+                    }
+                
+                # Add tool result to messages for next model turn
+                messages.append({
+                    "role": "tool",
+                    "content": json.dumps(result.result_summary or {"error": result.error}),
+                    "tool_call_id": workflow_call.tool_call_id,
+                })
+        
+        # Max steps reached
+        yield {
+            "type": "error",
+            "message": f"Reached maximum orchestration steps ({MAX_ORCHESTRATION_STEPS})",
+        }
 
     async def _build_context(self, session: dict[str, Any], mode: str) -> dict[str, Any]:
         """Build bounded context from app state."""

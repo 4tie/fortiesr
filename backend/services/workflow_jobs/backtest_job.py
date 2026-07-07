@@ -23,14 +23,13 @@ async def start_backtest_job(
     services,
     store: SessionStore,
     strategy_name: str,
-    version_id: str | None,
-    timeframe: str,
-    timerange: str,
-    pairs: list[str],
+    version_id: str | None = None,
+    timerange: str = "",
+    timeframe: str | None = None,
+    pairs: list[str] | None = None,
     max_open_trades: int = 1,
-    fee_rate: float = 0.001,
-    config_file: str | None = None,
     dry_run_wallet: float = 1000.0,
+    config_file: str | None = None,
 ) -> tuple[str, str]:
     """Start a backtest job and return (session_id, status).
     
@@ -99,6 +98,9 @@ async def start_backtest_job(
             f"Strategy pre-flight validation failed: {preflight_errors}"
         )
 
+    # Handle optional pairs - if None, will use strategy default
+    resolved_pairs = pairs if pairs is not None else []
+
     # Create session
     record = store.create("backtest")
     
@@ -113,9 +115,8 @@ async def start_backtest_job(
             strategy_name,
             timeframe,
             timerange,
-            pairs,
+            resolved_pairs,
             max_open_trades,
-            fee_rate,
             config_file or settings.default_config_file_path,
             dry_run_wallet,
         )
@@ -131,11 +132,10 @@ async def _run_backtest_task(
     strategy,
     version_id: str,
     strategy_name: str,
-    timeframe: str,
+    timeframe: str | None,
     timerange: str,
     pairs: list[str],
     max_open_trades: int,
-    fee_rate: float,
     config_file: str,
     dry_run_wallet: float,
 ) -> None:

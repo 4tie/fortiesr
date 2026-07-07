@@ -154,15 +154,6 @@ _TOOL_REGISTRY: dict[str, ToolSpec] = {
         long_running=False,
     ),
     # CONFIRMATION REQUIRED
-    "run_pair_explorer": ToolSpec(
-        name="run_pair_explorer",
-        description="Run Pair Explorer to test a strategy across a broad pair universe. Tests multiple pairs and returns performance metrics for each pair including net profit, profit factor, drawdown, trade count, expectancy, and win rate.",
-        argument_model=RunPairExplorerArgs,
-        safety=ToolSafety.CONFIRMATION_REQUIRED,
-        exposed_to_model=True,
-        long_running=True,
-        handler_name="run_pair_explorer",
-    ),
     "run_backtest": ToolSpec(
         name="run_backtest",
         description="Run a backtest for a strategy with specified parameters. Returns detailed metrics including profit, drawdown, trade count, win rate, and other performance indicators.",
@@ -181,12 +172,22 @@ _TOOL_REGISTRY: dict[str, ToolSpec] = {
         long_running=True,
         handler_name="run_optimizer",
     ),
+    # HIDDEN - Not yet implemented
+    "run_pair_explorer": ToolSpec(
+        name="run_pair_explorer",
+        description="Run Pair Explorer to test a strategy across a broad pair universe. Tests multiple pairs and returns performance metrics for each pair including net profit, profit factor, drawdown, trade count, expectancy, and win rate.",
+        argument_model=RunPairExplorerArgs,
+        safety=ToolSafety.CONFIRMATION_REQUIRED,
+        exposed_to_model=False,  # Hidden until implemented
+        long_running=True,
+        handler_name="run_pair_explorer",
+    ),
     "run_pair_stress_lab": ToolSpec(
         name="run_pair_stress_lab",
         description="Run Pair Stress Lab to test strategy robustness across random pair sets.",
         argument_model=RunPairStressLabArgs,
         safety=ToolSafety.CONFIRMATION_REQUIRED,
-        exposed_to_model=True,
+        exposed_to_model=False,  # Hidden until implemented
         long_running=True,
         handler_name="run_pair_stress_lab",
     ),
@@ -195,7 +196,7 @@ _TOOL_REGISTRY: dict[str, ToolSpec] = {
         description="Run Temporal Stress Test Lab including Time Split (out-of-sample validation), Monte Carlo simulation, and crash gauntlet tests.",
         argument_model=RunTemporalStressTestArgs,
         safety=ToolSafety.CONFIRMATION_REQUIRED,
-        exposed_to_model=True,
+        exposed_to_model=False,  # Hidden until implemented
         long_running=True,
         handler_name="run_temporal_stress_test",
     ),
@@ -204,7 +205,7 @@ _TOOL_REGISTRY: dict[str, ToolSpec] = {
         description="Edit a specific section of a strategy file (buy rules, sell rules, indicators, etc.). Creates a versioned snapshot before editing, validates syntax, and allows rollback. Use this to modify existing strategies rather than creating entirely new files.",
         argument_model=EditStrategySectionArgs,
         safety=ToolSafety.CONFIRMATION_REQUIRED,
-        exposed_to_model=True,
+        exposed_to_model=False,  # Hidden until implemented
         long_running=False,
         handler_name="edit_strategy_section",
     ),

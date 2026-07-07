@@ -677,71 +677,69 @@ class ChartGenerationRequest(BaseModel):
 @router.post(
     "/autoquant",
     summary="Chat with AutoQuant AI agent",
-    description="Send a message to the AutoQuant AI agent which will use Ollama to execute the full 8-step AutoQuant workflow with tool calling capabilities.",
+    description="Send a message to the AutoQuant AI agent which will use Ollama to execute the full 8-step AutoQuant workflow with tool calling capabilities. Now delegates to the unified WorkflowCopilot.",
 )
 async def autoquant_chat(body: AutoQuantRequest, request: Request) -> dict:
-    """Chat with AutoQuant AI agent using Ollama model with tool calling capabilities."""
-    # Import the AI agent tools
-    from .ai_agent import SYSTEM_PROMPT as AUTOQUANT_SYSTEM_PROMPT, TOOLS
-    from ...services.ai import get_ai_service
-    from ...services.auto_quant.assistant_prompt import build_autoquant_prompt_messages
+    """Chat with AutoQuant AI agent - delegates to unified WorkflowCopilot.
     
-    services = request.app.state.services
-    settings = services.settings_store.load()
+    This is a compatibility adapter that forwards requests to the new
+    WorkflowCopilot in autoquant mode while maintaining the legacy response format.
+    """
+    copilot = _workflow_copilot(request)
     
-    # Create or get session
+    # Use existing session or create new one
     session_id = body.session_id or str(uuid.uuid4())
     
     try:
-        # Get AI service instance
-        ai_service = await get_ai_service(settings.user_data_directory_path)
-        
-        # Build context-aware prompt messages using AutoQuant context builder
-        agent_context = getattr(request.app.state, "agent_context", {})
-        context_overrides = body.context_overrides or {}
-        
-        messages = build_autoquant_prompt_messages(
-            user_message=body.message,
-            agent_context=agent_context,
-            history=context_overrides.get("history"),
-            user_profile=context_overrides.get("user_profile"),
-        )
-        
-        # Prepare tools for function calling
-        tools = TOOLS
-        
-        # Call Ollama with tools using centralized service
-        response = await ai_service.chat_with_tools(
-            messages=messages,
-            tools=tools,
-            model=body.model or settings.ollama_model
-        )
-        
-        # Extract tool calls if any
+        # Process turn through copilot (non-streaming for compatibility)
+        events = []
         tool_calls = []
-        if hasattr(response, 'tool_calls') and response.tool_calls:
-            tool_calls = list(response.tool_calls)
+        final_response = ""
+        
+        async for event in copilot.process_turn(
+            session_id=session_id,
+            user_message=body.message,
+            model=body.model,
+            mode="autoquant",
+            stream=False,
+            context_overrides=body.context_overrides,
+        ):
+            events.append(event)
+            
+            if event["type"] == "message":
+                final_response += event.get("content", "")
+            elif event["type"] == "tool_confirmation_required":
+                # For compatibility, extract tool calls from confirmation event
+                tool_calls.append({
+                    "name": event["tool_name"],
+                    "arguments": event["arguments"],
+                    "action_id": event["action_id"],
+                })
+            elif event["type"] == "tool_result":
+                # Add tool result to response for compatibility
+                final_response += f"\n\nTool '{event['tool_name']}' completed."
         
         return {
-            "response": response.content if hasattr(response, 'content') else str(response),
+            "response": final_response or "No response generated.",
             "session_id": session_id,
             "tool_calls": tool_calls,
-            "model": body.model or settings.ollama_model
+            "model": body.model or request.app.state.services.settings_store.load().ollama_model,
         }
+        
     except RuntimeError as e:
+        # If copilot cannot be created
         return {
             "response": f"Ollama is not configured or unavailable: {str(e)}",
             "session_id": session_id,
             "tool_calls": [],
-            "model": body.model or settings.ollama_model,
             "error": "Ollama not configured"
         }
     except Exception as e:
+        # If copilot fails, return a simple response
         return {
-            "response": f"AutoQuant AI agent chat failed: {str(e)}",
+            "response": f"AutoQuant AI agent chat failed: {str(e)}. Please ensure Ollama is configured and running.",
             "session_id": session_id,
             "tool_calls": [],
-            "model": body.model or settings.ollama_model,
             "error": str(e)
         }
 

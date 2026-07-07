@@ -40,21 +40,21 @@ async def start_optimizer_job(
     store: SessionStore,
     strategy_name: str,
     timerange: str,
-    timeframe: str,
-    pairs: list[str],
-    search_spaces: list[dict[str, any]],
-    total_trials: int = 100,
+    timeframe: str = "1h",
+    pairs: list[str] | None = None,
+    search_spaces: list[dict[str, any]] | None = None,
+    total_trials: int = 50,
     search_strategy: str = "random",
-    parameter_mode: str = "default",
-    score_metric: str = "sharpe",
+    parameter_mode: str = "auto_safe",
+    score_metric: str = "composite",
     max_open_trades: int = 1,
-    fee_rate: float = 0.001,
-    enable_vectorbt_screening: bool = False,
-    vectorbt_candidate_count: int = 10,
-    vectorbt_keep_ratio: float = 0.3,
-    vectorbt_timeout_seconds: int = 300,
-    config_file: str | None = None,
     dry_run_wallet: float = 1000.0,
+    fee_rate: float = 0.001,
+    enable_vectorbt_screening: bool = True,
+    vectorbt_candidate_count: int = 1000,
+    vectorbt_keep_ratio: float = 0.10,
+    vectorbt_timeout_seconds: int = 120,
+    config_file: str | None = None,
 ) -> tuple[str, str, str]:
     """Start an optimizer job and return (api_session_id, optimizer_session_id, status).
     
@@ -103,8 +103,9 @@ async def start_optimizer_job(
     except BackendError as exc:
         raise BackendError(f"Strategy not found: {strategy_name}", status_code=404) from exc
 
-    # Validate pairs
-    if not pairs:
+    # Validate pairs (optional in API, but required for AI tool)
+    resolved_pairs = pairs if pairs is not None else []
+    if not resolved_pairs:
         raise ValueError("At least one trading pair is required.")
 
     # Check for accepted version
@@ -123,10 +124,11 @@ async def start_optimizer_job(
         settings = services.settings_store.load()
         resolved_config_file = config_file or settings.default_config_file_path
 
-        # Parse search spaces
+        # Parse search spaces (optional in API, but required for AI tool)
+        resolved_search_spaces = search_spaces if search_spaces is not None else []
         parsed_spaces = []
         invalid_spaces: list[str] = []
-        for idx, raw in enumerate(search_spaces, start=1):
+        for idx, raw in enumerate(resolved_search_spaces, start=1):
             try:
                 parsed_spaces.append(ParameterSearchSpace.model_validate(raw))
             except Exception as exc:
