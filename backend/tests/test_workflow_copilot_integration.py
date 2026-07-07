@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -44,6 +45,46 @@ class DummyRouterOllamaClient:
 
     async def close(self):
         return None
+
+
+class SharedScriptedRouterOllamaClient:
+    responses: list[dict] = []
+    calls: list[dict] = []
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    async def chat(self, **kwargs):
+        self.__class__.calls.append(kwargs)
+        if not self.__class__.responses:
+            return OllamaChatResponse(content="No scripted response.", tool_calls=[])
+        response = self.__class__.responses.pop(0)
+        return OllamaChatResponse(
+            content=response.get("content", ""),
+            tool_calls=response.get("tool_calls", []),
+        )
+
+    async def close(self):
+        return None
+
+
+def _parse_sse(text: str) -> list[dict]:
+    events = []
+    for block in text.split("\n\n"):
+        if not block.strip():
+            continue
+        event_name = None
+        data_lines = []
+        for line in block.splitlines():
+            if line.startswith("event:"):
+                event_name = line.split(":", 1)[1].strip()
+            elif line.startswith("data:"):
+                data_lines.append(line.split(":", 1)[1].strip())
+        payload = json.loads("\n".join(data_lines)) if data_lines else {}
+        if event_name and "type" not in payload:
+            payload["type"] = event_name
+        events.append(payload)
+    return events
 
 
 def _make_services(tmp_path: Path):
@@ -118,6 +159,16 @@ def _make_copilot(tmp_path: Path, ollama_client: RecordingOllamaClient) -> Workf
         ollama_client=ollama_client,
         root_dir=tmp_path,
     )
+
+
+def test_remove_pending_action_return_value_reflects_removal(tmp_path):
+    store = CopilotSessionStore(tmp_path / "user_data")
+    session = store.create_session(model="llama3")
+    session["pending_actions"] = [{"action_id": "action-1"}, {"action_id": "action-2"}]
+
+    assert store.remove_pending_action(session, "action-1") is True
+    assert [action["action_id"] for action in session["pending_actions"]] == ["action-2"]
+    assert store.remove_pending_action(session, "missing") is False
 
 
 @pytest.mark.asyncio
@@ -314,3 +365,120 @@ def test_autoquant_endpoint_delegates_to_workflow_copilot_via_fastapi(tmp_path):
     assert body["response"] == "AutoQuant copilot response."
     assert body["session_id"]
     assert body["tool_calls"] == []
+
+
+@pytest.mark.parametrize(
+    ("terminal_status", "expected_terminal_event", "final_text"),
+    [
+        ("completed", "tool_result", "Backtest finished successfully."),
+        ("failed", "tool_failed", "Backtest failed and needs attention."),
+        ("timed_out", "tool_timed_out", "Backtest is still running after timeout."),
+    ],
+)
+def test_public_assistant_confirmation_lifecycle_streams_progress_and_resumes_model(
+    tmp_path,
+    terminal_status,
+    expected_terminal_event,
+    final_text,
+):
+    services, _, _ = _make_services(tmp_path)
+    app = FastAPI()
+    app.include_router(router)
+    app.state.services = services
+    app.state.session_store = SessionStore(tmp_path / "api_sessions.json")
+    app.state.log_broadcaster = MagicMock(history=[])
+
+    SharedScriptedRouterOllamaClient.calls = []
+    SharedScriptedRouterOllamaClient.responses = [
+        {
+            "content": "I need to run a guarded backtest.",
+            "tool_calls": [
+                {
+                    "id": "call-public-backtest",
+                    "name": "run_backtest",
+                    "arguments": {
+                        "strategy_name": "DemoStrategy",
+                        "timerange": "20240101-20240131",
+                    },
+                }
+            ],
+        },
+        {"content": final_text, "tool_calls": []},
+    ]
+
+    async def fake_start_backtest_job(**kwargs):
+        return "api-public-123", "queued"
+
+    async def fake_observe_job(**kwargs):
+        yield {
+            "type": "job_progress",
+            "status": "queued",
+            "result": {"message": "queued"},
+        }
+        yield {
+            "type": "job_progress",
+            "status": "running",
+            "result": {"message": "running"},
+        }
+        if terminal_status == "timed_out":
+            yield {
+                "type": "observation_timeout",
+                "api_session_id": "api-public-123",
+                "job_type": "backtest",
+                "elapsed_seconds": 300,
+            }
+            return
+        yield {
+            "type": "job_progress",
+            "status": terminal_status,
+            "result": {
+                "run_id": "bt-public-123",
+                "net_profit_pct": 7.5,
+                "error": "freqtrade failed" if terminal_status == "failed" else None,
+            },
+        }
+
+    with patch("backend.api.routers.ai_assistant.OllamaClient", SharedScriptedRouterOllamaClient):
+        with patch("backend.services.workflow_jobs.start_backtest_job", fake_start_backtest_job):
+            with patch("backend.services.ai.job_observer.observe_job", fake_observe_job):
+                client = TestClient(app)
+                chat_response = client.post(
+                    "/api/ai/chat/stream",
+                    json={"message": "Run a backtest for DemoStrategy."},
+                )
+                chat_events = _parse_sse(chat_response.text)
+                confirmation_event = next(
+                    event for event in chat_events
+                    if event.get("type") == "tool_confirmation_required"
+                )
+                session_id = next(event["session_id"] for event in chat_events if event.get("type") == "meta")
+
+                confirm_response = client.post(
+                    "/api/ai/actions/confirm",
+                    json={
+                        "action_type": confirmation_event["confirmation_action_type"],
+                        "session_id": session_id,
+                        "payload": confirmation_event["confirmation_payload"],
+                    },
+                )
+
+    confirm_events = _parse_sse(confirm_response.text)
+    event_types = [event.get("type") for event in confirm_events]
+
+    assert confirmation_event["confirmation_endpoint"] == "/api/ai/actions/confirm"
+    assert "tool_started" in event_types
+    assert "job_active" in event_types
+    assert expected_terminal_event in event_types
+    assert confirm_events[-1] == {"type": "final", "content": final_text}
+
+    assert len(SharedScriptedRouterOllamaClient.calls) == 2
+    second_messages = SharedScriptedRouterOllamaClient.calls[1]["messages"]
+    tool_message = next(message for message in second_messages if message.get("role") == "tool")
+    assistant_message = next(
+        message for message in second_messages
+        if message.get("role") == "assistant" and message.get("tool_calls")
+    )
+
+    assert assistant_message["tool_calls"][0]["tool_call_id"] == "call-public-backtest"
+    assert tool_message["tool_call_id"] == "call-public-backtest"
+    assert terminal_status in tool_message["content"]

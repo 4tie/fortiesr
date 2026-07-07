@@ -118,7 +118,7 @@ class CopilotSessionStore:
         pending = session.get("pending_actions", [])
         original_len = len(pending)
         session["pending_actions"] = [a for a in pending if a.get("action_id") != action_id]
-        return len(pending) > original_len
+        return len(session["pending_actions"]) < original_len
 
     def get_pending_action(self, session: dict[str, Any], action_id: str) -> dict[str, Any] | None:
         """Get a pending action by ID."""

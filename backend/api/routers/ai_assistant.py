@@ -355,6 +355,48 @@ def _persist_copilot_context_summary(
     copilot.copilot_store.save_session(session)
 
 
+COPILOT_CONFIRM_ACTION_TYPES = {
+    "confirm_tool_action",
+    "confirm_copilot_tool_action",
+    "confirm_workflow_tool_action",
+}
+
+
+def _is_copilot_confirmation(body: ConfirmActionRequest) -> bool:
+    return body.action_type in COPILOT_CONFIRM_ACTION_TYPES
+
+
+def _copilot_confirmation_ids(body: ConfirmActionRequest) -> tuple[str, str]:
+    session_id = body.session_id or body.payload.get("session_id")
+    action_id = body.payload.get("action_id")
+    if not session_id:
+        raise BackendError("session_id is required for copilot tool confirmation.", status_code=422)
+    if not action_id:
+        raise BackendError("payload.action_id is required for copilot tool confirmation.", status_code=422)
+    return str(session_id), str(action_id)
+
+
+def _copilot_confirmation_stream(
+    body: ConfirmActionRequest,
+    request: Request,
+) -> StreamingResponse:
+    session_id, action_id = _copilot_confirmation_ids(body)
+    copilot = _workflow_copilot(request)
+
+    async def event_stream():
+        try:
+            async for event in copilot.resume_after_confirmation(
+                session_id=session_id,
+                action_id=action_id,
+                stream=True,
+            ):
+                yield _sse(str(event.get("type") or "copilot_event"), event)
+        except Exception as exc:
+            yield _sse("error", {"type": "error", "message": str(exc)})
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
 # ── chat assistant endpoints ──────────────────────────────────────────────────
 
 @router.post(
@@ -508,9 +550,12 @@ async def get_chat_session(session_id: str, request: Request) -> dict:
         "Executes only allowlisted assistant actions. Guarded actions require "
         "confirmation_token='CONFIRM'. Destructive actions are rejected in MVP."
     ),
+    response_model=None,
 )
-async def confirm_action(body: ConfirmActionRequest, request: Request) -> dict:
+async def confirm_action(body: ConfirmActionRequest, request: Request):
     try:
+        if _is_copilot_confirmation(body):
+            return _copilot_confirmation_stream(body, request)
         return _assistant_service(request).confirm_action(
             action_type=body.action_type,
             payload=body.payload,
@@ -644,20 +689,14 @@ async def copilot_chat_stream(body: CopilotChatRequest, request: Request) -> Str
 )
 async def copilot_confirm_action(body: ConfirmToolActionRequest, request: Request) -> StreamingResponse:
     """Confirm and execute a pending tool action, then resume orchestration."""
-    copilot = _workflow_copilot(request)
-    
-    async def event_stream():
-        try:
-            async for event in copilot.resume_after_confirmation(
-                session_id=body.session_id,
-                action_id=body.action_id,
-                stream=True,
-            ):
-                yield f"data: {json.dumps(event)}\n\n"
-        except Exception as exc:
-            yield f"data: {json.dumps({'type': 'error', 'message': str(exc)})}\n\n"
-    
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
+    return _copilot_confirmation_stream(
+        ConfirmActionRequest(
+            action_type="confirm_tool_action",
+            session_id=body.session_id,
+            payload={"action_id": body.action_id},
+        ),
+        request,
+    )
 
 
 @router.get(

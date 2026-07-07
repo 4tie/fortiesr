@@ -244,6 +244,9 @@ class WorkflowCopilot:
                         "action_id": pending_action.action_id,
                         "tool_name": tool_name,
                         "arguments": arguments,
+                        "confirmation_endpoint": "/api/ai/actions/confirm",
+                        "confirmation_action_type": "confirm_tool_action",
+                        "confirmation_payload": {"action_id": pending_action.action_id},
                     }
                     return  # Pause for user confirmation
 
@@ -319,16 +322,24 @@ class WorkflowCopilot:
         
         Returns the tool execution result.
         """
+        result, _tool_run = await self._execute_pending_action(session_id, action_id)
+        return result.model_dump()
+
+    async def _execute_pending_action(
+        self,
+        session_id: str,
+        action_id: str,
+        progress_callback=None,
+    ):
         session = self.copilot_store.load_session(session_id)
         pending = self.copilot_store.get_pending_action(session, action_id)
-        
+
         if pending is None:
             raise ValueError(f"Pending action not found: {action_id}")
-        
-        # Remove from pending
+
         self.copilot_store.remove_pending_action(session, action_id)
-        
-        # Execute
+        self.copilot_store.save_session(session)
+
         workflow_call_kwargs = {
             "tool_name": pending["tool_name"],
             "arguments": pending["arguments"],
@@ -337,14 +348,16 @@ class WorkflowCopilot:
         if pending.get("tool_call_id"):
             workflow_call_kwargs["tool_call_id"] = pending["tool_call_id"]
         workflow_call = WorkflowToolCall(**workflow_call_kwargs)
-        
+
         result = await self.executor.execute(
             tool_call=workflow_call,
             copilot_session_id=session_id,
             confirmed=True,
+            progress_callback=progress_callback,
         )
-        
-        # Record tool run
+
+        latest_session = self.copilot_store.load_session(session_id)
+        self.copilot_store.remove_pending_action(latest_session, action_id)
         tool_run = ToolRunRecord(
             tool_call_id=workflow_call.tool_call_id,
             tool_name=pending["tool_name"],
@@ -356,10 +369,11 @@ class WorkflowCopilot:
             result_summary=result.result_summary,
             error=result.error,
         )
-        self.copilot_store.add_tool_run(session, tool_run.model_dump())
-        self.copilot_store.save_session(session)
-        
-        return result.model_dump()
+        dumped_tool_run = tool_run.model_dump()
+        self.copilot_store.add_tool_run(latest_session, dumped_tool_run)
+        self.copilot_store.save_session(latest_session)
+
+        return result, dumped_tool_run
 
     async def resume_after_confirmation(
         self,
@@ -376,28 +390,62 @@ class WorkflowCopilot:
         
         Yields events for streaming.
         """
-        # Confirm and execute
-        result = await self.confirm_action(session_id, action_id)
-        
-        yield {"type": "tool_result", "result": result}
-        
-        # Load session
         session = self.copilot_store.load_session(session_id)
-        
-        # Get the tool that was just executed
-        tool_run = session.get("tool_runs", [])[-1] if session.get("tool_runs") else None
-        if not tool_run:
-            yield {"type": "error", "message": "Tool run record not found"}
+        pending = self.copilot_store.get_pending_action(session, action_id)
+        if pending is None:
+            yield {"type": "error", "message": f"Pending action not found: {action_id}"}
             return
+
+        tool_name = pending["tool_name"]
+        progress_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+
+        def progress_callback(kind: str, data: dict[str, Any]) -> None:
+            event = self._progress_event_from_callback(tool_name, kind, data)
+            if event is not None:
+                progress_queue.put_nowait(event)
+
+        yield {
+            "type": "tool_started",
+            "tool_name": tool_name,
+            "action_id": action_id,
+        }
+
+        execution_task = asyncio.create_task(
+            self._execute_pending_action(
+                session_id,
+                action_id,
+                progress_callback=progress_callback,
+            )
+        )
+
+        while not execution_task.done():
+            try:
+                yield await asyncio.wait_for(progress_queue.get(), timeout=0.1)
+            except asyncio.TimeoutError:
+                continue
+
+        try:
+            result, tool_run = await execution_task
+        except Exception as exc:
+            yield {"type": "tool_failed", "tool_name": tool_name, "error": str(exc)}
+            return
+
+        while not progress_queue.empty():
+            yield progress_queue.get_nowait()
+
+        yield self._terminal_event_for_result(result)
+
+        session = self.copilot_store.load_session(session_id)
         
         # Build context and continue reasoning
         context = self._build_context(session, session.get("mode", "analysis"))
         messages = self._build_messages(session, context, session.get("mode", "analysis"))
         
         # Add tool result message for the model and persist to session
+        tool_result_content = self._tool_result_content(result)
         tool_result_msg = {
             "role": "tool",
-            "content": json.dumps(result.get("result_summary") or {"error": result.get("error")}),
+            "content": tool_result_content,
             "tool_call_id": tool_run.get("tool_call_id"),
         }
         messages.append(tool_result_msg)
@@ -406,7 +454,7 @@ class WorkflowCopilot:
         self.copilot_store.add_message(
             session,
             "tool",
-            json.dumps(result.get("result_summary") or {"error": result.get("error")}),
+            tool_result_content,
             tool_call_id=tool_run.get("tool_call_id"),
         )
         self.copilot_store.save_session(session)
@@ -523,6 +571,9 @@ class WorkflowCopilot:
                         "action_id": pending_action.action_id,
                         "tool_name": tool_name,
                         "arguments": arguments,
+                        "confirmation_endpoint": "/api/ai/actions/confirm",
+                        "confirmation_action_type": "confirm_tool_action",
+                        "confirmation_payload": {"action_id": pending_action.action_id},
                     }
                     return  # Pause again for user confirmation
                 
@@ -586,6 +637,53 @@ class WorkflowCopilot:
             "type": "error",
             "message": f"Reached maximum orchestration steps ({MAX_ORCHESTRATION_STEPS})",
         }
+
+    def _progress_event_from_callback(
+        self,
+        tool_name: str,
+        kind: str,
+        data: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        if kind == "tool_started":
+            return None
+        status = data.get("status") or data.get("phase")
+        event_type = "job_active" if str(status).lower() in {"queued", "running", "pending"} else "tool_progress"
+        return {
+            "type": event_type,
+            "tool_name": tool_name,
+            "status": status,
+            "progress": data,
+        }
+
+    def _terminal_event_for_result(self, result) -> dict[str, Any]:
+        status = result.status
+        if not isinstance(status, ToolRunStatus):
+            status = ToolRunStatus(str(status))
+
+        base = {
+            "tool_name": result.tool_name,
+            "tool_call_id": result.tool_call_id,
+            "status": status.value,
+            "result": result.result_summary,
+        }
+        if status == ToolRunStatus.COMPLETED:
+            return {"type": "tool_result", **base}
+        if status == ToolRunStatus.FAILED:
+            return {"type": "tool_failed", **base, "error": result.error}
+        if status == ToolRunStatus.CANCELLED:
+            return {"type": "tool_cancelled", **base, "error": result.error}
+        if status == ToolRunStatus.TIMED_OUT:
+            return {"type": "tool_timed_out", **base, "error": result.error}
+        if status in {ToolRunStatus.RUNNING, ToolRunStatus.QUEUED}:
+            return {"type": "job_active", **base, "error": result.error}
+        return {"type": "tool_progress", **base, "error": result.error}
+
+    def _tool_result_content(self, result) -> str:
+        payload = result.result_summary or {}
+        if result.error:
+            payload = {**payload, "error": result.error}
+        payload.setdefault("status", result.status.value if isinstance(result.status, ToolRunStatus) else str(result.status))
+        return json.dumps(payload)
 
     def _build_context(self, session: dict[str, Any], mode: str) -> dict[str, Any]:
         """Build bounded context from app state using real AgentContextService contract."""
