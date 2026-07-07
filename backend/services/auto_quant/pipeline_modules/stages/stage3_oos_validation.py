@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from backend.services.auto_quant.profit_lockin import compute_profit_giveback_metrics, extract_strategy_trades
+from ...profit_lockin import compute_profit_giveback_metrics, extract_strategy_trades
 from ..helpers import (
     _backtest_cmd,
     _classify_subprocess_error,

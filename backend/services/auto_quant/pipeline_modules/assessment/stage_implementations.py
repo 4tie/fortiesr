@@ -6,9 +6,9 @@ import asyncio
 import logging
 from pathlib import Path
 
-from backend.services.auto_quant.monte_carlo import run_monte_carlo
-from backend.services.auto_quant.profit_lockin import compute_profit_giveback_metrics, extract_strategy_trades
-from backend.services.auto_quant.variants import strategy_path_args
+from ...monte_carlo import run_monte_carlo
+from ...profit_lockin import compute_profit_giveback_metrics, extract_strategy_trades
+from ...variants import strategy_path_args
 from ..helpers import (
     _backtest_cmd,
     _classify_subprocess_error,
