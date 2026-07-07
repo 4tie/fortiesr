@@ -122,7 +122,28 @@ def _extract_trade_count(data: dict, strategy_name: str) -> int:
 
 
 def _extract_per_pair_results(data: dict, strategy_name: str) -> list[dict]:
-    """Extract per-pair profit data from backtest result."""
+    """Extract per-pair profit data from backtest result.
+    
+    Supports both old format (strategy[strategy_name].per_pair) and new format
+    (results_per_pair at top level) for backward compatibility.
+    """
+    # Try new format first (results_per_pair at top level)
+    per_pair = data.get("results_per_pair", [])
+    if per_pair:
+        result = []
+        for pair_data in per_pair:
+            result.append({
+                "key": pair_data.get("key", ""),
+                "profit_total": pair_data.get("profit_total", 0.0),
+                "profit_total_abs": pair_data.get("profit_total_abs", 0.0),
+                "profit_factor": pair_data.get("profit_factor", 0.0),
+                "trades": pair_data.get("trades", 0),
+                "win_rate": pair_data.get("win_rate", 0.0),
+                "max_drawdown": pair_data.get("max_drawdown", 0.0),
+            })
+        return result
+    
+    # Fallback to old format (strategy[strategy_name].per_pair)
     strategy_data = data.get("strategy", {})
     if strategy_name in strategy_data:
         per_pair = strategy_data[strategy_name].get("per_pair", [])

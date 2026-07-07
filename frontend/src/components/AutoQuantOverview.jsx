@@ -8,6 +8,7 @@ import useAutoQuantScreening from "../features/autoquant/hooks/useAutoQuantScree
 import useAutoQuantStrategyGen from "../features/autoquant/hooks/useAutoQuantStrategyGen";
 import useAutoQuantUI from "../features/autoquant/hooks/useAutoQuantUI";
 import { parsePairUniverse } from "../features/autoquant/utils";
+import api from "../services/api";
 
 const AGENT_COLORS = {
   Orchestrator: "#A78BFA",
@@ -419,7 +420,7 @@ export default function AutoQuantOverview({ strategies = [], strategiesLoading =
   };
 
   const handleLoadRun = useCallback(
-    (run) => {
+    async (run) => {
       setRunId(run.run_id);
       if (run.created_at) {
         const createdAtMs = new Date(run.created_at).getTime();
@@ -427,46 +428,83 @@ export default function AutoQuantOverview({ strategies = [], strategiesLoading =
       } else {
         setRunStartedAtMs(null);
       }
-      setReport(run.report || null);
-      setWfoWindows(run.wfo_windows || []);
-      setPipelineState({
-        run_id: run.run_id,
-        strategy: run.strategy,
-        timeframe: run.timeframe,
-        in_sample_range: run.in_sample_range,
-        out_sample_range: run.out_sample_range,
-        exchange: run.exchange,
-        status: run.status,
-        current_stage: run.current_stage || 0,
-        stages:
-          run.stages ||
-          STAGE_NAMES.map((name, i) => ({
-            index: i + 1,
-            name,
-            status: run.status === "completed" ? "completed" : "pending",
-            message: run.status === "completed" ? "Completed" : "",
-            data: {},
-          })),
-        error: run.error || null,
-        created_at: run.created_at,
-        completed_at: run.completed_at,
-        retry_history: run.retry_history || [],
-        generalization_failure: run.generalization_failure || null,
-        sensitivity: run.sensitivity || null,
-        thresholds: run.thresholds || null,
-        selected_pairs: run.selected_pairs || [],
-        winning_pairs: run.winning_pairs || [],
-        user_approved_pairs: run.user_approved_pairs || [],
-        portfolio_baseline_result: run.portfolio_baseline_result || {},
-        progress: run.progress ?? run.progress_percent ?? null,
-        progress_percent: run.progress_percent ?? run.progress ?? null,
-        eta_seconds: run.eta_seconds ?? null,
-        progress_counters: run.progress_counters || {},
-        validation_notes: run.validation_notes || [],
-      });
+      
+      // Fetch full run details from the backend to get complete stage data
+      try {
+        const fullRunData = await api.autoquant.getRun(run.run_id);
+        setReport(fullRunData.report || null);
+        setWfoWindows(fullRunData.wfo_windows || []);
+        setPipelineState({
+          run_id: fullRunData.run_id,
+          strategy: fullRunData.strategy,
+          timeframe: fullRunData.timeframe,
+          in_sample_range: fullRunData.in_sample_range,
+          out_sample_range: fullRunData.out_sample_range,
+          exchange: fullRunData.exchange,
+          status: fullRunData.status,
+          current_stage: fullRunData.current_stage || 0,
+          stages: fullRunData.stages || [],
+          error: fullRunData.error || null,
+          created_at: fullRunData.created_at,
+          completed_at: fullRunData.completed_at,
+          retry_history: fullRunData.retry_history || [],
+          generalization_failure: fullRunData.generalization_failure || null,
+          sensitivity: fullRunData.sensitivity || null,
+          thresholds: fullRunData.thresholds || null,
+          selected_pairs: fullRunData.selected_pairs || [],
+          winning_pairs: fullRunData.winning_pairs || [],
+          user_approved_pairs: fullRunData.user_approved_pairs || [],
+          portfolio_baseline_result: fullRunData.portfolio_baseline_result || {},
+          progress: fullRunData.progress ?? fullRunData.progress_percent ?? null,
+          progress_percent: fullRunData.progress_percent ?? fullRunData.progress ?? null,
+          eta_seconds: fullRunData.eta_seconds ?? null,
+          progress_counters: fullRunData.progress_counters || {},
+          validation_notes: fullRunData.validation_notes || [],
+        });
 
-      if (run.status === "completed" && !run.report) {
-        loadReport(run.run_id).catch((err) => console.error("Failed to load report:", err));
+        if (fullRunData.status === "completed" && !fullRunData.report) {
+          loadReport(run.run_id).catch((err) => console.error("Failed to load report:", err));
+        }
+      } catch (err) {
+        console.error("Failed to load full run details:", err);
+        // Fallback to using the run list data if the detailed fetch fails
+        setReport(run.report || null);
+        setWfoWindows(run.wfo_windows || []);
+        setPipelineState({
+          run_id: run.run_id,
+          strategy: run.strategy,
+          timeframe: run.timeframe,
+          in_sample_range: run.in_sample_range,
+          out_sample_range: run.out_sample_range,
+          exchange: run.exchange,
+          status: run.status,
+          current_stage: run.current_stage || 0,
+          stages:
+            run.stages ||
+            STAGE_NAMES.map((name, i) => ({
+              index: i + 1,
+              name,
+              status: run.status === "completed" ? "completed" : "pending",
+              message: run.status === "completed" ? "Completed" : "",
+              data: {},
+            })),
+          error: run.error || null,
+          created_at: run.created_at,
+          completed_at: run.completed_at,
+          retry_history: run.retry_history || [],
+          generalization_failure: run.generalization_failure || null,
+          sensitivity: run.sensitivity || null,
+          thresholds: run.thresholds || null,
+          selected_pairs: run.selected_pairs || [],
+          winning_pairs: run.winning_pairs || [],
+          user_approved_pairs: run.user_approved_pairs || [],
+          portfolio_baseline_result: run.portfolio_baseline_result || {},
+          progress: run.progress ?? run.progress_percent ?? null,
+          progress_percent: run.progress_percent ?? run.progress ?? null,
+          eta_seconds: run.eta_seconds ?? null,
+          progress_counters: run.progress_counters || {},
+          validation_notes: run.validation_notes || [],
+        });
       }
     },
     [loadReport, setPipelineState, setReport, setRunId, setRunStartedAtMs, setWfoWindows]

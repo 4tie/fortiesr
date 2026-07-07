@@ -194,6 +194,42 @@ def request_cancel(run_id: str) -> bool:
     return True
 
 
+def delete_run(run_id: str, user_data_dir: str) -> bool:
+    """Delete a pipeline run from memory and disk.
+    
+    This will cancel the run if it's running, remove it from memory,
+    and delete its directory from disk.
+    """
+    import shutil
+    from pathlib import Path
+    
+    # Cancel if running
+    if run_id in _cancel_flags:
+        _cancel_flags[run_id] = True
+    
+    # Remove from memory
+    if run_id in _states:
+        del _states[run_id]
+    if run_id in _queues:
+        del _queues[run_id]
+    if run_id in _cancel_flags:
+        del _cancel_flags[run_id]
+    if run_id in _event_history:
+        del _event_history[run_id]
+    
+    # Delete from disk
+    run_dir = Path(user_data_dir) / "auto_quant" / run_id
+    if run_dir.exists():
+        try:
+            shutil.rmtree(run_dir)
+            logger.info("delete_run: deleted run directory %s", run_dir)
+        except Exception as e:
+            logger.error("delete_run: failed to delete run directory %s: %s", run_dir, e)
+            return False
+    
+    return True
+
+
 def list_runs() -> list[dict]:
     result = []
     for state in _states.values():

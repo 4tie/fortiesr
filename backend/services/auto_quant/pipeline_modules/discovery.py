@@ -27,7 +27,9 @@ class DiscoveryResult:
     most_robust_timeframe: str
     selected_timeframe: str
     selected_pairs: list[str]
+    recommended_pairs: list[str]  # pairs that pass discovery gates
     pair_errors: dict[str, str]  # pair -> error message
+    pair_metrics: dict[str, dict]  # pair -> metrics (trades, profit_factor, win_rate, etc.)
     notes: list[str]
 
 
@@ -92,6 +94,8 @@ async def run_discovery(
     # Test pair universe liquidity
     pair_errors = {}
     selected_pairs = []
+    recommended_pairs = []
+    pair_metrics = {}
     
     # Run a quick backtest to validate pair liquidity
     _rlog(run_id, 0, logging.INFO,
@@ -121,24 +125,40 @@ async def run_discovery(
                 pair_key = pair_data.get("key", "")
                 trades = pair_data.get("trades", 0)
                 profit_factor = pair_data.get("profit_factor", 0.0)
+                profit_abs = pair_data.get("profit_abs", 0.0)
+                win_rate = pair_data.get("win_rate", 0.0)
                 
+                # Store metrics for all pairs
+                pair_metrics[pair_key] = {
+                    "trades": trades,
+                    "profit_factor": profit_factor,
+                    "profit_abs": profit_abs,
+                    "win_rate": win_rate,
+                }
+                
+                # Check if pair passes discovery gates
                 if trades >= min_trades and profit_factor >= min_profit_factor:
-                    selected_pairs.append(pair_key)
+                    recommended_pairs.append(pair_key)
                 else:
                     if trades < min_trades:
                         pair_errors[pair_key] = f"Insufficient trades: {trades} < {min_trades}"
                     elif profit_factor < min_profit_factor:
                         pair_errors[pair_key] = f"Low profit factor: {profit_factor:.2f} < {min_profit_factor}"
             
-            # If insufficient pairs pass, add note but don't fail
-            min_pairs_required = max(1, len(pair_universe) // 2)
-            if len(selected_pairs) < min_pairs_required:
+            # Use all tested pairs as selected (user will choose from them)
+            selected_pairs = [p for p in pair_universe if p in pair_metrics]
+            
+            # Add note about recommended pairs
+            if len(recommended_pairs) > 0:
                 notes.append(
-                    f"Discovery found {len(selected_pairs)} liquid pairs, below the target of {min_pairs_required}. "
-                    f"Validation will continue with available pairs."
+                    f"Discovery found {len(recommended_pairs)} recommended pairs that pass thresholds "
+                    f"out of {len(selected_pairs)} tested pairs."
                 )
-                # Use all pairs that didn't error as fallback
-                selected_pairs = [p for p in pair_universe if p not in pair_errors]
+            else:
+                notes.append(
+                    f"Discovery found 0 recommended pairs. All {len(selected_pairs)} tested pairs "
+                    f"failed to meet discovery thresholds."
+                )
         else:
             # Backtest failed - add note but don't fail discovery
             notes.append(f"Discovery backtest failed with rc={rc}. Using configured pair universe.")
@@ -163,7 +183,9 @@ async def run_discovery(
         most_robust_timeframe=selected_timeframe,
         selected_timeframe=selected_timeframe,
         selected_pairs=selected_pairs,
+        recommended_pairs=recommended_pairs,
         pair_errors=pair_errors,
+        pair_metrics=pair_metrics,
         notes=notes,
     )
 
@@ -183,7 +205,9 @@ def apply_discovery_results(state: Any, discovery_result: DiscoveryResult) -> No
         "most_robust_timeframe": discovery_result.most_robust_timeframe,
         "selected_timeframe": discovery_result.selected_timeframe,
         "selected_pairs": discovery_result.selected_pairs,
+        "recommended_pairs": discovery_result.recommended_pairs,
         "pair_errors": discovery_result.pair_errors,
+        "pair_metrics": discovery_result.pair_metrics,
         "notes": discovery_result.notes,
     }
     

@@ -143,19 +143,39 @@ function TopCandidates({ data }) {
 function getApprovalReview(pipelineState) {
   if (pipelineState?.status !== "awaiting_user_approval") return null;
 
+  // For Stage 2 (Portfolio Baseline), get pair selection data from Stage 1
+  const stageIndex = pipelineState.current_stage === 2 ? 1 : pipelineState.current_stage;
   const stage =
-    (pipelineState.stages || []).find((item) => item.index === pipelineState.current_stage) ||
+    (pipelineState.stages || []).find((item) => item.index === stageIndex) ||
     (pipelineState.stages || [])[0] ||
     null;
   const data = stage?.data || {};
-  const rows = firstNonEmptyArray(data.all_pairs, data.per_pair, pipelineState.selected_pairs);
+  
+  // For Stage 1 (Pre-flight Filtering), use discovery results if available
+  const discoveryResults = pipelineState.discovery_results || {};
+  const pairMetrics = discoveryResults.pair_metrics || {};
+  
+  // Build rows from pair_metrics if available, otherwise fall back to existing logic
+  let rows;
+  if (Object.keys(pairMetrics).length > 0) {
+    rows = Object.entries(pairMetrics).map(([key, metrics]) => ({
+      key,
+      ...metrics,
+    }));
+  } else {
+    rows = firstNonEmptyArray(data.all_pairs, data.per_pair, pipelineState.selected_pairs);
+  }
+  
+  // Use recommended_pairs from discovery results if available
   const recommended = firstNonEmptyArray(
+    discoveryResults.recommended_pairs,
     data.pre_selected,
     data.passing_pairs,
     data.current_pairs,
     pipelineState.user_approved_pairs,
     (pipelineState.selected_pairs || []).map(pairKey).filter(Boolean)
   );
+  
   const isPortfolioReview =
     pipelineState.current_stage === 2 ||
     data.type === "portfolio_baseline_review" ||
@@ -174,12 +194,19 @@ function getApprovalReview(pipelineState) {
 function PortfolioBaselineReview({ data, onResume }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [selectedPairs, setSelectedPairs] = useState([]);
 
   const perPair = data.per_pair || [];
   const portfolioProfit = data.portfolio_profit ?? 0;
   const portfolioMaxDd = data.portfolio_max_dd ?? 0;
   const portfolioTrades = data.portfolio_trades ?? 0;
   const maxOpenTrades = data.max_open_trades || 3;
+
+  // Initialize selected pairs with all pairs from current_pairs or per_pair
+  useEffect(() => {
+    const initialPairs = (data.current_pairs || perPair.map(p => p.key)).filter(Boolean);
+    setSelectedPairs(initialPairs);
+  }, [data.current_pairs, perPair]);
 
   // Calculate pair contributions and detect dominance
   const totalProfit = perPair.reduce((sum, pair) => sum + (pair.profit_total_abs || 0), 0);
@@ -191,12 +218,26 @@ function PortfolioBaselineReview({ data, onResume }) {
   const dominantPair = pairContributions.find(p => p.contribution > 0.7);
   const hasDominanceWarning = !!dominantPair;
 
+  const togglePair = (pairKey) => {
+    setSelectedPairs(prev => 
+      prev.includes(pairKey) ? prev.filter(p => p !== pairKey) : [...prev, pairKey]
+    );
+  };
+
+  const selectAll = () => {
+    setSelectedPairs(perPair.map(p => p.key).filter(Boolean));
+  };
+
+  const selectNone = () => {
+    setSelectedPairs([]);
+  };
+
   const handleResume = async () => {
-    if (!onResume) return;
+    if (!onResume || selectedPairs.length === 0) return;
     setBusy(true);
     setError("");
     try {
-      await onResume(data.current_pairs || []);
+      await onResume(selectedPairs);
     } catch (err) {
       setError(err.message || "Failed to resume pipeline.");
     } finally {
@@ -258,21 +299,82 @@ function PortfolioBaselineReview({ data, onResume }) {
           </div>
         </div>
 
-        {/* Per-Pair Contribution */}
+        {/* Per-Pair Contribution with Selection */}
         <div className="rounded-lg bg-base-200/70 border border-base-300 p-3">
-          <h4 className="text-[10px] font-semibold uppercase tracking-wider text-base-content/45 mb-3">Per-Pair Contribution</h4>
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-[10px] font-semibold uppercase tracking-wider text-base-content/45">Per-Pair Performance</h4>
+            <div className="flex gap-2">
+              <button 
+                type="button"
+                className="text-[10px] text-primary hover:text-primary/80 underline"
+                onClick={selectAll}
+              >
+                Select All
+              </button>
+              <button 
+                type="button"
+                className="text-[10px] text-error hover:text-error/80 underline"
+                onClick={selectNone}
+              >
+                Select None
+              </button>
+            </div>
+          </div>
           <div className="space-y-2">
-            {pairContributions.map((pair) => (
-              <div key={pair.key} className="flex items-center justify-between text-xs">
-                <span className="font-mono text-primary">{pair.key}</span>
-                <div className="flex items-center gap-3">
-                  <span className="text-base-content/60">{pair.trades ?? 0} trades</span>
-                  <span className={`font-mono ${pair.profit_total_abs >= 0 ? "text-success" : "text-error"}`}>
-                    {pair.profit_total_abs >= 0 ? "+" : ""}{(pair.profit_total_abs / totalProfit * 100).toFixed(1)}%
-                  </span>
+            {pairContributions.map((pair) => {
+              const isSelected = selectedPairs.includes(pair.key);
+              const profitPct = pair.profit_total != null ? (pair.profit_total * 100).toFixed(2) : '-';
+              const maxDd = pair.max_drawdown != null ? (pair.max_drawdown * 100).toFixed(1) : '-';
+              const winRate = pair.win_rate != null ? (pair.win_rate * 100).toFixed(1) : '-';
+              const profitSign = pair.profit_total > 0 ? '+' : '';
+              
+              return (
+                <div 
+                  key={pair.key} 
+                  className={`flex items-center justify-between text-xs p-2 rounded border transition-all ${
+                    isSelected 
+                      ? 'bg-primary/10 border-primary/30' 
+                      : 'bg-base-100 border-base-200 hover:border-base-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => togglePair(pair.key)}
+                      className="checkbox checkbox-xs"
+                    />
+                    <div className="flex flex-col">
+                      <span className="font-mono text-primary font-semibold">{pair.key}</span>
+                      <div className="flex items-center gap-2 text-[10px] text-base-content/60">
+                        <span>{pair.trades ?? 0} trades</span>
+                        <span>•</span>
+                        <span>WR: {winRate}{winRate !== '-' ? '%' : ''}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="text-right">
+                      <div className="text-[9px] text-base-content/45">Profit</div>
+                      <div className={`font-mono ${pair.profit_total >= 0 ? "text-success" : "text-error"}`}>
+                        {profitPct !== '-' ? profitSign : ''}{profitPct}{profitPct !== '-' ? '%' : ''}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[9px] text-base-content/45">Max DD</div>
+                      <div className="font-mono text-error">{maxDd}{maxDd !== '-' ? '%' : ''}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[9px] text-base-content/45">PF</div>
+                      <div className="font-mono">{pair.profit_factor?.toFixed(2) || '-'}</div>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
+          </div>
+          <div className="mt-3 pt-2 border-t border-base-300 text-xs text-base-content/60">
+            <span className="font-semibold">{selectedPairs.length}</span> of {perPair.length} pairs selected
           </div>
         </div>
 
@@ -305,16 +407,18 @@ function PortfolioBaselineReview({ data, onResume }) {
         {/* Decision */}
         <div className="flex items-center justify-between pt-2 border-t border-base-300">
           <div className="text-xs text-base-content/60">
-            <span className="font-semibold text-warning">Decision:</span> Awaiting user approval for portfolio baseline
+            <span className="font-semibold text-warning">Decision:</span> {selectedPairs.length > 0 
+              ? `Approve ${selectedPairs.length} selected pair${selectedPairs.length !== 1 ? 's' : ''} & continue` 
+              : 'Select pairs to approve'}
           </div>
           <button
             type="button"
             className="btn btn-warning btn-sm"
-            disabled={busy}
+            disabled={busy || selectedPairs.length === 0}
             onClick={handleResume}
           >
             {busy ? <span className="loading loading-spinner loading-xs" /> : null}
-            Approve Portfolio & Continue
+            {selectedPairs.length > 0 ? `Approve ${selectedPairs.length} Pairs` : 'Select Pairs'}
           </button>
         </div>
 
@@ -697,7 +801,7 @@ export default function AutoQuantRunDashboard({
             </div>
             <div className="grid grid-cols-3 gap-2 xl:w-[28rem]">
               <SummaryCell label="Progress" value={`${progress}%`} tone={flags.isFailed ? "error" : flags.isCompleted ? "success" : "primary"} />
-              <SummaryCell label="Stage" value={`${pipelineState.current_stage || 0}/${pipelineState.stages?.length || STAGE_NAMES.length}`} />
+              <SummaryCell label="Stage" value={`${(pipelineState.current_stage || 0) + 1}/${pipelineState.stages?.length || STAGE_NAMES.length}`} />
               <SummaryCell
                 label="Status"
                 value={pipelineState.status || "starting"}

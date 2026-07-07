@@ -162,6 +162,10 @@ def request_cancel(run_id: str) -> bool:
     return _state.request_cancel(run_id)
 
 
+def delete_run(run_id: str, user_data_dir: str) -> bool:
+    return _state.delete_run(run_id, user_data_dir)
+
+
 def get_cancel_flags() -> dict[str, bool]:
     return _state.get_cancel_flags()
 
@@ -270,6 +274,7 @@ __all__ = [
     "get_queue",
     "release_queue",
     "request_cancel",
+    "delete_run",
     "get_cancel_flags",
     "record_event",
     "get_event_history",

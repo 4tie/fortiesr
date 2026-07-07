@@ -201,6 +201,29 @@ export const api = {
     },
 
     /**
+     * Get full pipeline run details
+     * @param {string} runId
+     * @returns {Promise<object>}
+     */
+    async getRun(runId) {
+      const res = await fetch(`${this.baseURL}/runs/${runId}`);
+      return parseJsonResponse(res, "Failed to load AutoQuant run details.");
+    },
+
+    /**
+     * Delete a pipeline run
+     * @param {string} runId
+     * @param {string} userDataDir
+     * @returns {Promise<object>}
+     */
+    async deleteRun(runId, userDataDir) {
+      const res = await fetch(`${this.baseURL}/runs/${runId}?user_data_dir=${encodeURIComponent(userDataDir)}`, {
+        method: "DELETE",
+      });
+      return parseJsonResponse(res, "Failed to delete AutoQuant run.");
+    },
+
+    /**
      * Open WebSocket for real-time updates
      * @param {string} runId
      * @returns {WebSocket}

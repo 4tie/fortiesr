@@ -45,6 +45,13 @@ def request_pipeline_cancel(run_id: str) -> dict[str, str]:
     return {"run_id": run_id, "status": "cancellation_requested"}
 
 
+def delete_pipeline_run(run_id: str, user_data_dir: str) -> dict[str, str]:
+    """Delete a pipeline run from memory and disk."""
+    if not _pipeline.delete_run(run_id, user_data_dir):
+        raise HTTPException(status_code=404, detail=f"Pipeline run '{run_id}' not found.")
+    return {"run_id": run_id, "status": "deleted"}
+
+
 def load_options_data(user_data_dir: str | Path) -> dict[str, Any]:
     """Load persisted AutoQuant form options as a plain dict.
 

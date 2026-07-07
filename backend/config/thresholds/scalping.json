@@ -4,8 +4,8 @@
   "discovery": {
     "min_profit_factor": 1.05,
     "max_drawdown": 35.0,
-    "min_trades_per_year": 500,
-    "min_trades_floor": 80,
+    "min_trades_per_year": 100,
+    "min_trades_floor": 30,
     "min_trades_cap": 1200,
     "min_expectancy": 0.0001,
     "min_win_rate": 40.0

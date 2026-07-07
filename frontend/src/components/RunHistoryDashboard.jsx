@@ -3,6 +3,7 @@ import {
   ChevronDownIcon,
   DocumentArrowDownIcon,
   ExclamationTriangleIcon,
+  TrashIcon,
 } from "@heroicons/react/24/outline";
 import RunDetailPanel from "./RunDetailPanel";
 import api from "../services/api";
@@ -115,7 +116,7 @@ function EntryLogicChips({ bestParams }) {
   );
 }
 
-function RunCard({ run, onSelect }) {
+function RunCard({ run, onSelect, onDelete }) {
   const [expanded, setExpanded] = useState(false);
 
   const isRunning = run.status === "running" || run.status === "pending";
@@ -142,6 +143,19 @@ function RunCard({ run, onSelect }) {
 
   const handleCardClick = () => {
     onSelect(run);
+  };
+
+  const handleDelete = async (e) => {
+    e.stopPropagation();
+    if (window.confirm(`Are you sure you want to delete run ${run.run_id.slice(0, 8)}? This action cannot be undone.`)) {
+      try {
+        await api.autoquant.deleteRun(run.run_id);
+        if (onDelete) onDelete(run.run_id);
+      } catch (error) {
+        console.error("Failed to delete run:", error);
+        alert("Failed to delete run. Please try again.");
+      }
+    }
   };
 
   return (
@@ -188,6 +202,13 @@ function RunCard({ run, onSelect }) {
             onClick={(e) => { e.stopPropagation(); handleCardClick(); }}
           >
             {isAwaitingApproval ? "Review" : isCompleted ? "View" : isRunning ? "Reconnect" : isInterrupted ? "Details" : "View"}
+          </button>
+          <button
+            className="btn btn-ghost btn-xs text-base-content/30 hover:text-error"
+            onClick={handleDelete}
+            title="Delete run"
+          >
+            <TrashIcon className="h-4 w-4" />
           </button>
           <ChevronDownIcon className={`h-4 w-4 text-base-content/30 transition-transform ${expanded ? "rotate-180" : ""}`} />
         </div>
@@ -314,6 +335,13 @@ const RunHistoryDashboard = forwardRef(function RunHistoryDashboard({ onLoad } =
       .finally(() => setLoading(false));
   }, []);
 
+  const handleDelete = useCallback((runId) => {
+    setRuns((prevRuns) => prevRuns.filter((run) => run.run_id !== runId));
+    if (selectedRun?.run_id === runId) {
+      setSelectedRun(null);
+    }
+  }, [selectedRun]);
+
   useEffect(() => {
     refresh();
   }, [refresh]);
@@ -350,6 +378,7 @@ const RunHistoryDashboard = forwardRef(function RunHistoryDashboard({ onLoad } =
             key={run.run_id}
             run={run}
             onSelect={onLoad || setSelectedRun}
+            onDelete={handleDelete}
           />
         ))}
       </div>

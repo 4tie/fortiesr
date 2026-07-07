@@ -6,6 +6,7 @@ from ....services.auto_quant import pipeline as _pl
 from ....services.auto_quant.api_service import (
     get_pipeline_status,
     request_pipeline_cancel,
+    delete_pipeline_run,
 )
 from ....services.auto_quant.ai_suggestions import optimization_stage_index
 
@@ -70,3 +71,15 @@ def register_pipeline_control_endpoints(router: APIRouter) -> None:
             "approved_pairs": body.approved_pairs,
             "message": f"Pipeline resumed with {len(body.approved_pairs)} approved pairs"
         }
+
+    @router.delete(
+        "/runs/{run_id}",
+        summary="Delete a pipeline run",
+    )
+    async def delete_run(run_id: str, user_data_dir: str = None) -> dict:
+        """Delete a pipeline run from memory and disk."""
+        if not user_data_dir:
+            # Default to user_data from config if not provided
+            from ....config import settings
+            user_data_dir = settings.USER_DATA_DIR
+        return delete_pipeline_run(run_id, user_data_dir)
