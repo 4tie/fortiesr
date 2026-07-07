@@ -143,6 +143,12 @@ async def _run_pair_group(
             return
 
         group_cfg = base_cfg.copy()
+        
+        # Override strategy, timeframe, and max_open_trades with user selections
+        group_cfg["strategy"] = strategy_name
+        group_cfg["timeframe"] = timeframe
+        group_cfg["max_open_trades"] = max_open_trades
+        
         if "exchange" not in group_cfg:
             group_cfg["exchange"] = {}
         group_cfg["exchange"]["pair_whitelist"] = chunk

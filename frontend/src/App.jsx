@@ -147,7 +147,11 @@ function App() {
             />
           )}
 
-          <GuidanceBubble activeTab={activeTab} onNavigate={handleNavTabChange} />
+          <GuidanceBubble
+            activeTab={activeTab}
+            onNavigate={handleNavTabChange}
+            contextOverrides={currentAgentOverrides()}
+          />
 
           {pendingTab && (
             <UnsavedChangesDialog
