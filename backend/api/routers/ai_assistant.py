@@ -510,21 +510,26 @@ async def copilot_chat_stream(body: CopilotChatRequest, request: Request) -> Str
     "/copilot/actions/confirm",
     summary="Confirm a pending tool action",
     description=(
-        "Confirms and executes a pending tool action that requires user confirmation."
+        "Confirms and executes a pending tool action that requires user confirmation, "
+        "observes job completion, and resumes model reasoning with the tool result."
     ),
 )
-async def copilot_confirm_action(body: ConfirmToolActionRequest, request: Request) -> dict:
-    """Confirm and execute a pending tool action."""
+async def copilot_confirm_action(body: ConfirmToolActionRequest, request: Request) -> StreamingResponse:
+    """Confirm and execute a pending tool action, then resume orchestration."""
     copilot = _workflow_copilot(request)
     
-    try:
-        result = await copilot.confirm_action(
-            session_id=body.session_id,
-            action_id=body.action_id,
-        )
-        return {"status": "executed", "result": result}
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+    async def event_stream():
+        try:
+            async for event in copilot.resume_after_confirmation(
+                session_id=body.session_id,
+                action_id=body.action_id,
+                stream=True,
+            ):
+                yield f"data: {json.dumps(event)}\n\n"
+        except Exception as exc:
+            yield f"data: {json.dumps({'type': 'error', 'message': str(exc)})}\n\n"
+    
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
 @router.get(
@@ -702,7 +707,7 @@ async def autoquant_chat(body: AutoQuantRequest, request: Request) -> dict:
             model=body.model,
             mode="autoquant",
             stream=False,
-            context_overrides=body.context_overrides,
+            context_overrides=body.context_overrides or {},
         ):
             events.append(event)
             

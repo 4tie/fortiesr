@@ -15,7 +15,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from ..utils import atomic_write_json, read_json
+from ...utils import atomic_write_json, read_json
 
 
 COPILOT_SESSION_SCHEMA = "assistant_copilot_session_v2"

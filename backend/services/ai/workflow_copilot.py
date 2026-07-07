@@ -87,6 +87,7 @@ class WorkflowCopilot:
         model: str | None = None,
         mode: str = "analysis",
         stream: bool = False,
+        context_overrides: dict[str, Any] | None = None,
     ) -> AsyncIterator[dict[str, Any]]:
         """Process a single user turn through the orchestration loop.
         
@@ -109,6 +110,10 @@ class WorkflowCopilot:
                 mode=mode,
             )
             session["session_id"] = session_id
+        
+        # Persist context overrides if provided
+        if context_overrides:
+            session["last_context_overrides"] = context_overrides
             self.copilot_store.save_session(session)
 
         # Add user message
@@ -516,13 +521,10 @@ class WorkflowCopilot:
             "message": f"Reached maximum orchestration steps ({MAX_ORCHESTRATION_STEPS})",
         }
 
-    async def _build_context(self, session: dict[str, Any], mode: str) -> dict[str, Any]:
-        """Build bounded context from app state."""
-        settings = self.services.settings_store.load()
-        
+    def _build_context(self, session: dict[str, Any], mode: str) -> dict[str, Any]:
+        """Build bounded context from app state using real AgentContextService contract."""
         # Use existing AgentContextService for bounded context
-        context = await self.context_service.build_context(
-            mode=mode,
+        context = self.context_service.build_context(
             overrides=session.get("last_context_overrides", {}),
         )
         

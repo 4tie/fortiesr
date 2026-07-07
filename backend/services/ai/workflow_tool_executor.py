@@ -383,8 +383,9 @@ class WorkflowToolExecutor:
         copilot_session_id: str,
         progress_callback: ProgressCallback | None,
     ) -> dict[str, Any]:
-        """Handle run_backtest tool using reusable job function."""
-        from .workflow_jobs import start_backtest_job
+        """Handle run_backtest tool using reusable job function and observe to completion."""
+        from ..workflow_jobs import start_backtest_job
+        from .job_observer import observe_job
         
         args = RunBacktestArgs(**arguments)
         
@@ -392,7 +393,7 @@ class WorkflowToolExecutor:
             progress_callback("tool_started", {"tool_name": "run_backtest"})
         
         # Call reusable job start function
-        session_id, status = await start_backtest_job(
+        api_session_id, initial_status = await start_backtest_job(
             services=self.services,
             store=self.session_store,
             strategy_name=args.strategy_name,
@@ -405,30 +406,66 @@ class WorkflowToolExecutor:
             config_file=args.config_file,
         )
         
-        # Add job reference to copilot session
+        # Add job reference to copilot session (preserve api_session_id separately)
         job_ref = JobReference(
             job_type="backtest",
-            api_session_id=session_id,
-            status=status,
+            api_session_id=api_session_id,
+            status=initial_status,
         )
         
-        # Update copilot session with active job
         copilot_session = self.copilot_store.load_session(copilot_session_id)
         self.copilot_store.add_active_job(copilot_session, job_ref.model_dump())
         self.copilot_store.save_session(copilot_session)
         
+        # Observe job to terminal status
+        final_status = initial_status
+        final_result = {}
+        run_id = None
+        
+        async for event in observe_job(
+            session_store=self.session_store,
+            api_session_id=api_session_id,
+            job_type="backtest",
+        ):
+            if progress_callback:
+                progress_callback("tool_progress", event)
+            
+            if event["type"] == "job_progress":
+                final_status = event["status"]
+                final_result = event.get("result", {})
+                
+                # Extract run_id from result when available
+                if "run_id" in final_result:
+                    run_id = final_result["run_id"]
+            
+            if event["type"] == "error":
+                return {
+                    "summary": {
+                        "api_session_id": api_session_id,
+                        "strategy_name": args.strategy_name,
+                        "status": "failed",
+                        "error": event.get("error"),
+                    },
+                    "context_patch": {},
+                }
+        
+        # Build context patch with real run_id if available
+        context_patch = {}
+        if run_id:
+            context_patch["backtest_run_id"] = run_id
+        
         return {
             "summary": {
-                "api_session_id": session_id,
+                "api_session_id": api_session_id,
+                "run_id": run_id,
                 "strategy_name": args.strategy_name,
                 "pairs": args.pairs,
                 "timeframe": args.timeframe,
                 "timerange": args.timerange,
-                "status": status,
+                "status": final_status,
+                "result": final_result,
             },
-            "context_patch": {
-                "backtest_run_id": session_id,
-            },
+            "context_patch": context_patch,
         }
 
     async def _handle_run_optimizer(
@@ -437,8 +474,9 @@ class WorkflowToolExecutor:
         copilot_session_id: str,
         progress_callback: ProgressCallback | None,
     ) -> dict[str, Any]:
-        """Handle run_optimizer tool using reusable job function."""
-        from .workflow_jobs import start_optimizer_job
+        """Handle run_optimizer tool using reusable job function and observe to completion."""
+        from ..workflow_jobs import start_optimizer_job
+        from .job_observer import observe_optimizer_job
         
         args = RunOptimizerArgs(**arguments)
         
@@ -446,7 +484,7 @@ class WorkflowToolExecutor:
             progress_callback("tool_started", {"tool_name": "run_optimizer"})
         
         # Call reusable job start function
-        api_session_id, optimizer_session_id, status = await start_optimizer_job(
+        api_session_id, optimizer_session_id, initial_status = await start_optimizer_job(
             services=self.services,
             store=self.session_store,
             strategy_name=args.strategy_name,
@@ -473,13 +511,47 @@ class WorkflowToolExecutor:
             job_type="optimizer",
             api_session_id=api_session_id,
             workflow_session_id=optimizer_session_id,
-            status=status,
+            status=initial_status,
         )
         
-        # Update copilot session with active job
         copilot_session = self.copilot_store.load_session(copilot_session_id)
         self.copilot_store.add_active_job(copilot_session, job_ref.model_dump())
         self.copilot_store.save_session(copilot_session)
+        
+        # Observe optimizer to terminal status
+        final_phase = initial_status
+        final_metrics = {}
+        
+        async for event in observe_optimizer_job(
+            services=self.services,
+            api_session_id=api_session_id,
+            optimizer_session_id=optimizer_session_id,
+        ):
+            if progress_callback:
+                progress_callback("tool_progress", event)
+            
+            if event["type"] == "optimizer_progress":
+                final_phase = event["phase"]
+                final_metrics = {
+                    "total_trials": event["total_trials"],
+                    "completed_trials": event["completed_trials"],
+                    "failed_trials": event["failed_trials"],
+                    "best_trial_number": event["best_trial_number"],
+                    "best_metrics": event["best_metrics"],
+                    "stop_reason": event["stop_reason"],
+                }
+            
+            if event["type"] == "error":
+                return {
+                    "summary": {
+                        "api_session_id": api_session_id,
+                        "optimizer_session_id": optimizer_session_id,
+                        "strategy_name": args.strategy_name,
+                        "status": "failed",
+                        "error": event.get("error"),
+                    },
+                    "context_patch": {},
+                }
         
         return {
             "summary": {
@@ -488,11 +560,11 @@ class WorkflowToolExecutor:
                 "strategy_name": args.strategy_name,
                 "pairs": args.pairs,
                 "total_trials": args.total_trials,
-                "status": status,
+                "status": final_phase,
+                "metrics": final_metrics,
             },
             "context_patch": {
                 "optimizer_session_id": optimizer_session_id,
-                "api_session_id": api_session_id,
             },
         }
 

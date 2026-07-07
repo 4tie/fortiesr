@@ -4,6 +4,9 @@ Starts a systematic parameter-search session.  The optimizer already manages
 its own internal asyncio.Task, so this endpoint simply forwards the request,
 gets an optimizer_session_id back immediately, and then monitors the session
 in a lightweight background coroutine that updates the API session store.
+
+This router now delegates to the shared workflow_jobs.start_optimizer_job function
+to ensure both normal API routes and AI tool executor use the same workflow.
 """
 
 from __future__ import annotations
@@ -27,6 +30,7 @@ from ...models import (
 )
 from ...services.strategy.optimizer_auto_safe import apply_auto_safe_initial_spaces
 from ...services.optimizer import api_service as optimizer_api
+from ...services.workflow_jobs import start_optimizer_job
 from ..dependencies import get_services, get_session_store
 from ..models import AsyncJobResponse, OptimizerApiRequest
 from ..session_store import SessionStore
@@ -99,137 +103,43 @@ async def run_optimizer(
     services=Depends(get_services),
     store: SessionStore = Depends(get_session_store),
 ) -> AsyncJobResponse:
-
-    if services.strategy_optimizer.is_running():
-        logger.warning(
-            "Attempted to start optimizer while another session is running for strategy: %s",
-            body.strategy_name,
-        )
-        raise HTTPException(
-            status_code=409,
-            detail="An optimizer session is already running. Cancel it first or wait for it to finish.",
-        )
-
+    """Run optimizer using shared workflow_jobs.start_optimizer_job function."""
     try:
-        services.registry.get_strategy(body.strategy_name)
-    except BackendError as exc:
-        logger.error("Strategy not found: %s", body.strategy_name)
-        _raise_backend_error(exc)
-
-    if not body.pairs:
-        logger.warning(
-            "Attempted to start optimizer without pairs for strategy: %s",
-            body.strategy_name,
-        )
-        raise HTTPException(
-            status_code=400,
-            detail="At least one trading pair is required.",
-        )
-
-    pointer = services.version_manager.get_current_pointer(body.strategy_name)
-    if pointer is None:
-        logger.warning("No accepted version found for strategy: %s", body.strategy_name)
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                f"Strategy '{body.strategy_name}' has no accepted version. "
-                "Accept a version before running the optimizer."
-            ),
-        )
-
-    api_record = store.create("optimizer")
-
-    try:
-        settings = services.settings_store.load()
-        config_file = body.config_file or settings.default_config_file_path
-
-        from ...models import ParameterSearchSpace
-
-        parsed_spaces = []
-        invalid_spaces: list[str] = []
-        for idx, raw in enumerate(body.search_spaces, start=1):
-            try:
-                parsed_spaces.append(ParameterSearchSpace.model_validate(raw))
-            except Exception as exc:
-                invalid_spaces.append(f"search_spaces[{idx}]: {exc}")
-        if invalid_spaces:
-            raise ValueError("Invalid optimizer search spaces. " + " | ".join(invalid_spaces))
-        parameter_mode = OptimizerParameterMode(body.parameter_mode)
-        if parameter_mode == OptimizerParameterMode.AUTO_SAFE:
-            parsed_spaces = apply_auto_safe_initial_spaces(parsed_spaces)
-
-        internal_request = StartOptimizerRequest(
+        api_session_id, optimizer_session_id, status = await start_optimizer_job(
+            services=services,
+            store=store,
             strategy_name=body.strategy_name,
             timerange=body.timerange,
             timeframe=body.timeframe,
             pairs=body.pairs,
-            config_file=config_file,
+            search_spaces=body.search_spaces,
             total_trials=body.total_trials,
-            search_strategy=SearchStrategy(body.search_strategy),
-            parameter_mode=parameter_mode,
-            score_metric=OptimizerScoreMetric(body.score_metric),
+            search_strategy=body.search_strategy,
+            parameter_mode=body.parameter_mode,
+            score_metric=body.score_metric,
             max_open_trades=body.max_open_trades,
             dry_run_wallet=body.dry_run_wallet,
             fee_rate=body.fee_rate,
-            search_spaces=parsed_spaces,
             enable_vectorbt_screening=body.enable_vectorbt_screening,
             vectorbt_candidate_count=body.vectorbt_candidate_count,
             vectorbt_keep_ratio=body.vectorbt_keep_ratio,
             vectorbt_timeout_seconds=body.vectorbt_timeout_seconds,
+            config_file=body.config_file,
         )
-
-        optimizer_session = await services.strategy_optimizer.start_session(internal_request)
-
+        
+        return AsyncJobResponse(
+            session_id=api_session_id,
+            status=status,
+            message=(
+                f"Optimizer started — {body.total_trials} trials for '{body.strategy_name}'. "
+                f"Internal optimizer_session_id={optimizer_session_id}. "
+                f"Poll /api/session/status/{api_session_id} for progress."
+            ),
+        )
     except BackendError as exc:
-        store.update(
-            api_record.session_id,
-            status="failed",
-            completed_at=datetime.now(tz=UTC),
-            error=exc.message,
-        )
-        logger.error("Backend error starting optimizer: %s", exc.message)
-        _raise_backend_error(exc)
-    except OptimizerError as exc:
-        store.update(
-            api_record.session_id,
-            status="failed",
-            completed_at=datetime.now(tz=UTC),
-            error=exc.message,
-        )
-        logger.error("Optimizer error starting optimizer: %s", exc.message)
-        _raise_optimizer_error(exc)
+        raise HTTPException(status_code=exc.status_code, detail=exc.message)
     except ValueError as exc:
-        store.update(
-            api_record.session_id,
-            status="failed",
-            completed_at=datetime.now(tz=UTC),
-            error=str(exc),
-        )
-        logger.error("Validation error starting optimizer: %s", exc)
-        raise HTTPException(status_code=400, detail=str(exc))
-
-    store.update(
-        api_record.session_id,
-        status="running",
-        started_at=datetime.now(tz=UTC),
-        result={"optimizer_session_id": optimizer_session.session_id},
-    )
-
-    asyncio.create_task(
-        _monitor_optimizer(
-            services, store, api_record.session_id, optimizer_session.session_id
-        )
-    )
-
-    return AsyncJobResponse(
-        session_id=api_record.session_id,
-        status="running",
-        message=(
-            f"Optimizer started — {body.total_trials} trials for '{body.strategy_name}'. "
-            f"Internal optimizer_session_id={optimizer_session.session_id}. "
-            f"Poll /api/session/status/{api_record.session_id} for progress."
-        ),
-    )
+        raise HTTPException(status_code=422, detail=str(exc))
 
 
 @router.get(

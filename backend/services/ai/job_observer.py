@@ -153,25 +153,31 @@ async def observe_optimizer_job(
             }
             return
         
-        # Extract progress data
-        total_trials = optimizer_session.total_trials or 0
-        completed_trials = len(optimizer_session.trials)
-        best_trial = optimizer_session.best_trial
+        # Extract progress data using actual OptimizerSession model fields
+        phase = optimizer_session.phase
+        total_trials = optimizer_session.total_trials
+        completed_trials = optimizer_session.completed_trials
+        failed_trials = optimizer_session.failed_trials
+        best_trial_number = optimizer_session.best_trial_number
+        best_metrics = optimizer_session.best_metrics
+        stop_reason = optimizer_session.stop_reason
         
         yield {
             "type": "optimizer_progress",
             "api_session_id": api_session_id,
             "optimizer_session_id": optimizer_session_id,
-            "status": optimizer_session.status,
+            "phase": phase,
             "total_trials": total_trials,
             "completed_trials": completed_trials,
-            "best_score": best_trial.score if best_trial else None,
-            "best_trial_number": best_trial.trial_number if best_trial else None,
+            "failed_trials": failed_trials,
+            "best_trial_number": best_trial_number,
+            "best_metrics": best_metrics.model_dump() if best_metrics else None,
+            "stop_reason": stop_reason,
         }
         
-        # Check if terminal
-        if optimizer_session.status in ("completed", "failed", "cancelled"):
-            logger.info(f"Optimizer {optimizer_session_id} reached terminal status: {optimizer_session.status}")
+        # Check if terminal (phase is terminal)
+        if phase in ("completed", "failed", "cancelled"):
+            logger.info(f"Optimizer {optimizer_session_id} reached terminal phase: {phase}")
             return
         
         # Backoff poll interval
