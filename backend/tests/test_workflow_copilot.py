@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from backend.services.ai.workflow_copilot import WorkflowCopilot
-from backend.services.ai.workflow_tool_models import ToolRunStatus
+from backend.services.ai.workflow_tool_models import ToolRunStatus, WorkflowToolResult
 
 
 @pytest.mark.asyncio
@@ -30,7 +30,7 @@ async def test_model_called_twice_tool_called_once():
     copilot_store.save_session = MagicMock()
     
     # Mock context service
-    context_service.build_context = AsyncMock(return_value={})
+    context_service.build_context = MagicMock(return_value={})
     
     # Mock ollama client
     # First call: returns tool call
@@ -48,10 +48,13 @@ async def test_model_called_twice_tool_called_once():
     ollama_client.chat = AsyncMock(side_effect=[mock_response1, mock_response2])
     
     # Mock executor
-    mock_result = MagicMock()
-    mock_result.status = ToolRunStatus.COMPLETED
-    mock_result.result_summary = {"strategies": ["A", "B", "C"]}
-    mock_result.error = None
+    mock_result = WorkflowToolResult(
+        tool_run_id="call_list",
+        tool_call_id="call_list",
+        tool_name="list_strategies",
+        status=ToolRunStatus.COMPLETED,
+        result_summary={"strategies": ["A", "B", "C"]},
+    )
     executor.execute = AsyncMock(return_value=mock_result)
     
     # Create copilot
@@ -82,8 +85,19 @@ async def test_model_called_twice_tool_called_once():
     assert executor.execute.call_count == 1
     
     # Verify tool result present in second model input
-    # This would require checking the messages passed to the second chat call
-    # For now, we verify the executor was called with correct arguments
+    second_call_messages = ollama_client.chat.call_args_list[1].kwargs["messages"]
+    assistant_tool_message = next(
+        msg for msg in second_call_messages
+        if msg.get("role") == "assistant" and msg.get("tool_calls")
+    )
+    tool_result_message = next(
+        msg for msg in second_call_messages
+        if msg.get("role") == "tool"
+    )
+    assert assistant_tool_message["tool_calls"][0]["name"] == "list_strategies"
+    assert tool_result_message["tool_call_id"] == assistant_tool_message["tool_calls"][0]["tool_call_id"]
+
+    # Verify the executor was called with correct arguments
     executor.execute.assert_called_once()
     call_args = executor.execute.call_args
     assert call_args.kwargs["tool_call"].tool_name == "list_strategies"
@@ -113,13 +127,19 @@ async def test_confirmation_path():
     copilot_store.add_pending_action = MagicMock()
     
     # Mock context service
-    context_service.build_context = AsyncMock(return_value={})
+    context_service.build_context = MagicMock(return_value={})
     
     # Mock ollama client - returns guarded tool call
     mock_response = MagicMock()
     mock_response.content = "I'll run a backtest."
     mock_response.tool_calls = [
-        {"name": "run_backtest", "arguments": {"strategy_name": "DemoStrategy"}}
+        {
+            "name": "run_backtest",
+            "arguments": {
+                "strategy_name": "DemoStrategy",
+                "timerange": "20240101-20240131",
+            },
+        }
     ]
     ollama_client.chat = AsyncMock(return_value=mock_response)
     
@@ -176,7 +196,7 @@ async def test_tool_failure():
     copilot_store.save_session = MagicMock()
     
     # Mock context service
-    context_service.build_context = AsyncMock(return_value={})
+    context_service.build_context = MagicMock(return_value={})
     
     # Mock ollama client
     mock_response1 = MagicMock()
@@ -190,10 +210,13 @@ async def test_tool_failure():
     ollama_client.chat = AsyncMock(side_effect=[mock_response1, mock_response2])
     
     # Mock executor - returns failure
-    mock_result = MagicMock()
-    mock_result.status = ToolRunStatus.FAILED
-    mock_result.error = "Strategy file not found"
-    mock_result.result_summary = None
+    mock_result = WorkflowToolResult(
+        tool_run_id="call_read",
+        tool_call_id="call_read",
+        tool_name="read_strategy_file",
+        status=ToolRunStatus.FAILED,
+        error="Strategy file not found",
+    )
     executor.execute = AsyncMock(return_value=mock_result)
     
     # Create copilot
@@ -246,7 +269,7 @@ async def test_invalid_args():
     copilot_store.save_session = MagicMock()
     
     # Mock context service
-    context_service.build_context = AsyncMock(return_value={})
+    context_service.build_context = MagicMock(return_value={})
     
     # Mock ollama client - returns tool with invalid args
     mock_response = MagicMock()
@@ -306,7 +329,7 @@ async def test_unknown_tool():
     copilot_store.save_session = MagicMock()
     
     # Mock context service
-    context_service.build_context = AsyncMock(return_value={})
+    context_service.build_context = MagicMock(return_value={})
     
     # Mock ollama client - returns unknown tool
     mock_response = MagicMock()
@@ -366,7 +389,7 @@ async def test_duplicate_tool_call():
     copilot_store.save_session = MagicMock()
     
     # Mock context service
-    context_service.build_context = AsyncMock(return_value={})
+    context_service.build_context = MagicMock(return_value={})
     
     # Mock ollama client - returns same tool call twice
     mock_response = MagicMock()
@@ -376,6 +399,13 @@ async def test_duplicate_tool_call():
         {"name": "list_strategies", "arguments": {}},  # Duplicate
     ]
     ollama_client.chat = AsyncMock(return_value=mock_response)
+    executor.execute = AsyncMock(return_value=WorkflowToolResult(
+        tool_run_id="call_duplicate",
+        tool_call_id="call_duplicate",
+        tool_name="list_strategies",
+        status=ToolRunStatus.COMPLETED,
+        result_summary={"strategies": []},
+    ))
     
     # Create copilot
     copilot = WorkflowCopilot(
@@ -427,7 +457,7 @@ async def test_max_loop_guard():
     copilot_store.save_session = MagicMock()
     
     # Mock context service
-    context_service.build_context = AsyncMock(return_value={})
+    context_service.build_context = MagicMock(return_value={})
     
     # Mock ollama client - always returns tool call
     mock_response = MagicMock()
@@ -438,10 +468,13 @@ async def test_max_loop_guard():
     ollama_client.chat = AsyncMock(return_value=mock_response)
     
     # Mock executor - returns success
-    mock_result = MagicMock()
-    mock_result.status = ToolRunStatus.COMPLETED
-    mock_result.result_summary = {"strategies": []}
-    mock_result.error = None
+    mock_result = WorkflowToolResult(
+        tool_run_id="call_loop",
+        tool_call_id="call_loop",
+        tool_name="list_strategies",
+        status=ToolRunStatus.COMPLETED,
+        result_summary={"strategies": []},
+    )
     executor.execute = AsyncMock(return_value=mock_result)
     
     # Create copilot

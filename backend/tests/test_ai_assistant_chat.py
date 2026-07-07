@@ -101,6 +101,9 @@ def _client(tmp_path: Path, *, model: str = "llama3"):
     services.root_dir = tmp_path
     services.settings_store.load.return_value = settings
     services.optimizer_store = OptimizerStore(user_data / "optimizer_sessions")
+    services.version_manager.get_current_pointer.return_value = None
+    services.version_manager.load_params.return_value = None
+    services.version_manager.list_versions.return_value = []
     services.strategy_optimizer.get_active_session_id.return_value = None
     services.backtest_runner.get_current_run_id.return_value = None
     services.run_detail.side_effect = Exception("no runs")
@@ -117,7 +120,7 @@ def _client(tmp_path: Path, *, model: str = "llama3"):
 def test_chat_uses_ollama_and_persists_session(tmp_path):
     client, _, user_data = _client(tmp_path)
 
-    with patch("backend.services.assistant_service.OllamaClient", DummyOllamaClient):
+    with patch("backend.api.routers.ai_assistant.OllamaClient", DummyOllamaClient):
         response = client.post("/api/ai/chat", json={"message": "Why is this losing?"})
 
     assert response.status_code == 200
@@ -126,7 +129,7 @@ def test_chat_uses_ollama_and_persists_session(tmp_path):
     assert body["session_id"]
 
     stored = read_json(user_data / "assistant" / "chat_sessions" / f"{body['session_id']}.json")
-    assert stored["schema_version"] == "assistant_chat_session_v1"
+    assert stored["schema_version"] == "assistant_copilot_session_v2"
     assert [item["role"] for item in stored["messages"]] == ["user", "assistant"]
 
     loaded = client.get(f"/api/ai/chat/{body['session_id']}")
@@ -416,7 +419,7 @@ def test_unknown_action_returns_400_error(tmp_path):
 def test_chat_with_context_overrides_includes_context_in_prompt(tmp_path):
     client, _, user_data = _client(tmp_path)
 
-    with patch("backend.services.assistant_service.OllamaClient", DummyOllamaClient):
+    with patch("backend.api.routers.ai_assistant.OllamaClient", DummyOllamaClient):
         response = client.post(
             "/api/ai/chat",
             json={
@@ -488,7 +491,7 @@ def test_models_endpoint_handles_malformed_json(tmp_path):
 def test_session_persists_messages_and_context(tmp_path):
     client, _, user_data = _client(tmp_path)
 
-    with patch("backend.services.assistant_service.OllamaClient", DummyOllamaClient):
+    with patch("backend.api.routers.ai_assistant.OllamaClient", DummyOllamaClient):
         # First message
         response1 = client.post(
             "/api/ai/chat",
@@ -526,7 +529,7 @@ def test_include_strategy_source_attaches_strategy_content(tmp_path):
     strategy_file = strategies_dir / "TestStrategy.py"
     strategy_file.write_text("# Test strategy\ndef dummy(): pass", encoding="utf-8")
 
-    with patch("backend.services.assistant_service.OllamaClient", DummyOllamaClient):
+    with patch("backend.api.routers.ai_assistant.OllamaClient", DummyOllamaClient):
         response = client.post(
             "/api/ai/chat",
             json={

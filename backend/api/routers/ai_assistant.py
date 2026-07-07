@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -320,6 +321,40 @@ class ConfirmToolActionRequest(BaseModel):
     session_id: str = Field(..., description="Copilot session ID.")
 
 
+def _copilot_mode(mode: str) -> str:
+    if mode in {"autoquant", "strategylab", "optimizer"}:
+        return mode
+    return "analysis"
+
+
+def _assistant_message_record(content: str) -> dict[str, str]:
+    return {
+        "id": str(uuid.uuid4()),
+        "role": "assistant",
+        "content": content,
+        "created_at": datetime.now(tz=UTC).isoformat(),
+    }
+
+
+def _sse(event: str, payload: dict) -> str:
+    return f"event: {event}\ndata: {json.dumps(payload, default=str)}\n\n"
+
+
+def _persist_copilot_context_summary(
+    copilot: WorkflowCopilot,
+    session_id: str,
+    summary: dict,
+    context_overrides: dict,
+) -> None:
+    try:
+        session = copilot.copilot_store.load_session(session_id)
+    except Exception:
+        return
+    session["last_context_summary"] = summary
+    session["last_context_overrides"] = context_overrides
+    copilot.copilot_store.save_session(session)
+
+
 # ── chat assistant endpoints ──────────────────────────────────────────────────
 
 @router.post(
@@ -332,14 +367,56 @@ class ConfirmToolActionRequest(BaseModel):
 )
 async def chat(body: ChatRequest, request: Request) -> dict:
     try:
-        return await _assistant_service(request).chat(
-            message=body.message,
-            session_id=body.session_id,
-            model=body.model,
-            mode=body.mode,
-            context_overrides=body.context_overrides or {},
+        if not body.message.strip():
+            raise BackendError("Message is required.", status_code=422)
+
+        service = _assistant_service(request)
+        settings = request.app.state.services.settings_store.load()
+        resolved_mode = service._resolve_mode(body.mode, body.message)
+        _, resolved_model = service._resolve_model_pair(settings, body.model, resolved_mode)
+        copilot_mode = _copilot_mode(resolved_mode)
+        context = service._build_context(
+            body.context_overrides or {},
             include_strategy_source=body.include_strategy_source,
         )
+        summary = service.context_summary(context)
+        actions = service.available_actions(context)
+        copilot = _workflow_copilot(request, model_override=resolved_model)
+        session_id = body.session_id or str(uuid.uuid4())
+
+        events: list[dict] = []
+        message_parts: list[str] = []
+        final_content: str | None = None
+        async for event in copilot.process_turn(
+            session_id=session_id,
+            user_message=body.message,
+            model=resolved_model,
+            mode=copilot_mode,
+            stream=False,
+            context_overrides=body.context_overrides or {},
+        ):
+            events.append(event)
+            if event.get("type") == "message":
+                message_parts.append(str(event.get("content", "")))
+            elif event.get("type") == "final":
+                final_content = str(event.get("content", ""))
+
+        final_event = events[-1] if events else {"type": "error", "message": "No events generated"}
+        if final_event.get("type") == "error" and not (final_content or message_parts):
+            raise BackendError(str(final_event.get("message") or "AI chat failed."), status_code=503)
+
+        content = final_content if final_content is not None else "".join(message_parts)
+        if not content:
+            content = "No response generated."
+        _persist_copilot_context_summary(copilot, session_id, summary, body.context_overrides or {})
+        return {
+            "session_id": session_id,
+            "model": resolved_model,
+            "message": _assistant_message_record(content),
+            "context_summary": summary,
+            "available_actions": actions,
+            "workflow_events": events,
+        }
     except BackendError as exc:
         _raise_backend(exc)
 
@@ -349,22 +426,68 @@ async def chat(body: ChatRequest, request: Request) -> dict:
     summary="Stream a Strategy Lab AI assistant response",
 )
 async def chat_stream(body: ChatRequest, request: Request) -> StreamingResponse:
-    service = _assistant_service(request)
     try:
         if not body.message.strip():
             raise BackendError("Message is required.", status_code=422)
-        service._settings_and_model(body.model)
-        stream = service.stream_chat(
-            message=body.message,
-            session_id=body.session_id,
-            model=body.model,
-            mode=body.mode,
-            context_overrides=body.context_overrides or {},
+        service = _assistant_service(request)
+        settings = request.app.state.services.settings_store.load()
+        resolved_mode = service._resolve_mode(body.mode, body.message)
+        _, resolved_model = service._resolve_model_pair(settings, body.model, resolved_mode)
+        copilot_mode = _copilot_mode(resolved_mode)
+        context = service._build_context(
+            body.context_overrides or {},
             include_strategy_source=body.include_strategy_source,
         )
+        summary = service.context_summary(context)
+        actions = service.available_actions(context)
+        copilot = _workflow_copilot(request, model_override=resolved_model)
+        session_id = body.session_id or str(uuid.uuid4())
     except BackendError as exc:
         _raise_backend(exc)
-    return StreamingResponse(stream, media_type="text/event-stream")
+
+    async def stream():
+        yield _sse("meta", {
+            "session_id": session_id,
+            "model": resolved_model,
+            "mode": copilot_mode,
+            "context_summary": summary,
+            "available_actions": actions,
+        })
+        message_parts: list[str] = []
+        final_content: str | None = None
+        async for event in copilot.process_turn(
+            session_id=session_id,
+            user_message=body.message,
+            model=resolved_model,
+            mode=copilot_mode,
+            stream=True,
+            context_overrides=body.context_overrides or {},
+        ):
+            event_type = event.get("type")
+            if event_type == "message":
+                content = str(event.get("content", ""))
+                message_parts.append(content)
+                yield _sse("token", {"content": content})
+            elif event_type == "final":
+                final_content = str(event.get("content", ""))
+            elif event_type == "error":
+                yield _sse("error", {"detail": event.get("message")})
+                return
+            else:
+                yield _sse(str(event_type or "copilot_event"), event)
+
+        content = final_content if final_content is not None else "".join(message_parts)
+        if not content:
+            content = "No response generated."
+        _persist_copilot_context_summary(copilot, session_id, summary, body.context_overrides or {})
+        yield _sse("done", {
+            "session_id": session_id,
+            "message": _assistant_message_record(content),
+            "context_summary": summary,
+            "available_actions": actions,
+        })
+
+    return StreamingResponse(stream(), media_type="text/event-stream")
 
 
 @router.get(
@@ -402,7 +525,7 @@ async def confirm_action(body: ConfirmActionRequest, request: Request) -> dict:
 # ── workflow copilot endpoints ───────────────────────────────────────────────────
 
 
-def _workflow_copilot(request: Request) -> WorkflowCopilot:
+def _workflow_copilot(request: Request, model_override: str | None = None) -> WorkflowCopilot:
     """Build WorkflowCopilot instance for request."""
     services = request.app.state.services
     settings = services.settings_store.load()
@@ -432,7 +555,12 @@ def _workflow_copilot(request: Request) -> WorkflowCopilot:
         root_dir=services.root_dir,
     )
     
-    ollama_config = config_from_settings(settings)
+    ollama_config = config_from_settings(settings, model_override=model_override)
+    if ollama_config is None:
+        raise BackendError(
+            "No AI model configured. Go to Settings -> AI Assistant, refresh models, select one, and save.",
+            status_code=422,
+        )
     ollama_client = OllamaClient(config=ollama_config)
     
     return WorkflowCopilot(
@@ -456,7 +584,7 @@ def _workflow_copilot(request: Request) -> WorkflowCopilot:
 )
 async def copilot_chat(body: CopilotChatRequest, request: Request) -> dict:
     """Non-streaming copilot chat endpoint."""
-    copilot = _workflow_copilot(request)
+    copilot = _workflow_copilot(request, model_override=body.model)
     session_id = body.session_id or str(uuid.uuid4())
     
     # Collect all events from the async generator
@@ -490,7 +618,7 @@ async def copilot_chat(body: CopilotChatRequest, request: Request) -> dict:
 )
 async def copilot_chat_stream(body: CopilotChatRequest, request: Request) -> StreamingResponse:
     """Streaming copilot chat endpoint."""
-    copilot = _workflow_copilot(request)
+    copilot = _workflow_copilot(request, model_override=body.model)
     session_id = body.session_id or str(uuid.uuid4())
     
     async def event_stream():
@@ -690,7 +818,7 @@ async def autoquant_chat(body: AutoQuantRequest, request: Request) -> dict:
     This is a compatibility adapter that forwards requests to the new
     WorkflowCopilot in autoquant mode while maintaining the legacy response format.
     """
-    copilot = _workflow_copilot(request)
+    copilot = _workflow_copilot(request, model_override=body.model)
     
     # Use existing session or create new one
     session_id = body.session_id or str(uuid.uuid4())

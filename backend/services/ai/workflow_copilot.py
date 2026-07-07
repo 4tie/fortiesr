@@ -171,6 +171,14 @@ class WorkflowCopilot:
             )
             self.copilot_store.save_session(session)
 
+            assistant_message = {
+                "role": "assistant",
+                "content": content,
+            }
+            if tool_calls:
+                assistant_message["tool_calls"] = tool_calls
+            messages.append(assistant_message)
+
             # Yield content
             if content:
                 yield {"type": "message", "content": content}
@@ -207,16 +215,22 @@ class WorkflowCopilot:
                     continue
 
                 # Create workflow tool call
+                workflow_call_kwargs = {
+                    "tool_name": tool_name,
+                    "arguments": arguments,
+                    "safety": safety,
+                }
+                if tool_call_data.get("tool_call_id"):
+                    workflow_call_kwargs["tool_call_id"] = tool_call_data["tool_call_id"]
                 workflow_call = WorkflowToolCall(
-                    tool_name=tool_name,
-                    arguments=arguments,
-                    safety=safety,
+                    **workflow_call_kwargs,
                 )
 
                 # If confirmation required, pause and yield action card
                 if safety == ToolSafety.CONFIRMATION_REQUIRED:
                     pending_action = PendingToolAction(
                         session_id=session_id,
+                        tool_call_id=workflow_call.tool_call_id,
                         tool_name=tool_name,
                         arguments=arguments,
                         arguments_hash=tool_hash,
@@ -235,10 +249,6 @@ class WorkflowCopilot:
 
                 # Execute read-only tools immediately
                 yield {"type": "tool_started", "tool_name": tool_name}
-
-                # Create progress callback that yields events
-                async def progress_callback(event: str, data: dict[str, Any]) -> None:
-                    yield {"type": f"tool_{event}", "data": data}
 
                 result = await self.executor.execute(
                     tool_call=workflow_call,
@@ -280,11 +290,19 @@ class WorkflowCopilot:
                 # Add tool result to messages for next model turn.
                 # Must follow the assistant message that carried the tool call
                 # and carry the matching tool_call_id (protocol invariant).
+                tool_result_content = json.dumps(result.result_summary or {"error": result.error})
                 messages.append({
                     "role": "tool",
-                    "content": json.dumps(result.result_summary or {"error": result.error}),
+                    "content": tool_result_content,
                     "tool_call_id": workflow_call.tool_call_id,
                 })
+                self.copilot_store.add_message(
+                    session,
+                    "tool",
+                    tool_result_content,
+                    tool_call_id=workflow_call.tool_call_id,
+                )
+                self.copilot_store.save_session(session)
 
         # Max steps reached
         yield {
@@ -311,11 +329,14 @@ class WorkflowCopilot:
         self.copilot_store.remove_pending_action(session, action_id)
         
         # Execute
-        workflow_call = WorkflowToolCall(
-            tool_name=pending["tool_name"],
-            arguments=pending["arguments"],
-            safety=pending["safety"],
-        )
+        workflow_call_kwargs = {
+            "tool_name": pending["tool_name"],
+            "arguments": pending["arguments"],
+            "safety": pending["safety"],
+        }
+        if pending.get("tool_call_id"):
+            workflow_call_kwargs["tool_call_id"] = pending["tool_call_id"]
+        workflow_call = WorkflowToolCall(**workflow_call_kwargs)
         
         result = await self.executor.execute(
             tool_call=workflow_call,
@@ -416,6 +437,9 @@ class WorkflowCopilot:
             # Extract content and tool calls
             content = getattr(response, "content", "")
             tool_calls = self._extract_tool_calls(response)
+
+            for idx, tc in enumerate(tool_calls):
+                tc.setdefault("tool_call_id", f"resume_call_{step}_{idx}")
             
             # Add assistant message
             self.copilot_store.add_message(
@@ -425,6 +449,14 @@ class WorkflowCopilot:
                 tool_calls=tool_calls,
             )
             self.copilot_store.save_session(session)
+
+            assistant_message = {
+                "role": "assistant",
+                "content": content,
+            }
+            if tool_calls:
+                assistant_message["tool_calls"] = tool_calls
+            messages.append(assistant_message)
             
             # Yield content
             if content:
@@ -462,16 +494,22 @@ class WorkflowCopilot:
                     continue
                 
                 # Create workflow tool call
+                workflow_call_kwargs = {
+                    "tool_name": tool_name,
+                    "arguments": arguments,
+                    "safety": safety,
+                }
+                if tool_call_data.get("tool_call_id"):
+                    workflow_call_kwargs["tool_call_id"] = tool_call_data["tool_call_id"]
                 workflow_call = WorkflowToolCall(
-                    tool_name=tool_name,
-                    arguments=arguments,
-                    safety=safety,
+                    **workflow_call_kwargs,
                 )
                 
                 # If confirmation required, pause again
                 if safety == ToolSafety.CONFIRMATION_REQUIRED:
                     pending_action = PendingToolAction(
                         session_id=session_id,
+                        tool_call_id=workflow_call.tool_call_id,
                         tool_name=tool_name,
                         arguments=arguments,
                         arguments_hash=tool_hash,
@@ -529,11 +567,19 @@ class WorkflowCopilot:
                 # Add tool result to messages for next model turn.
                 # Must follow the assistant message that carried the tool call
                 # and carry the matching tool_call_id (protocol invariant).
+                tool_result_content = json.dumps(result.result_summary or {"error": result.error})
                 messages.append({
                     "role": "tool",
-                    "content": json.dumps(result.result_summary or {"error": result.error}),
+                    "content": tool_result_content,
                     "tool_call_id": workflow_call.tool_call_id,
                 })
+                self.copilot_store.add_message(
+                    session,
+                    "tool",
+                    tool_result_content,
+                    tool_call_id=workflow_call.tool_call_id,
+                )
+                self.copilot_store.save_session(session)
         
         # Max steps reached
         yield {
@@ -630,14 +676,28 @@ class WorkflowCopilot:
         if hasattr(response, "tool_calls") and response.tool_calls:
             for tool_call in response.tool_calls:
                 if isinstance(tool_call, dict):
-                    name = tool_call.get("name")
-                    arguments = tool_call.get("arguments") or {}
+                    call_id = tool_call.get("tool_call_id") or tool_call.get("id")
+                    function = tool_call.get("function") or {}
+                    name = tool_call.get("name") or function.get("name")
+                    arguments = tool_call.get("arguments")
+                    if arguments is None:
+                        arguments = function.get("arguments") or {}
                 else:
+                    call_id = getattr(tool_call, "tool_call_id", None) or getattr(tool_call, "id", None)
                     function = getattr(tool_call, "function", None)
                     name = getattr(function, "name", None)
                     arguments = getattr(function, "arguments", {}) or {}
+
+                if isinstance(arguments, str):
+                    try:
+                        arguments = json.loads(arguments)
+                    except json.JSONDecodeError:
+                        arguments = {}
                 
                 if name:
-                    tool_calls.append({"name": name, "arguments": arguments})
+                    item = {"name": name, "arguments": arguments}
+                    if call_id:
+                        item["tool_call_id"] = str(call_id)
+                    tool_calls.append(item)
         
         return tool_calls

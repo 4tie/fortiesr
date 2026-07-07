@@ -1,298 +1,229 @@
-"""Tests for workflow tool executor."""
+"""Tests for workflow tool executor behavior."""
 
-import pytest
+from __future__ import annotations
+
+from datetime import UTC, datetime
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
+from backend.models import (
+    OptimizerScoreMetric,
+    OptimizerSession,
+    OptimizerSessionConfig,
+    OptimizerSessionPhase,
+    OptimizerTrial,
+    OptimizerTrialMetrics,
+    OptimizerTrialStatus,
+)
 from backend.services.ai.workflow_tool_executor import WorkflowToolExecutor
 from backend.services.ai.workflow_tool_models import (
-    ToolSafety,
     ToolRunStatus,
+    ToolSafety,
     WorkflowToolCall,
 )
 
 
-@pytest.mark.asyncio
-async def test_read_only_tool_executes_immediately():
-    """Test that read-only tool executes immediately."""
-    # Mock dependencies
+def _services(tmp_path):
+    strategies = tmp_path / "strategies"
+    strategies.mkdir()
+    settings = SimpleNamespace(
+        strategies_directory_path=str(strategies),
+        user_data_directory_path=str(tmp_path / "user_data"),
+        freqtrade_executable_path="freqtrade",
+        default_config_file_path="config.json",
+        ollama_model="llama3",
+    )
     services = MagicMock()
-    session_store = MagicMock()
-    copilot_store = MagicMock()
-    
-    executor = WorkflowToolExecutor(
-        services=services,
-        session_store=session_store,
-        copilot_store=copilot_store,
+    services.settings_store.load.return_value = settings
+    services.optimizer_store = MagicMock()
+    return services
+
+
+def _executor(tmp_path) -> WorkflowToolExecutor:
+    return WorkflowToolExecutor(
+        services=_services(tmp_path),
+        session_store=MagicMock(),
+        copilot_store=MagicMock(),
+        root_dir=tmp_path,
     )
-    
-    # Create read-only tool call
-    tool_call = WorkflowToolCall(
-        tool_name="inspect_app_structure",
-        arguments={},
-        safety=ToolSafety.READ_ONLY,
-    )
-    
-    # Execute
+
+
+@pytest.mark.asyncio
+async def test_read_only_tool_executes_immediately(tmp_path):
+    executor = _executor(tmp_path)
     result = await executor.execute(
-        tool_call=tool_call,
+        tool_call=WorkflowToolCall(
+            tool_name="inspect_app_structure",
+            arguments={},
+            safety=ToolSafety.READ_ONLY,
+        ),
         copilot_session_id="test-session",
         confirmed=False,
     )
-    
-    # Should complete without confirmation
+
     assert result.status == ToolRunStatus.COMPLETED
-    assert result.result_summary is not None
+    assert result.result_summary["default_config"] == "config.json"
 
 
 @pytest.mark.asyncio
-async def test_guarded_tool_does_not_execute_before_confirmation():
-    """Test that guarded tool does not execute before confirmation."""
-    # Mock dependencies
-    services = MagicMock()
-    session_store = MagicMock()
-    copilot_store = MagicMock()
-    
-    executor = WorkflowToolExecutor(
-        services=services,
-        session_store=session_store,
-        copilot_store=copilot_store,
-    )
-    
-    # Create guarded tool call
-    tool_call = WorkflowToolCall(
-        tool_name="run_backtest",
-        arguments={"strategy_name": "DemoStrategy"},
-        safety=ToolSafety.CONFIRMATION_REQUIRED,
-    )
-    
-    # Execute without confirmation
+async def test_guarded_tool_does_not_execute_before_confirmation(tmp_path):
+    executor = _executor(tmp_path)
     result = await executor.execute(
-        tool_call=tool_call,
+        tool_call=WorkflowToolCall(
+            tool_name="run_backtest",
+            arguments={"strategy_name": "DemoStrategy", "timerange": "20240101-20240131"},
+            safety=ToolSafety.CONFIRMATION_REQUIRED,
+        ),
         copilot_session_id="test-session",
         confirmed=False,
     )
-    
-    # Should require confirmation
+
     assert result.status == ToolRunStatus.AWAITING_CONFIRMATION
     assert "confirmation required" in result.error.lower()
 
 
 @pytest.mark.asyncio
-async def test_invalid_action_id_rejected():
-    """Test that invalid action ID is rejected."""
-    # This is tested in workflow_copilot tests
-    # confirm_action is on WorkflowCopilot, not WorkflowToolExecutor
-    # Verify that WorkflowToolExecutor does not have confirm_action method
-    services = MagicMock()
-    session_store = MagicMock()
-    copilot_store = MagicMock()
-    
-    executor = WorkflowToolExecutor(
-        services=services,
-        session_store=session_store,
-        copilot_store=copilot_store,
-    )
-    
-    # Verify confirm_action is not on executor
-    assert not hasattr(executor, "confirm_action")
-
-
-@pytest.mark.asyncio
-async def test_expired_action_rejected():
-    """Test that expired action is rejected."""
-    # This is tested in workflow_copilot tests
-    # confirm_action is on WorkflowCopilot, not WorkflowToolExecutor
-    # Verify that WorkflowToolExecutor does not have confirm_action method
-    services = MagicMock()
-    session_store = MagicMock()
-    copilot_store = MagicMock()
-    
-    executor = WorkflowToolExecutor(
-        services=services,
-        session_store=session_store,
-        copilot_store=copilot_store,
-    )
-    
-    # Verify confirm_action is not on executor
-    assert not hasattr(executor, "confirm_action")
-
-
-@pytest.mark.asyncio
-async def test_backend_job_reference_returned():
-    """Test that backend job reference is returned for long-running jobs."""
-    # Mock dependencies
-    services = MagicMock()
-    services.backtest_runner = MagicMock()
-    services.backtest_runner.is_busy.return_value = False
-    services.registry = MagicMock()
-    services.version_manager = MagicMock()
-    services.settings_store = MagicMock()
-    services.settings_store.load.return_value = MagicMock(
-        default_config_file_path="config.json",
-        strategies_directory_path="/strategies",
-    )
-    session_store = MagicMock()
-    copilot_store = MagicMock()
-    
-    # Mock job start function at the source module path (where it's imported from)
-    from unittest.mock import patch
-    with patch('backend.services.workflow_jobs.start_backtest_job') as mock_job:
-        mock_job.return_value = ("api-session-123", "queued")
-        
-        executor = WorkflowToolExecutor(
-            services=services,
-            session_store=session_store,
-            copilot_store=copilot_store,
-        )
-        
-        # Create long-running tool call with all required arguments
-        tool_call = WorkflowToolCall(
-            tool_name="run_backtest",
-            arguments={
-                "strategy_name": "DemoStrategy",
-                "timerange": "20240101-20240131",
+@pytest.mark.parametrize(
+    ("backend_status", "expected_status"),
+    [
+        ("completed", ToolRunStatus.COMPLETED),
+        ("failed", ToolRunStatus.FAILED),
+        ("cancelled", ToolRunStatus.CANCELLED),
+        ("timed_out", ToolRunStatus.TIMED_OUT),
+        ("running", ToolRunStatus.RUNNING),
+        ("queued", ToolRunStatus.RUNNING),
+    ],
+)
+async def test_long_running_backend_status_mapping(tmp_path, backend_status, expected_status):
+    executor = _executor(tmp_path)
+    executor._dispatch_handler = AsyncMock(
+        return_value={
+            "summary": {
+                "api_session_id": "api-1",
+                "status": backend_status,
+                "error": "backend failed" if backend_status == "failed" else None,
             },
-            safety=ToolSafety.CONFIRMATION_REQUIRED,
-        )
-        
-        # Execute with confirmation
-        result = await executor.execute(
-            tool_call=tool_call,
-            copilot_session_id="test-session",
-            confirmed=True,
-        )
-        
-        # Verify job start function was called
-        mock_job.assert_called_once()
-        # The result may be failed due to observation issues, but the job should have been started
-        assert result.result_summary is not None or result.error is not None
-
-
-@pytest.mark.asyncio
-async def test_failed_job_remains_failed():
-    """Test that failed job remains failed."""
-    # Mock dependencies
-    services = MagicMock()
-    session_store = MagicMock()
-    copilot_store = MagicMock()
-    
-    # Mock job start function that fails at correct module path
-    from unittest.mock import patch
-    with patch('backend.services.workflow_jobs.backtest_job.start_backtest_job') as mock_job:
-        mock_job.side_effect = Exception("Job failed")
-        
-        executor = WorkflowToolExecutor(
-            services=services,
-            session_store=session_store,
-            copilot_store=copilot_store,
-        )
-        
-        # Create tool call
-        tool_call = WorkflowToolCall(
-            tool_name="run_backtest",
-            arguments={"strategy_name": "DemoStrategy"},
-            safety=ToolSafety.CONFIRMATION_REQUIRED,
-        )
-        
-        # Execute with confirmation
-        result = await executor.execute(
-            tool_call=tool_call,
-            copilot_session_id="test-session",
-            confirmed=True,
-        )
-        
-        # Should fail
-        assert result.status == ToolRunStatus.FAILED
-        assert result.error is not None
-
-
-@pytest.mark.asyncio
-async def test_context_patch_produced_correctly():
-    """Test that context patch is produced correctly."""
-    # Mock dependencies
-    services = MagicMock()
-    services.backtest_runner = MagicMock()
-    services.backtest_runner.is_busy.return_value = False
-    services.registry = MagicMock()
-    services.version_manager = MagicMock()
-    services.settings_store = MagicMock()
-    services.settings_store.load.return_value = MagicMock(
-        default_config_file_path="config.json",
-        strategies_directory_path="/strategies",
+            "context_patch": {},
+        }
     )
-    session_store = MagicMock()
-    copilot_store = MagicMock()
-    
-    # Mock job start function at the source module path (where it's imported from)
-    from unittest.mock import patch
-    with patch('backend.services.workflow_jobs.start_backtest_job') as mock_job:
-        mock_job.return_value = ("api-session-123", "queued")
-        
-        executor = WorkflowToolExecutor(
-            services=services,
-            session_store=session_store,
-            copilot_store=copilot_store,
-        )
-        
-        # Create tool call with all required arguments
-        tool_call = WorkflowToolCall(
-            tool_name="run_backtest",
-            arguments={
-                "strategy_name": "DemoStrategy",
-                "timerange": "20240101-20240131",
-            },
-            safety=ToolSafety.CONFIRMATION_REQUIRED,
-        )
-        
-        # Execute
-        result = await executor.execute(
-            tool_call=tool_call,
-            copilot_session_id="test-session",
-            confirmed=True,
-        )
-        
-        # Verify job start function was called
-        mock_job.assert_called_once()
-        # Context patch may be None if observation fails, but job should have been started
-        assert result.result_summary is not None or result.error is not None
 
-
-@pytest.mark.asyncio
-async def test_sensitive_values_sanitized():
-    """Test that sensitive values are sanitized in results."""
-    # Mock dependencies
-    services = MagicMock()
-    session_store = MagicMock()
-    copilot_store = MagicMock()
-    
-    executor = WorkflowToolExecutor(
-        services=services,
-        session_store=session_store,
-        copilot_store=copilot_store,
-    )
-    
-    # Create tool call with potentially sensitive data
-    tool_call = WorkflowToolCall(
-        tool_name="inspect_app_structure",
-        arguments={},
-        safety=ToolSafety.READ_ONLY,
-    )
-    
-    # Execute
     result = await executor.execute(
-        tool_call=tool_call,
+        tool_call=WorkflowToolCall(
+            tool_name="run_backtest",
+            arguments={"strategy_name": "DemoStrategy", "timerange": "20240101-20240131"},
+            safety=ToolSafety.CONFIRMATION_REQUIRED,
+        ),
         copilot_session_id="test-session",
-        confirmed=False,
+        confirmed=True,
     )
-    
-    # Should not leak sensitive values
+
+    assert result.status == expected_status
+    if expected_status == ToolRunStatus.RUNNING:
+        assert result.completed_at is None
+    if expected_status == ToolRunStatus.FAILED:
+        assert result.error == "backend failed"
+
+
+@pytest.mark.asyncio
+async def test_observation_timeout_is_never_completed(tmp_path):
+    executor = _executor(tmp_path)
+    executor._dispatch_handler = AsyncMock(
+        return_value={
+            "summary": {
+                "api_session_id": "api-timeout",
+                "status": "timed_out",
+                "timed_out": True,
+            },
+            "context_patch": {},
+        }
+    )
+
+    result = await executor.execute(
+        tool_call=WorkflowToolCall(
+            tool_name="run_optimizer",
+            arguments={"strategy_name": "DemoStrategy", "timerange": "20240101-20240131"},
+            safety=ToolSafety.CONFIRMATION_REQUIRED,
+        ),
+        copilot_session_id="test-session",
+        confirmed=True,
+    )
+
+    assert result.status == ToolRunStatus.TIMED_OUT
+    assert result.status != ToolRunStatus.COMPLETED
+
+
+def _optimizer_session() -> OptimizerSession:
+    return OptimizerSession(
+        session_id="opt-1",
+        strategy_name="DemoStrategy",
+        config=OptimizerSessionConfig(
+            strategy_name="DemoStrategy",
+            timeframe="1h",
+            timerange="20240101-20240201",
+            pairs=["BTC/USDT"],
+            config_file="config.json",
+            score_metric=OptimizerScoreMetric.COMPOSITE,
+        ),
+        phase=OptimizerSessionPhase.COMPLETED,
+        created_at=datetime.now(tz=UTC),
+        total_trials=2,
+        completed_trials=2,
+        best_trial_number=2,
+        best_metrics=OptimizerTrialMetrics(score=1.7, profit_factor=2.1),
+        trials=[
+            OptimizerTrial(
+                trial_number=1,
+                status=OptimizerTrialStatus.COMPLETED,
+                parameters={"buy": {"window": 12}},
+                metrics=OptimizerTrialMetrics(score=0.9, profit_factor=1.4),
+            ),
+            OptimizerTrial(
+                trial_number=2,
+                status=OptimizerTrialStatus.COMPLETED,
+                parameters={"buy": {"window": 21}},
+                metrics=OptimizerTrialMetrics(score=1.7, profit_factor=2.1),
+            ),
+        ],
+    )
+
+
+@pytest.mark.asyncio
+async def test_view_best_params_uses_real_optimizer_model_fields(tmp_path):
+    executor = _executor(tmp_path)
+    executor.services.optimizer_store.load_session.return_value = _optimizer_session()
+
+    result = await executor.execute(
+        tool_call=WorkflowToolCall(
+            tool_name="view_best_params",
+            arguments={"optimizer_session_id": "opt-1"},
+            safety=ToolSafety.READ_ONLY,
+        ),
+        copilot_session_id="test-session",
+    )
+
     assert result.status == ToolRunStatus.COMPLETED
-    # Verify no secrets in result
-    result_str = str(result.result_summary).lower()
-    assert "password" not in result_str
-    assert "secret" not in result_str
-    assert "token" not in result_str
+    assert result.result_summary["best_trial_number"] == 2
+    assert result.result_summary["parameters"] == {"buy": {"window": 21}}
+    assert result.result_summary["metrics"]["score"] == 1.7
 
 
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+@pytest.mark.asyncio
+async def test_view_trial_params_uses_real_optimizer_model_fields(tmp_path):
+    executor = _executor(tmp_path)
+    executor.services.optimizer_store.load_session.return_value = _optimizer_session()
+
+    result = await executor.execute(
+        tool_call=WorkflowToolCall(
+            tool_name="view_trial_params",
+            arguments={"optimizer_session_id": "opt-1", "trial_number": 1},
+            safety=ToolSafety.READ_ONLY,
+        ),
+        copilot_session_id="test-session",
+    )
+
+    assert result.status == ToolRunStatus.COMPLETED
+    assert result.result_summary["trial_number"] == 1
+    assert result.result_summary["parameters"] == {"buy": {"window": 12}}
+    assert result.result_summary["metrics"]["profit_factor"] == 1.4

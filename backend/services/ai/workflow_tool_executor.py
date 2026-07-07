@@ -136,16 +136,31 @@ class WorkflowToolExecutor:
                 copilot_session_id,
                 progress_callback,
             )
-            
-            completed_at = datetime.now(tz=UTC).isoformat()
+            status = self._status_from_handler_result(result, tool_name)
+            completed_at = (
+                datetime.now(tz=UTC).isoformat()
+                if status in {
+                    ToolRunStatus.COMPLETED,
+                    ToolRunStatus.FAILED,
+                    ToolRunStatus.CANCELLED,
+                    ToolRunStatus.TIMED_OUT,
+                }
+                else None
+            )
+            summary = result.get("summary")
+            error = result.get("error")
+            if error is None and isinstance(summary, dict):
+                raw_error = summary.get("error")
+                error = str(raw_error) if raw_error else None
             
             return WorkflowToolResult(
                 tool_run_id=tool_run_id,
                 tool_call_id=tool_call.tool_call_id,
                 tool_name=tool_name,
-                status=ToolRunStatus.COMPLETED,
-                result_summary=result.get("summary"),
+                status=status,
+                result_summary=summary,
                 context_patch=result.get("context_patch"),
+                error=error if status == ToolRunStatus.FAILED else None,
                 started_at=started_at,
                 completed_at=completed_at,
             )
@@ -162,6 +177,34 @@ class WorkflowToolExecutor:
                 started_at=started_at,
                 completed_at=completed_at,
             )
+
+    def _status_from_handler_result(self, result: dict[str, Any], tool_name: str) -> ToolRunStatus:
+        """Map backend handler status to a tool-run status without hiding failures."""
+        raw_status = result.get("status")
+        summary = result.get("summary")
+        if raw_status is None and isinstance(summary, dict):
+            raw_status = summary.get("status") or summary.get("phase")
+
+        return self._normalize_status(raw_status, tool_name)
+
+    def _normalize_status(self, raw_status: Any, tool_name: str) -> ToolRunStatus:
+        if isinstance(raw_status, ToolRunStatus):
+            return raw_status
+        if raw_status is None:
+            return ToolRunStatus.COMPLETED
+
+        normalized = str(raw_status).strip().lower()
+        if normalized in {"completed", "complete", "done", "success", "succeeded", "stopped"}:
+            return ToolRunStatus.COMPLETED
+        if normalized in {"failed", "failure", "error", "errored"}:
+            return ToolRunStatus.FAILED
+        if normalized in {"cancelled", "canceled"}:
+            return ToolRunStatus.CANCELLED
+        if normalized in {"timed_out", "timeout", "observation_timeout"}:
+            return ToolRunStatus.TIMED_OUT
+        if normalized in {"queued", "pending", "starting", "started", "running", "in_progress"}:
+            return ToolRunStatus.RUNNING
+        return ToolRunStatus.RUNNING if is_long_running(tool_name) else ToolRunStatus.COMPLETED
 
     async def _dispatch_handler(
         self,

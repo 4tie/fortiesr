@@ -88,6 +88,7 @@ class CopilotSessionStore:
         role: str,
         content: str,
         tool_calls: list[dict[str, Any]] | None = None,
+        tool_call_id: str | None = None,
     ) -> dict[str, Any]:
         """Add a message to the session."""
         message = {
@@ -98,6 +99,8 @@ class CopilotSessionStore:
         }
         if tool_calls:
             message["tool_calls"] = tool_calls
+        if tool_call_id:
+            message["tool_call_id"] = tool_call_id
         
         session.setdefault("messages", []).append(message)
         return message

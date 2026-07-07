@@ -59,6 +59,7 @@ class PendingToolAction(BaseModel):
     """A tool action awaiting user confirmation."""
     action_id: str = Field(default_factory=lambda: str(uuid4()))
     session_id: str
+    tool_call_id: str | None = None
     tool_name: str
     arguments: dict[str, Any]
     arguments_hash: str

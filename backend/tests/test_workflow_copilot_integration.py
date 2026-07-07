@@ -1,539 +1,316 @@
-"""Integration tests for workflow copilot with real services."""
+"""Integration tests for the workflow copilot backend boundary."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from pathlib import Path
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
-from backend.services.ai.workflow_copilot import WorkflowCopilot
-from backend.services.ai.copilot_session_store import CopilotSessionStore
+from backend.api.routers.ai_assistant import router
+from backend.api.session_store import SessionStore
 from backend.services.agent_context import AgentContextService
+from backend.services.ai.copilot_session_store import CopilotSessionStore
+from backend.services.ai.ollama_types import OllamaChatResponse
+from backend.services.ai.workflow_copilot import WorkflowCopilot
+from backend.services.ai.workflow_tool_executor import WorkflowToolExecutor
 
 
-@pytest.mark.asyncio
-async def test_copilot_with_real_agent_context_service():
-    """Test that copilot works with the real AgentContextService contract."""
-    # Mock services
-    services = MagicMock()
-    services.settings_store = MagicMock()
-    services.settings_store.load.return_value = MagicMock(
-        user_data_directory_path="/tmp/test",
-        strategies_directory_path="/tmp/strategies",
+class RecordingOllamaClient:
+    def __init__(self, responses):
+        self.responses = list(responses)
+        self.calls: list[dict] = []
+
+    async def chat(self, **kwargs):
+        self.calls.append(kwargs)
+        if not self.responses:
+            return SimpleNamespace(content="No more responses.", tool_calls=[])
+        response = self.responses.pop(0)
+        if isinstance(response, dict):
+            return SimpleNamespace(**response)
+        return response
+
+
+class DummyRouterOllamaClient:
+    def __init__(self, *args, **kwargs):
+        self.calls = []
+
+    async def chat(self, **kwargs):
+        self.calls.append(kwargs)
+        return OllamaChatResponse(content="AutoQuant copilot response.", tool_calls=[])
+
+    async def close(self):
+        return None
+
+
+def _make_services(tmp_path: Path):
+    user_data = tmp_path / "user_data"
+    strategies = user_data / "strategies"
+    strategies.mkdir(parents=True, exist_ok=True)
+    (strategies / "DemoStrategy.py").write_text("class DemoStrategy:\n    pass\n", encoding="utf-8")
+
+    settings = SimpleNamespace(
+        user_data_directory_path=str(user_data),
+        strategies_directory_path=str(strategies),
+        freqtrade_executable_path="freqtrade",
+        default_config_file_path="config.json",
+        ollama_api_url="http://localhost:11434",
+        ollama_model="llama3",
+        ollama_provider="local",
+        ollama_api_key="",
+        ollama_timeout=30,
     )
-    services.root_dir = Path("/tmp")
+
+    services = MagicMock()
+    services.root_dir = tmp_path
+    services.settings_store.load.return_value = settings
     services.run_repository = MagicMock()
     services.version_manager = MagicMock()
-    services.strategy_optimizer = None
-    services.backtest_runner = MagicMock()
+    services.version_manager.get_current_pointer.return_value = None
+    services.version_manager.load_params.return_value = None
+    services.version_manager.list_versions.return_value = []
+    services.strategy_optimizer.get_active_session_id.return_value = None
+    services.backtest_runner.get_current_run_id.return_value = None
     services.optimizer_store = MagicMock()
     services.sweep_store = MagicMock()
-    services.session_store = MagicMock()
-    services.candidate_run_lookup = MagicMock()
-    services.log_broadcaster = None
-    
-    # Create real AgentContextService
+    services.run_detail.side_effect = Exception("no runs")
+    return services, user_data, strategies
+
+
+def _make_copilot(tmp_path: Path, ollama_client: RecordingOllamaClient) -> WorkflowCopilot:
+    services, user_data, _ = _make_services(tmp_path)
+    session_store = SessionStore(user_data / "api_sessions.json")
+    copilot_store = CopilotSessionStore(user_data)
     context_service = AgentContextService(
         root_dir=services.root_dir,
         run_repository=services.run_repository,
         settings_store=services.settings_store,
         version_manager=services.version_manager,
-        strategy_optimizer=None,
+        strategy_optimizer=services.strategy_optimizer,
         backtest_runner=services.backtest_runner,
         optimizer_store=services.optimizer_store,
         sweep_store=services.sweep_store,
-        session_store=services.session_store,
-        candidate_run_lookup=services.candidate_run_lookup,
+        run_detail_callable=services.run_detail,
+        session_store=session_store,
     )
-    
-    # Mock copilot store
-    copilot_store = MagicMock()
-    copilot_store.load_session.side_effect = Exception("Session not found")
-    copilot_store.create_session.return_value = {
-        "session_id": "test-session",
-        "model": "llama3",
-        "mode": "analysis",
-        "messages": [],
-        "tool_runs": [],
-        "active_jobs": [],
-    }
-    copilot_store.save_session = MagicMock()
-    copilot_store.add_message = MagicMock()
-    
-    # Mock executor
-    executor = MagicMock()
-    
-    # Mock ollama client
-    ollama_client = MagicMock()
-    ollama_client.chat = AsyncMock(return_value=MagicMock(
-        content="Test response",
-        tool_calls=None,
-    ))
-    
-    # Create copilot
-    copilot = WorkflowCopilot(
-        services=services,
-        session_store=services.session_store,
-        copilot_store=copilot_store,
-        executor=executor,
-        context_service=context_service,
-        ollama_client=ollama_client,
-    )
-    
-    # Test that _build_context uses real AgentContextService.build_context (synchronous)
-    session = copilot_store.create_session.return_value
-    context = copilot._build_context(session, "analysis")
-    
-    # Verify context was built
-    assert context is not None
-    assert "schema_version" in context
-
-
-@pytest.mark.asyncio
-async def test_process_turn_end_to_end():
-    """Test process_turn executes end-to-end with read-only tool."""
-    # Mock services
-    services = MagicMock()
-    services.settings_store = MagicMock()
-    services.settings_store.load.return_value = MagicMock(
-        user_data_directory_path="/tmp/test",
-        strategies_directory_path="/tmp/strategies",
-    )
-    services.root_dir = Path("/tmp")
-    services.run_repository = MagicMock()
-    services.version_manager = MagicMock()
-    services.strategy_optimizer = None
-    services.backtest_runner = MagicMock()
-    services.optimizer_store = MagicMock()
-    services.sweep_store = MagicMock()
-    services.session_store = MagicMock()
-    services.candidate_run_lookup = MagicMock()
-    services.log_broadcaster = None
-    
-    # Create real AgentContextService
-    context_service = AgentContextService(
-        root_dir=services.root_dir,
-        run_repository=services.run_repository,
-        settings_store=services.settings_store,
-        version_manager=services.version_manager,
-        strategy_optimizer=None,
-        backtest_runner=services.backtest_runner,
-        optimizer_store=services.optimizer_store,
-        sweep_store=services.sweep_store,
-        session_store=services.session_store,
-        candidate_run_lookup=services.candidate_run_lookup,
-    )
-    
-    # Mock build_context to return serializable data
-    def mock_build_context(overrides=None):
-        return {
-            "schema_version": "1.0",
-            "root_dir": "/tmp",
-            "strategies": [],
-            "active_jobs": [],
+    context_service.build_context = MagicMock(
+        return_value={
+            "schema_version": "agent_context_v1",
+            "active": {"strategy_name": None},
+            "warnings": [],
         }
-    context_service.build_context = mock_build_context
-    
-    # Mock copilot store
-    copilot_store = MagicMock()
-    copilot_store.load_session.side_effect = Exception("Session not found")
-    copilot_store.create_session.return_value = {
-        "session_id": "test-session",
-        "model": "llama3",
-        "mode": "analysis",
-        "messages": [],
-        "tool_runs": [],
-        "active_jobs": [],
-        "last_context_overrides": None,
-    }
-    copilot_store.save_session = MagicMock()
-    
-    # Mock add_message to avoid JSON serialization issues
-    def mock_add_message(session, role, content, tool_calls=None, tool_call_id=None):
-        # Convert tool_calls to dict if it's a MagicMock
-        if tool_calls and isinstance(tool_calls, MagicMock):
-            tool_calls = None
-        session["messages"].append({
-            "role": role,
-            "content": content,
-            "tool_calls": tool_calls,
-            "tool_call_id": tool_call_id,
-        })
-    copilot_store.add_message = mock_add_message
-    
-    # Mock executor
-    executor = MagicMock()
-    
-    # Mock ollama client to return a simple response without tool calls
-    ollama_client = MagicMock()
-    ollama_client.chat = AsyncMock(return_value=MagicMock(
-        content="Hello! I can help you with your trading strategy.",
-        tool_calls=None,
-    ))
-    
-    # Create copilot
-    copilot = WorkflowCopilot(
+    )
+    executor = WorkflowToolExecutor(
         services=services,
-        session_store=services.session_store,
+        session_store=session_store,
+        copilot_store=copilot_store,
+        root_dir=tmp_path,
+    )
+    return WorkflowCopilot(
+        services=services,
+        session_store=session_store,
         copilot_store=copilot_store,
         executor=executor,
         context_service=context_service,
         ollama_client=ollama_client,
+        root_dir=tmp_path,
     )
-    
-    # Execute process_turn end-to-end
+
+
+@pytest.mark.asyncio
+async def test_copilot_build_context_uses_real_agent_context_service(tmp_path):
+    services, user_data, _ = _make_services(tmp_path)
+    context_service = AgentContextService(
+        root_dir=services.root_dir,
+        run_repository=services.run_repository,
+        settings_store=services.settings_store,
+        version_manager=services.version_manager,
+        strategy_optimizer=services.strategy_optimizer,
+        backtest_runner=services.backtest_runner,
+        optimizer_store=services.optimizer_store,
+        sweep_store=services.sweep_store,
+        run_detail_callable=services.run_detail,
+        session_store=SessionStore(user_data / "api_sessions.json"),
+    )
+    copilot = _make_copilot(
+        tmp_path,
+        RecordingOllamaClient([{"content": "ok", "tool_calls": []}]),
+    )
+    copilot.context_service = context_service
+
+    context = copilot._build_context(
+        {"messages": [], "tool_runs": [], "active_jobs": [], "last_context_overrides": {}},
+        "analysis",
+    )
+
+    assert context["schema_version"] == "agent_context_v1"
+    assert "active" in context
+
+
+@pytest.mark.asyncio
+async def test_process_turn_end_to_end_with_real_store_and_read_only_tool(tmp_path):
+    ollama = RecordingOllamaClient(
+        [
+            {
+                "content": "I'll inspect the strategy list.",
+                "tool_calls": [
+                    {
+                        "id": "call-list",
+                        "function": {"name": "list_strategies", "arguments": {}},
+                    }
+                ],
+            },
+            {"content": "I found DemoStrategy.", "tool_calls": []},
+        ]
+    )
+    copilot = _make_copilot(tmp_path, ollama)
+
     events = []
     async for event in copilot.process_turn(
-        session_id="test-session",
-        user_message="Hello",
+        session_id="session-read",
+        user_message="What strategies do I have?",
         model="llama3",
         mode="analysis",
-        stream=False,
     ):
         events.append(event)
-    
-    # Verify events were generated
-    assert len(events) > 0
-    # Should have a message event
-    assert any(e["type"] == "message" for e in events)
-    # Should have a final event (no tool calls)
-    assert any(e["type"] == "final" for e in events)
-    # Verify session was created (mock should have been called)
-    # Note: create_session is a MagicMock, so we can check if it was called
-    # Verify user message was added
-    # Verify ollama was called
+
+    assert [event["type"] for event in events].count("tool_started") == 1
+    assert any(event["type"] == "tool_result" for event in events)
+    assert events[-1] == {"type": "final", "content": "I found DemoStrategy."}
+
+    session = copilot.copilot_store.load_session("session-read")
+    roles = [message["role"] for message in session["messages"]]
+    assert roles == ["user", "assistant", "tool", "assistant"]
+    assert session["messages"][1]["tool_calls"][0]["tool_call_id"] == "call-list"
+    assert session["messages"][2]["tool_call_id"] == "call-list"
 
 
 @pytest.mark.asyncio
-async def test_backtest_queued_not_treated_as_completed():
-    """Test that queued/running backtest is not treated as completed."""
-    from backend.services.ai.job_observer import observe_job
-    from backend.services.ai.workflow_tool_models import ToolRunStatus
-    
-    # Mock session store with queued backtest
-    session_store = MagicMock()
-    session_store.get.return_value = MagicMock(
-        status="queued",
-        result=None,
+async def test_second_ollama_call_preserves_assistant_tool_call_then_tool_result(tmp_path):
+    ollama = RecordingOllamaClient(
+        [
+            {
+                "content": "I'll list strategies.",
+                "tool_calls": [{"id": "call-a", "name": "list_strategies", "arguments": {}}],
+            },
+            {"content": "The tool result is available.", "tool_calls": []},
+        ]
     )
-    
-    # Observe job - should not complete immediately
+    copilot = _make_copilot(tmp_path, ollama)
+
     events = []
-    async for event in observe_job(
-        session_store=session_store,
-        api_session_id="test-session",
-        job_type="backtest",
+    async for event in copilot.process_turn(
+        session_id="session-protocol",
+        user_message="List strategies",
+        model="llama3",
+        mode="analysis",
     ):
         events.append(event)
-        # Stop after first event to avoid infinite loop in test
-        if event["type"] == "job_progress":
-            break
-    
-    # Should not be completed
-    if events:
-        assert events[0]["status"] != "completed"
+
+    assert events[-1]["type"] == "final"
+    assert len(ollama.calls) == 2
+    second_messages = ollama.calls[1]["messages"]
+    assistant_index = next(
+        idx for idx, message in enumerate(second_messages)
+        if message.get("role") == "assistant" and message.get("tool_calls")
+    )
+    tool_index = next(
+        idx for idx, message in enumerate(second_messages)
+        if message.get("role") == "tool"
+    )
+
+    assert assistant_index < tool_index
+    assert second_messages[assistant_index]["tool_calls"][0]["tool_call_id"] == "call-a"
+    assert second_messages[tool_index]["tool_call_id"] == "call-a"
+    assert "DemoStrategy" in second_messages[tool_index]["content"]
 
 
 @pytest.mark.asyncio
-async def test_real_run_id_used_instead_of_api_session_id():
-    """Test that real run_id is used instead of api_session_id."""
-    # Mock session store with run_id in result
-    session_store = MagicMock()
-    session_store.get.return_value = MagicMock(
-        status="completed",
-        result={"run_id": "real-run-123"},
+async def test_confirmation_resume_flow_uses_real_session_and_executor(tmp_path):
+    ollama = RecordingOllamaClient(
+        [
+            {
+                "content": "I'll run the guarded backtest.",
+                "tool_calls": [
+                    {
+                        "id": "call-backtest",
+                        "name": "run_backtest",
+                        "arguments": {
+                            "strategy_name": "DemoStrategy",
+                            "timerange": "20240101-20240131",
+                        },
+                    }
+                ],
+            },
+            {"content": "Backtest completed with run bt-123.", "tool_calls": []},
+        ]
     )
-    
-    from backend.services.ai.job_observer import observe_job
-    
-    # Observe job
-    events = []
-    async for event in observe_job(
-        session_store=session_store,
-        api_session_id="api-session-456",
-        job_type="backtest",
+    copilot = _make_copilot(tmp_path, ollama)
+
+    initial_events = []
+    async for event in copilot.process_turn(
+        session_id="session-confirm",
+        user_message="Run a backtest",
+        model="llama3",
+        mode="analysis",
     ):
-        events.append(event)
-        if event["type"] == "job_progress":
-            break
-    
-    # Should extract real run_id
-    if events:
-        assert "run_id" in events[0].get("result", {})
+        initial_events.append(event)
 
+    confirmation = next(event for event in initial_events if event["type"] == "tool_confirmation_required")
 
-@pytest.mark.asyncio
-async def test_optimizer_observer_with_real_fields():
-    """Test that optimizer observer works with real OptimizerSession fields."""
-    from backend.services.ai.job_observer import observe_optimizer_job
-    from backend.models.optimizer import OptimizerSession, OptimizerSessionPhase, OptimizerSessionConfig, OptimizerTrialMetrics
-    from datetime import datetime, UTC
-    
-    # Mock services with real OptimizerSession
-    services = MagicMock()
-    services.optimizer_store = MagicMock()
-    
-    # Create real OptimizerSession with actual fields (using correct OptimizerTrialMetrics fields)
-    optimizer_session = OptimizerSession(
-        session_id="opt-session-123",
-        strategy_name="TestStrategy",
-        config=OptimizerSessionConfig(
-            strategy_name="TestStrategy",
-            timeframe="1h",
-            timerange="20240101-20240131",
-            pairs=["BTC/USDT"],
-            config_file="config.json",
-        ),
-        phase=OptimizerSessionPhase.RUNNING,
-        created_at=datetime.now(tz=UTC),
-        total_trials=50,
-        completed_trials=10,
-        failed_trials=1,
-        best_trial_number=5,
-        best_metrics=OptimizerTrialMetrics(
-            net_profit_pct=0.85,
-            net_profit_abs=1000.0,
-        ),
-        stop_reason=None,
-    )
-    
-    services.optimizer_store.load_session.return_value = optimizer_session
-    
-    # Observe optimizer
-    events = []
-    async for event in observe_optimizer_job(
-        services=services,
-        api_session_id="api-session-456",
-        optimizer_session_id="opt-session-123",
-    ):
-        events.append(event)
-        if event["type"] == "optimizer_progress":
-            break
-    
-    # Should extract real fields
-    if events:
-        assert events[0]["phase"] == OptimizerSessionPhase.RUNNING
-        assert events[0]["total_trials"] == 50
-        assert events[0]["completed_trials"] == 10
-        assert events[0]["failed_trials"] == 1
-        assert events[0]["best_trial_number"] == 5
-        assert events[0]["stop_reason"] is None
+    async def fake_start_backtest_job(**kwargs):
+        return "api-123", "queued"
 
-
-@pytest.mark.asyncio
-async def test_confirmation_endpoint_resumes_model_reasoning():
-    """Test that confirmation endpoint resumes model reasoning with real WorkflowCopilot."""
-    from backend.services.ai.workflow_copilot import WorkflowCopilot
-    from datetime import datetime, UTC
-    
-    # Mock services
-    services = MagicMock()
-    services.settings_store = MagicMock()
-    services.settings_store.load.return_value = MagicMock(
-        user_data_directory_path="/tmp/test",
-        strategies_directory_path="/tmp/strategies",
-    )
-    services.root_dir = Path("/tmp")
-    services.run_repository = MagicMock()
-    services.version_manager = MagicMock()
-    services.strategy_optimizer = None
-    services.backtest_runner = MagicMock()
-    services.optimizer_store = MagicMock()
-    services.sweep_store = MagicMock()
-    services.session_store = MagicMock()
-    services.candidate_run_lookup = MagicMock()
-    services.log_broadcaster = None
-    
-    # Create real AgentContextService
-    context_service = AgentContextService(
-        root_dir=services.root_dir,
-        run_repository=services.run_repository,
-        settings_store=services.settings_store,
-        version_manager=services.version_manager,
-        strategy_optimizer=None,
-        backtest_runner=services.backtest_runner,
-        optimizer_store=services.optimizer_store,
-        sweep_store=services.sweep_store,
-        session_store=services.session_store,
-        candidate_run_lookup=services.candidate_run_lookup,
-    )
-    
-    # Mock build_context to return serializable data
-    def mock_build_context(overrides=None):
-        return {
-            "schema_version": "1.0",
-            "root_dir": "/tmp",
-            "strategies": [],
-            "active_jobs": [],
+    async def fake_observe_job(**kwargs):
+        yield {
+            "type": "job_progress",
+            "status": "completed",
+            "result": {"run_id": "bt-123", "net_profit_pct": 12.5},
         }
-    context_service.build_context = mock_build_context
-    
-    # Mock copilot store with a session that has a pending action
-    copilot_store = MagicMock()
-    action_id = "test-action-123"
-    tool_call_id = "tool-call-123"
-    session = {
-        "session_id": "test-session",
-        "model": "llama3",
-        "mode": "analysis",
-        "messages": [
-            {"role": "user", "content": "Run backtest"},
-            {"role": "assistant", "content": "I'll run a backtest", "tool_calls": [{"name": "run_backtest", "arguments": {"strategy_name": "TestStrategy"}}]},
-        ],
-        "tool_runs": [
-            {
-                "tool_run_id": tool_call_id,
-                "tool_call_id": tool_call_id,
-                "tool_name": "run_backtest",
-                "status": "awaiting_confirmation",
-                "created_at": datetime.now(tz=UTC).isoformat(),
-            }
-        ],
-        "active_jobs": [],
-        "pending_actions": [
-            {
-                "action_id": action_id,
-                "tool_call_id": tool_call_id,
-                "tool_name": "run_backtest",
-                "arguments": {"strategy_name": "TestStrategy"},
-                "safety": "confirmation_required",
-                "created_at": datetime.now(tz=UTC).isoformat(),
-            }
-        ],
+
+    with patch("backend.services.workflow_jobs.start_backtest_job", fake_start_backtest_job):
+        with patch("backend.services.ai.job_observer.observe_job", fake_observe_job):
+            resumed_events = []
+            async for event in copilot.resume_after_confirmation(
+                session_id="session-confirm",
+                action_id=confirmation["action_id"],
+            ):
+                resumed_events.append(event)
+
+    assert any(event["type"] == "tool_result" for event in resumed_events)
+    assert resumed_events[-1] == {
+        "type": "final",
+        "content": "Backtest completed with run bt-123.",
     }
-    copilot_store.load_session.return_value = session
-    copilot_store.save_session = MagicMock()  # Mock to avoid JSON serialization
-    
-    # Mock add_message to avoid JSON serialization issues
-    def mock_add_message(session, role, content, tool_calls=None, tool_call_id=None):
-        # Convert tool_calls to dict if it's a MagicMock
-        if tool_calls and isinstance(tool_calls, MagicMock):
-            tool_calls = None
-        session["messages"].append({
-            "role": role,
-            "content": content,
-            "tool_calls": tool_calls,
-            "tool_call_id": tool_call_id,
-        })
-    copilot_store.add_message = mock_add_message
-    copilot_store.update_tool_run = MagicMock()
-    
-    # Mock add_active_job to avoid JSON serialization
-    copilot_store.add_active_job = MagicMock()
-    
-    # Mock get_pending_action to return the pending action
-    def mock_get_pending_action(session, action_id):
-        for action in session.get("pending_actions", []):
-            if action["action_id"] == action_id:
-                return action
-        return None
-    copilot_store.get_pending_action = mock_get_pending_action
-    copilot_store.remove_pending_action = MagicMock()
-    
-    # Mock executor to return a completed result
-    from datetime import datetime, UTC
-    
-    executor = MagicMock()
-    
-    # Use a dict with a custom get method
-    class ResultDict(dict):
-        def __init__(self):
-            super().__init__()
-            self["status"] = "completed"
-            self["result_summary"] = {"run_id": "test-run-123"}
-            self["context_patch"] = {"backtest_run_id": "test-run-123"}
-            self["started_at"] = datetime.now(tz=UTC).isoformat()
-            self["completed_at"] = datetime.now(tz=UTC).isoformat()
-            self["error"] = None
-    
-    executor.execute = AsyncMock(return_value=ResultDict())
-    
-    # Mock ollama client to return a response after tool result
-    ollama_client = MagicMock()
-    ollama_client.chat = AsyncMock(return_value=MagicMock(
-        content="Backtest completed successfully with run_id test-run-123",
-        tool_calls=None,
-    ))
-    
-    # Create copilot
-    copilot = WorkflowCopilot(
-        services=services,
-        session_store=services.session_store,
-        copilot_store=copilot_store,
-        executor=executor,
-        context_service=context_service,
-        ollama_client=ollama_client,
-    )
-    
-    # Call resume_after_confirmation
-    result_events = []
-    async for event in copilot.resume_after_confirmation(
-        session_id="test-session",
-        action_id=action_id,
-        stream=True,
-    ):
-        result_events.append(event)
-    
-    # Should resume and yield events
-    assert len(result_events) > 0
-    # Should have tool_started event
-    assert any(e["type"] == "tool_started" for e in result_events)
-    # Should have tool_result event
-    assert any(e["type"] == "tool_result" for e in result_events)
-    # Should have message event from second model call
-    assert any(e["type"] == "message" for e in result_events)
-    # Should have final event
-    assert any(e["type"] == "final" for e in result_events)
-    # Verify executor was called with confirmed=True
-    executor.execute.assert_called_once()
-    call_kwargs = executor.execute.call_args[1]
-    assert call_kwargs["confirmed"] is True
+    session = copilot.copilot_store.load_session("session-confirm")
+    assert not session["pending_actions"]
+    assert session["tool_runs"][-1]["status"] == "completed"
+    assert session["messages"][1]["tool_calls"][0]["tool_call_id"] == "call-backtest"
+    assert session["messages"][2]["tool_call_id"] == "call-backtest"
 
 
-@pytest.mark.asyncio
-async def test_second_model_call_receives_terminal_tool_result():
-    """Test that second model call receives actual terminal tool result."""
-    # This test verifies that tool results are included in the message history
-    # for subsequent model calls. The actual implementation is in _build_messages.
-    # For now, we verify the session structure supports this.
-    
-    # Mock session with tool result
-    session = {
-        "session_id": "test-session",
-        "messages": [
-            {"role": "user", "content": "Run backtest"},
-            {"role": "assistant", "content": "I'll run a backtest"},
-        ],
-        "tool_runs": [
-            {
-                "tool_name": "run_backtest",
-                "status": "completed",
-                "result_summary": {"run_id": "123", "net_profit": 1000},
-            }
-        ],
-    }
-    
-    # Verify session has tool_runs
-    assert "tool_runs" in session
-    assert len(session["tool_runs"]) > 0
-    assert session["tool_runs"][0]["status"] == "completed"
-    assert session["tool_runs"][0]["result_summary"]["run_id"] == "123"
+def test_autoquant_endpoint_delegates_to_workflow_copilot_via_fastapi(tmp_path):
+    services, _, _ = _make_services(tmp_path)
+    app = FastAPI()
+    app.include_router(router)
+    app.state.services = services
+    app.state.session_store = SessionStore(tmp_path / "api_sessions.json")
+    app.state.log_broadcaster = MagicMock(history=[])
 
+    with patch("backend.api.routers.ai_assistant.OllamaClient", DummyRouterOllamaClient):
+        response = TestClient(app).post(
+            "/api/ai/autoquant",
+            json={
+                "message": "Start by explaining the AutoQuant state.",
+                "context_overrides": {"strategy_name": "DemoStrategy"},
+            },
+        )
 
-@pytest.mark.asyncio
-async def test_autoquant_executes_without_argument_mismatch():
-    """Test that /api/ai/autoquant endpoint accepts context_overrides parameter."""
-    from backend.api.routers.ai_assistant import AutoQuantRequest
-    
-    # Verify the request model accepts context_overrides
-    # This is a simpler test that doesn't require full FastAPI app initialization
-    request = AutoQuantRequest(
-        message="Test message",
-        context_overrides={"strategy_name": "TestStrategy"},
-    )
-    
-    # Verify the request was created successfully (no validation error)
-    assert request.message == "Test message"
-    assert request.context_overrides == {"strategy_name": "TestStrategy"}
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    assert response.status_code == 200
+    body = response.json()
+    assert body["response"] == "AutoQuant copilot response."
+    assert body["session_id"]
+    assert body["tool_calls"] == []
