@@ -15,6 +15,9 @@ import {
   ChartImage,
   renderMessageWithCharts,
 } from "./AIChartRenderer.jsx";
+// FIX (Item 5): Import shared hook for unified streaming / session / workflow logic
+import { useAssistantChat } from "../hooks/useAssistantChat.js";
+import WorkflowCard from "./WorkflowCard.jsx";
 
 function compactId(value) {
   if (!value) return null;
@@ -293,11 +296,8 @@ export default function AssistantChatPanel({
   const [contextOverrides, setContextOverrides] = useState(initialContextOverrides || {});
   const [contextSummary, setContextSummary] = useState(null);
   const [modelState, setModelState] = useState({ loading: true, reachable: false, models: [], error: "", health: null });
-  const [messages, setMessages] = useState([]);
   const [selectedModel, setSelectedModel] = useState("");
   const [input, setInput] = useState("");
-  const [sessionId, setSessionId] = useState(null);
-  const [actions, setActions] = useState([]);
   const [mode, setMode] = useState("auto");
   const [includeStrategySource, setIncludeStrategySource] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -308,6 +308,30 @@ export default function AssistantChatPanel({
   const [sandboxMode, setSandboxMode] = useState(false);
   const scrollerRef = useRef(null);
   const sentInitialPromptRef = useRef(null);
+
+  // FIX (Item 5): use shared hook for streaming + workflow cards + session
+  // This replaces the private parseSseEvent / sendStreaming / sessionId state.
+  const {
+    messages: hookMessages,
+    sessionId,
+    status: hookStatus,
+    error: hookError,
+    availableActions: actions,
+    cards: workflowCards,
+    cardList: workflowCardList,
+    sendMessage: hookSendMessage,
+    confirmAction: hookConfirmAction,
+    executeAction: hookExecuteAction,
+    restoreSession,
+  } = useAssistantChat({ contextOverrides, mode });
+
+  // Mirror hook loading/error into local state for backward-compat with existing UI
+  const hookLoading = hookStatus === "sending" || hookStatus === "streaming";
+
+  // messages: we store extra metadata (thinking) in local state,
+  // so we keep a merged view: hookMessages provide content, local additions provide thinking.
+  // For the full panel, use hookMessages directly (they hold all content).
+  const messages = hookMessages;
 
   useEffect(() => {
     setContextOverrides(initialContextOverrides || {});
@@ -371,143 +395,12 @@ export default function AssistantChatPanel({
 
   const suggestedQuestions = useMemo(() => suggestionsFor(contextSummary), [contextSummary]);
 
-  const appendActionResult = (title, result) => {
-    setMessages(prev => [...prev, {
-      id: `action-${Date.now()}`,
-      role: "assistant",
-      content: `${title}\n\n\`\`\`json\n${JSON.stringify(result, null, 2)}\n\`\`\``,
-    }]);
-  };
-
-  const sendNonStreaming = async (messageText, assistantId, request = {}) => {
-    const res = await fetch("/api/ai/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        message: messageText,
-        session_id: sessionId,
-        model: selectedModel || undefined,
-        mode: request.mode || mode,
-        context_overrides: request.contextOverrides || contextOverrides,
-        include_strategy_source: request.includeStrategySource ?? includeStrategySource,
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || "Assistant request failed.");
-    setSessionId(data.session_id);
-    setContextSummary(data.context_summary);
-    setActions(data.available_actions || []);
-    setMessages(prev => prev.map(msg => (
-      msg.id === assistantId ? { ...msg, content: data.message?.content || "" } : msg
-    )));
-  };
-
-  const parseSseEvent = (chunk) => {
-    const event = { type: "message", data: "" };
-    chunk.split("\n").forEach(line => {
-      if (line.startsWith("event:")) event.type = line.slice(6).trim();
-      if (line.startsWith("data:")) event.data += line.slice(5).trim();
-    });
-    if (!event.data) return null;
-    try {
-      return { type: event.type, data: JSON.parse(event.data) };
-    } catch {
-      return null;
-    }
-  };
-
-  const sendStreaming = async (messageText, assistantId, request = {}) => {
-    const res = await fetch("/api/ai/chat/stream", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        message: messageText,
-        session_id: sessionId,
-        model: selectedModel || undefined,
-        mode: request.mode || mode,
-        context_overrides: request.contextOverrides || contextOverrides,
-        include_strategy_source: request.includeStrategySource ?? includeStrategySource,
-      }),
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      throw new Error(data.detail || "Assistant request failed.");
-    }
-    if (!res.body || !res.body.getReader) {
-      await sendNonStreaming(messageText, assistantId, request);
-      return;
-    }
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const parts = buffer.split("\n\n");
-      buffer = parts.pop() || "";
-      for (const part of parts) {
-        const event = parseSseEvent(part);
-        if (!event) continue;
-        if (event.type === "meta") {
-          setSessionId(event.data.session_id);
-          setContextSummary(event.data.context_summary);
-          setActions(event.data.available_actions || []);
-          setPerformanceMetrics({
-            contextBuildTimeMs: event.data.context_build_time_ms,
-          });
-        }
-        if (event.type === "thinking") {
-          setMessages(prev => prev.map(msg => (
-            msg.id === assistantId 
-              ? { ...msg, thinking: `${(msg.thinking || "")}${event.data.content || ""}` } 
-              : msg
-          )));
-        }
-        if (event.type === "token") {
-          setMessages(prev => prev.map(msg => (
-            msg.id === assistantId ? { ...msg, content: `${msg.content}${event.data.content || ""}` } : msg
-          )));
-        }
-        if (event.type === "done") {
-          setSessionId(event.data.session_id);
-          setContextSummary(event.data.context_summary);
-          setActions(event.data.available_actions || []);
-          setPerformanceMetrics(prev => ({
-            ...prev,
-            totalTimeMs: event.data.total_time_ms,
-            ollamaTimeMs: event.data.ollama_time_ms,
-          }));
-        }
-        if (event.type === "error") {
-          throw new Error(event.data.detail || "Assistant stream failed.");
-        }
-      }
-    }
-  };
-
   const sendMessage = async (text = input, request = {}) => {
     const messageText = String(text || "").trim();
-    if (!messageText || loading) return;
+    if (!messageText || hookLoading) return;
     setInput("");
     setError("");
-    setLoading(true);
-    const assistantId = `assistant-${Date.now()}`;
-    setMessages(prev => [
-      ...prev,
-      { id: `user-${Date.now()}`, role: "user", content: messageText },
-      { id: assistantId, role: "assistant", content: "" },
-    ]);
-    try {
-      await sendStreaming(messageText, assistantId, request);
-    } catch (err) {
-      setError(err.message);
-      setMessages(prev => prev.map(msg => (
-        msg.id === assistantId ? { ...msg, content: `Assistant unavailable: ${err.message}` } : msg
-      )));
-    } finally {
-      setLoading(false);
-    }
+    await hookSendMessage(messageText, request);
   };
 
   useEffect(() => {
@@ -525,7 +418,7 @@ export default function AssistantChatPanel({
       includeStrategySource: attachSource,
       contextOverrides,
     });
-  }, [contextOverrides, initialIncludeStrategySource, initialMode, initialPrompt, requestKey, sendMessage]);
+  }, [contextOverrides, initialIncludeStrategySource, initialMode, initialPrompt, requestKey, hookSendMessage]);
 
   const runAction = async (action, confirmed = false) => {
     if (action.safety === "Destructive") return;
@@ -536,20 +429,7 @@ export default function AssistantChatPanel({
     setActionBusy(true);
     setError("");
     try {
-      const res = await fetch("/api/ai/actions/confirm", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action_type: action.action_type,
-          payload: action.payload || {},
-          session_id: sessionId,
-          user_message: messages.filter(m => m.role === "user").at(-1)?.content || null,
-          confirmation_token: action.safety === "Needs confirmation" ? "CONFIRM" : null,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Action failed.");
-      appendActionResult(action.label, data);
+      await hookExecuteAction(action);
       setPendingAction(null);
       refreshContext();
     } catch (err) {
@@ -558,6 +438,18 @@ export default function AssistantChatPanel({
       setActionBusy(false);
     }
   };
+
+  // Build combined timeline: messages + workflow cards interleaved
+  const seenCardKeys = new Set();
+  const timelineItems = [];
+  for (const msg of messages) {
+    timelineItems.push({ ...msg, type: "message" });
+  }
+  for (const card of workflowCardList) {
+    if (seenCardKeys.has(card.key)) continue;
+    seenCardKeys.add(card.key);
+    timelineItems.push({ id: `card-${card.key}`, type: "workflow_card", card });
+  }
 
   const containerClass = panelMode === "drawer"
     ? "h-full flex flex-col bg-base-100"
@@ -691,37 +583,51 @@ export default function AssistantChatPanel({
 
       {/* Messages - Only scrollable main region */}
       <div ref={scrollerRef} className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3">
-        {messages.map(message => (
-          <div key={message.id} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
-            <div className={`max-w-[95%] w-full rounded-lg border px-3 py-2 text-sm leading-relaxed overflow-hidden ${
-              message.role === "user"
-                ? "bg-primary text-primary-content border-primary"
-                : "bg-base-200 border-base-300 text-base-content/85"
-            }`}>
-              {message.role === "assistant" && (
-                <div className="flex items-center justify-between mb-2 shrink-0">
-                  <span className="text-xs text-base-content/50 font-medium">AI Analysis</span>
-                  <button
-                    onClick={() => navigator.clipboard.writeText(message.content || "")}
-                    className="btn btn-ghost btn-xs px-1.5 py-0.5 h-5 min-h-0 gap-1 text-[10px] text-base-content/60 hover:text-base-content shrink-0"
-                    title="Copy entire message"
-                  >
-                    <ClipboardDocumentIcon className="h-3 w-3" />
-                    Copy
-                  </button>
+        {timelineItems.map(item => {
+          if (item.type === "workflow_card") {
+            return (
+              <div key={item.id} className="flex justify-start">
+                <div className="w-full max-w-[95%]">
+                  <WorkflowCard card={item.card} onConfirm={hookConfirmAction} />
                 </div>
-              )}
-              {message.role === "assistant" && message.thinking && <ThinkingSection thinking={message.thinking} />}
-              <div className="overflow-x-auto overflow-y-auto max-h-[600px]">
-                {message.content ? (
-                  renderMessageWithCharts(message.content)
-                ) : (
-                  <span className="loading loading-dots loading-sm" />
+              </div>
+            );
+          }
+          const message = item;
+          return (
+            <div key={message.id} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
+              <div className={`max-w-[95%] w-full rounded-lg border px-3 py-2 text-sm leading-relaxed overflow-hidden ${
+                message.role === "user"
+                  ? "bg-primary text-primary-content border-primary"
+                  : message.error
+                    ? "bg-error/10 border-error/20 text-error"
+                    : "bg-base-200 border-base-300 text-base-content/85"
+              }`}>
+                {message.role === "assistant" && (
+                  <div className="flex items-center justify-between mb-2 shrink-0">
+                    <span className="text-xs text-base-content/50 font-medium">AI Analysis</span>
+                    <button
+                      onClick={() => navigator.clipboard.writeText(message.content || "")}
+                      className="btn btn-ghost btn-xs px-1.5 py-0.5 h-5 min-h-0 gap-1 text-[10px] text-base-content/60 hover:text-base-content shrink-0"
+                      title="Copy entire message"
+                    >
+                      <ClipboardDocumentIcon className="h-3 w-3" />
+                      Copy
+                    </button>
+                  </div>
                 )}
+                {message.role === "assistant" && message.thinking && <ThinkingSection thinking={message.thinking} />}
+                <div className="overflow-x-auto overflow-y-auto max-h-[600px]">
+                  {message.content || message.error ? (
+                    renderMessageWithCharts(message.content)
+                  ) : (
+                    <span className="loading loading-dots loading-sm" />
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Dedicated Suggested Actions Panel */}

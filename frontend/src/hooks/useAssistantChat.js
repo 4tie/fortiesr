@@ -109,6 +109,57 @@ function buildCardsFromSession(session) {
     }
   }
 
+  // active_jobs — running background jobs that have no tool_run record yet.
+  // Synthesise: tool_started → job_active (with progress) → observation_timeout
+  const seenJobKeys = new Set();
+  for (const job of session.active_jobs || []) {
+    const jobToolName = job.job_type
+      ? `run_${job.job_type}`.replace(/-/g, "_")  // e.g. "optimizer" → "run_optimizer"
+      : null;
+    const toolName = job.tool_name || jobToolName || null;
+    if (!toolName) continue;
+
+    const jobKey = job.action_id
+      ? `action:${job.action_id}`
+      : job.tool_call_id
+        ? `call:${job.tool_call_id}`
+        : `tool:${toolName}`;
+
+    if (seenJobKeys.has(jobKey) || seenKeys.has(jobKey)) continue;
+    seenJobKeys.add(jobKey);
+
+    events.push({
+      type:               "tool_started",
+      tool_name:          toolName,
+      tool_call_id:       job.tool_call_id   || null,
+      action_id:          job.action_id       || null,
+      api_session_id:     job.api_session_id  || null,
+      optimizer_session_id: job.optimizer_session_id || null,
+      run_id:             job.run_id          || null,
+      auto_quant_run_id:  job.auto_quant_run_id || null,
+    });
+
+    if (job.progress || job.status) {
+      events.push({
+        type:               "job_active",
+        tool_name:          toolName,
+        tool_call_id:       job.tool_call_id   || null,
+        status:             job.status         || "running",
+        api_session_id:     job.api_session_id  || null,
+        optimizer_session_id: job.optimizer_session_id || null,
+        run_id:             job.run_id          || null,
+        auto_quant_run_id:  job.auto_quant_run_id || null,
+        progress:           job.progress        || null,
+      });
+    }
+
+    events.push({
+      type:           "observation_timeout",
+      tool_name:      toolName,
+      api_session_id: job.api_session_id || null,
+    });
+  }
+
   return events;
 }
 
@@ -149,10 +200,13 @@ export function useAssistantChat({ contextOverrides = {} } = {}) {
       if (!res.ok) return;
       const session = await res.json();
 
+      // FIX: Persist the session_id so subsequent sendMessage calls include it
+      setSessionId(sid);
+
       // Rebuild messages
       const restoredMessages = buildTimelineFromSession(session);
 
-      // Rebuild cards from tool runs and pending actions
+      // Rebuild cards from tool runs, pending actions, and active_jobs
       const cardEvents = buildCardsFromSession(session);
       for (const ev of cardEvents) {
         workflow.applyEvent(ev);

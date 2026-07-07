@@ -646,6 +646,14 @@ class WorkflowCopilot:
     ) -> dict[str, Any] | None:
         if kind == "tool_started":
             return None
+        if data.get("type") == "observation_timeout":
+            return {
+                "type": "observation_timeout",
+                "tool_name": tool_name,
+                "api_session_id": data.get("api_session_id"),
+                "job_type": data.get("job_type"),
+                "elapsed_seconds": data.get("elapsed_seconds"),
+            }
         status = data.get("status") or data.get("phase")
         event_type = "job_active" if str(status).lower() in {"queued", "running", "pending"} else "tool_progress"
         return {

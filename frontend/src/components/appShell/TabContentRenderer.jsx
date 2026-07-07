@@ -84,6 +84,9 @@ function AutoQuantTabContent({ component: TabComponent, tabProps }) {
     sharedLoading,
     syncSharedState,
     onAskAi,
+    // FIX (Item 8): forward onAgentContextChange so AutoQuantOverview can
+    // report active_tab, pipeline stage, run IDs, etc. to the Mini Assistant.
+    onAgentContextChange,
   } = tabProps;
 
   return (
@@ -95,6 +98,7 @@ function AutoQuantTabContent({ component: TabComponent, tabProps }) {
         sharedLoading={sharedLoading}
         syncSharedState={syncSharedState}
         onAskAi={onAskAi}
+        onAgentContextChange={onAgentContextChange}
       />
     </ErrorBoundary>
   );

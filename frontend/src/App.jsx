@@ -84,6 +84,32 @@ function App() {
     setActiveTab(navTab);
   }, [activeTab, strategyEditorDirty]);
 
+  /**
+   * FIX (Item 9): Deep navigation handler.
+   * Accepts either a plain tab string (backward compat) or a payload object:
+   *   { tab: "optimizer", optimizer_session_id: "...", run_id: "...", auto_quant_run_id: "..." }
+   *
+   * The tab is switched and any IDs are merged into agentTabContext so the
+   * destination tab can pre-select the session/run where it already supports it.
+   * If the destination tab does not yet support ID-based loading, the ID is
+   * available in context for the AI assistant but no automatic load is triggered.
+   */
+  const handleDeepNavigate = useCallback((destination) => {
+    const tabId = typeof destination === "string" ? destination : destination?.tab;
+    if (!tabId) return;
+
+    // Switch to the destination tab
+    handleNavTabChange(tabId);
+
+    // Merge any IDs into agentTabContext for downstream consumption
+    if (destination && typeof destination === "object") {
+      const { tab: _tab, ...ids } = destination;
+      if (Object.keys(ids).length > 0) {
+        setAgentTabContext((prev) => ({ ...prev, ...ids }));
+      }
+    }
+  }, [handleNavTabChange]);
+
   const confirmLeave = () => {
     const dest = pendingTab;
     setPendingTab(null);
@@ -149,7 +175,7 @@ function App() {
 
           <GuidanceBubble
             activeTab={activeTab}
-            onNavigate={handleNavTabChange}
+            onNavigate={handleDeepNavigate}
             contextOverrides={currentAgentOverrides()}
           />
 

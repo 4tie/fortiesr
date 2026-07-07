@@ -254,7 +254,7 @@ describe("WorkflowCard", () => {
     };
     render(<WorkflowCard card={card} onNavigate={onNavigate} />);
     fireEvent.click(screen.getByRole("button", { name: /Open Optimizer/i }));
-    expect(onNavigate).toHaveBeenCalledWith("optimizer");
+    expect(onNavigate).toHaveBeenCalledWith(expect.objectContaining({ tab: "optimizer" }));
   });
 });
 
@@ -305,7 +305,7 @@ describe("AssistantRunSummary", () => {
     render(<AssistantRunSummary contextOverrides={ctx} cards={{}} onNavigate={onNavigate} />);
 
     fireEvent.click(screen.getByRole("button", { name: /Open Optimizer/i }));
-    expect(onNavigate).toHaveBeenCalledWith("optimizer");
+    expect(onNavigate).toHaveBeenCalledWith(expect.objectContaining({ tab: "optimizer", optimizer_session_id: "opt-123" }));
   });
 });
 
@@ -392,7 +392,7 @@ describe("AssistantRunHistory", () => {
     render(<AssistantRunHistory sessionId="sess-1" onNavigate={onNavigate} />);
     await waitFor(() => screen.getByRole("button", { name: /Open/i }));
     fireEvent.click(screen.getByRole("button", { name: /Open/i }));
-    expect(onNavigate).toHaveBeenCalledWith("optimizer");
+    expect(onNavigate).toHaveBeenCalledWith(expect.objectContaining({ tab: "optimizer" }));
   });
 });
 

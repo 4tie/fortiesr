@@ -98,7 +98,17 @@ function HistoryRow({ run, onNavigate }) {
         {destTab && (
           <button
             type="button"
-            onClick={() => onNavigate?.(destTab)}
+            onClick={() => {
+              // FIX (Item 9): build deep navigation payload with real IDs
+              const payload = { tab: destTab };
+              if (run.arguments?.optimizer_session_id) payload.optimizer_session_id = run.arguments.optimizer_session_id;
+              if (run.result_summary?.optimizer_session_id) payload.optimizer_session_id = run.result_summary.optimizer_session_id;
+              if (run.arguments?.run_id || run.tool_call_id) payload.run_id = run.arguments?.run_id || run.tool_call_id;
+              if (run.result_summary?.run_id) payload.run_id = run.result_summary.run_id;
+              if (run.arguments?.auto_quant_run_id) payload.auto_quant_run_id = run.arguments.auto_quant_run_id;
+              if (run.result_summary?.auto_quant_run_id) payload.auto_quant_run_id = run.result_summary.auto_quant_run_id;
+              onNavigate?.(payload);
+            }}
             className="rounded border border-gray-300 dark:border-gray-700 px-2 py-0.5 text-[10px] font-medium text-gray-600 dark:text-gray-400 hover:border-violet-400 dark:hover:border-violet-600 hover:text-violet-700 dark:hover:text-violet-400 transition-colors"
           >
             Open

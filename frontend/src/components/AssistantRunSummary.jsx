@@ -258,9 +258,9 @@ export default function AssistantRunSummary({ contextOverrides = {}, cards = {},
     );
   }
 
-  // Check if there's a live running card even without explicit context
+  // Check if there's a live running or session-restored card even without explicit context
   const runningCard = cardList.find((c) =>
-    ["starting", "queued", "running"].includes(c.status)
+    ["starting", "queued", "running", "observation_paused"].includes(c.status)
   );
   if (runningCard) {
     const tabId = runningCard.toolName?.includes("optimizer") ? "optimizer"

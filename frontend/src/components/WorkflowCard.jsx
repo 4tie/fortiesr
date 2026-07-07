@@ -189,7 +189,27 @@ export default function WorkflowCard({
     result     = null,
     error      = null,
     confirming = false,
+    // FIX (Item 9): real IDs for deep navigation
+    optimizerSessionId = null,
+    apiSessionId       = null,
+    runId              = null,
+    autoQuantRunId     = null,
   } = card || {};
+
+  // Build a navigation payload with real IDs when available.
+  // The parent (App.jsx) uses these to pre-select the session/run.
+  const buildNavPayload = (tab) => {
+    const payload = { tab };
+    if (optimizerSessionId)          payload.optimizer_session_id = optimizerSessionId;
+    else if (apiSessionId)           payload.api_session_id = apiSessionId;
+    if (runId)                       payload.run_id = runId;
+    if (autoQuantRunId)              payload.auto_quant_run_id = autoQuantRunId;
+    // Also propagate from result if available
+    if (result?.optimizer_session_id)  payload.optimizer_session_id = result.optimizer_session_id;
+    if (result?.run_id)                payload.run_id = result.run_id;
+    if (result?.auto_quant_run_id)     payload.auto_quant_run_id = result.auto_quant_run_id;
+    return payload;
+  };
 
   const statusClass = STATUS_CLASSES[status] || STATUS_CLASSES[CARD_STATUS.PROPOSED];
   const statusLabel = STATUS_LABELS[status]  || status;
@@ -263,7 +283,7 @@ export default function WorkflowCard({
       )}
 
       {/* Progress */}
-      {isRunning && <ProgressSummary toolName={toolName} progress={progress} />}
+      {(isRunning || status === CARD_STATUS.OBSERVATION_PAUSED) && <ProgressSummary toolName={toolName} progress={progress} />}
 
       {/* Observation paused note */}
       {status === CARD_STATUS.OBSERVATION_PAUSED && (
@@ -308,7 +328,7 @@ export default function WorkflowCard({
         {(isTerminal || status === CARD_STATUS.OBSERVATION_PAUSED) && destinationTab && (
           <button
             type="button"
-            onClick={() => onNavigate?.(destinationTab)}
+            onClick={() => onNavigate?.(buildNavPayload(destinationTab))}
             className="rounded-md border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-600 transition-colors hover:border-violet-400 hover:text-violet-700"
           >
             Open {destinationTab.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}

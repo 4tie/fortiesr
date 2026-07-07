@@ -5,13 +5,10 @@
  * Tabs: Chat | Run | History
  *
  * Architecture:
- * - Shares the same backend session as the full AssistantChatPanel
- * - Uses useAssistantChat for streaming + workflow event handling
- * - WorkflowCards are driven by real SSE events (no mocks)
- * - One click on Run confirms a guarded action (no second modal)
- * - Run tab shows real context from the current page
- * - History tab loads real tool_runs from the persisted session
- * - Session restore on mount
+ * - useAssistantChat is called ONCE at the container level
+ * - Chat, Run, and History tabs all receive shared state as props
+ * - No duplicate hook instances / no state loss on tab switch
+ * - Session restore on mount (in container so Run tab sees active_jobs cards)
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAssistantChat } from "../hooks/useAssistantChat.js";
@@ -101,35 +98,19 @@ function TimelineItem({ item, onConfirm, onNavigate }) {
 }
 
 // ── Chat panel ────────────────────────────────────────────────────────────────
-function ChatPanel({ contextOverrides, onNavigate }) {
+function ChatPanel({
+  messages,
+  cardList,
+  availableActions,
+  status,
+  onSend,
+  onConfirm,
+  onExecute,
+  onNavigate,
+}) {
   const [draft, setDraft] = useState("");
-
-  const {
-    messages,
-    sessionId,
-    status,
-    cards,
-    cardList,
-    availableActions,
-    sendMessage,
-    confirmAction,
-    executeAction,
-    restoreSession,
-  } = useAssistantChat({ contextOverrides });
-
   const scrollerRef = useRef(null);
   const isActive = status === "sending" || status === "streaming";
-
-  // Session restore on mount when sessionId becomes available
-  useEffect(() => {
-    const stored = sessionStorage.getItem("mini_assistant_session_id");
-    if (stored) restoreSession(stored);
-  }, [restoreSession]);
-
-  // Persist session id to sessionStorage so we can restore on next open
-  useEffect(() => {
-    if (sessionId) sessionStorage.setItem("mini_assistant_session_id", sessionId);
-  }, [sessionId]);
 
   // Auto-scroll
   useEffect(() => {
@@ -139,7 +120,6 @@ function ChatPanel({ contextOverrides, onNavigate }) {
   }, [messages, cardList, status]);
 
   // Build combined timeline: messages + workflow cards interleaved
-  // Cards are keyed and not duplicated.
   const seenCardKeys = new Set();
   const timelineItems = [];
 
@@ -147,7 +127,6 @@ function ChatPanel({ contextOverrides, onNavigate }) {
     timelineItems.push({ ...msg, type: "message" });
   }
 
-  // Append cards below the timeline (they don't have a fixed position in message list)
   for (const card of cardList) {
     if (seenCardKeys.has(card.key)) continue;
     seenCardKeys.add(card.key);
@@ -158,7 +137,7 @@ function ChatPanel({ contextOverrides, onNavigate }) {
     const text = draft.trim();
     if (!text || isActive) return;
     setDraft("");
-    await sendMessage(text);
+    await onSend(text);
   };
 
   const handleKeyDown = (e) => {
@@ -183,7 +162,7 @@ function ChatPanel({ contextOverrides, onNavigate }) {
             <TimelineItem
               key={item.id}
               item={item}
-              onConfirm={confirmAction}
+              onConfirm={onConfirm}
               onNavigate={onNavigate}
             />
           ))
@@ -192,7 +171,7 @@ function ChatPanel({ contextOverrides, onNavigate }) {
 
       {/* Composer */}
       <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-2">
-        <ActionPills actions={availableActions} onExecute={executeAction} disabled={isActive} />
+        <ActionPills actions={availableActions} onExecute={onExecute} disabled={isActive} />
         <div className="flex items-end gap-2 mt-1">
           <textarea
             value={draft}
@@ -221,7 +200,7 @@ function ChatPanel({ contextOverrides, onNavigate }) {
   );
 }
 
-// ── Run panel (wrapper to share session state) ────────────────────────────────
+// ── Run panel ─────────────────────────────────────────────────────────────────
 function RunPanel({ contextOverrides, cards, onNavigate }) {
   return (
     <div className="h-full overflow-y-auto rounded-lg border border-gray-200 bg-gray-50">
@@ -252,24 +231,35 @@ export default function MiniAIAssistantContainer({
 }) {
   const [activeTab, setActiveTab] = useState("chat");
 
-  // Shared session tracking between tabs
-  // The Chat tab owns the session; Run/History read from sessionStorage
-  const storedSessionId = sessionStorage.getItem("mini_assistant_session_id") || null;
+  // ── Single shared hook instance ──────────────────────────────────────────
+  // All tabs read from the same hook, ensuring Run tab sees session-restored cards.
+  const {
+    messages,
+    sessionId,
+    status,
+    cards,
+    cardList,
+    availableActions,
+    sendMessage,
+    confirmAction,
+    executeAction,
+    restoreSession,
+  } = useAssistantChat({ contextOverrides });
 
-  // Cards are needed by both Chat and Run tabs.
-  // We use a separate hook instance at the container level for Run tab access.
-  // Chat tab has its own internal copy.
-  const [sharedCards, setSharedCards] = useState({});
+  // Session restore on mount — happens at container level so Run tab benefits too
+  useEffect(() => {
+    const stored = sessionStorage.getItem("mini_assistant_session_id");
+    if (stored) restoreSession(stored);
+  }, [restoreSession]);
 
-  // The ChatPanel will bubble card state up via a callback if needed.
-  // For simplicity, we read from sessionStorage for Run/History and let
-  // the ChatPanel manage its own card state. This avoids prop-drilling complexity.
+  // Persist session id for next mount
+  useEffect(() => {
+    if (sessionId) sessionStorage.setItem("mini_assistant_session_id", sessionId);
+  }, [sessionId]);
 
   const handleNavigate = useCallback(
     (tabId) => {
-      if (onNavigate) {
-        onNavigate(tabId);
-      }
+      if (onNavigate) onNavigate(tabId);
     },
     [onNavigate]
   );
@@ -277,7 +267,7 @@ export default function MiniAIAssistantContainer({
   return (
     <section className="h-full flex flex-col bg-white dark:bg-gray-800">
       {/* Header */}
-      <div 
+      <div
         className="bg-gradient-to-r from-violet-600 to-cyan-600 px-4 py-2.5 flex items-center justify-between cursor-grab active:cursor-grabbing shrink-0"
         onPointerDown={onHeaderPointerDown}
       >
@@ -285,8 +275,8 @@ export default function MiniAIAssistantContainer({
         <div className="flex items-center gap-2">
           <div className="h-1.5 w-1.5 rounded-full bg-white/60 animate-pulse" />
           {onClose && (
-            <button 
-              onClick={onClose} 
+            <button
+              onClick={onClose}
               className="text-white/80 hover:text-white rounded-md hover:bg-white/10 p-1 transition-colors ml-1"
               title="Close"
               type="button"
@@ -324,7 +314,16 @@ export default function MiniAIAssistantContainer({
       <div className="min-h-0 flex-1 overflow-hidden px-3 pb-3">
         {activeTab === "chat" && (
           <div className="h-full min-h-0">
-            <ChatPanel contextOverrides={contextOverrides} onNavigate={handleNavigate} />
+            <ChatPanel
+              messages={messages}
+              cardList={cardList}
+              availableActions={availableActions}
+              status={status}
+              onSend={sendMessage}
+              onConfirm={confirmAction}
+              onExecute={executeAction}
+              onNavigate={handleNavigate}
+            />
           </div>
         )}
 
@@ -332,7 +331,7 @@ export default function MiniAIAssistantContainer({
           <div className="h-full">
             <RunPanel
               contextOverrides={contextOverrides}
-              cards={sharedCards}
+              cards={cards}
               onNavigate={handleNavigate}
             />
           </div>
@@ -340,7 +339,7 @@ export default function MiniAIAssistantContainer({
 
         {activeTab === "history" && (
           <div className="h-full">
-            <HistoryPanel sessionId={storedSessionId} onNavigate={handleNavigate} />
+            <HistoryPanel sessionId={sessionId} onNavigate={handleNavigate} />
           </div>
         )}
       </div>

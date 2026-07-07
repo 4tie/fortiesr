@@ -353,7 +353,7 @@ describe('AssistantChatPanel', () => {
     fireEvent.click(sendButton);
 
     await waitFor(() => {
-      expect(screen.getByText(/Error/)).toBeInTheDocument();
+      expect(screen.getByText(/error/i)).toBeInTheDocument();
     });
   });
 
