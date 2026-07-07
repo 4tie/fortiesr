@@ -4,12 +4,12 @@
   "extracted_at": "2026-06-14T08:34:19.520086Z",
   "pair_list": null,
   "buy_params": {
-    "buy_ma_count": 12,
-    "buy_ma_gap": 68
+    "buy_ma_count": 18,
+    "buy_ma_gap": 95
   },
   "sell_params": {
-    "sell_ma_count": 12,
-    "sell_ma_gap": 68
+    "sell_ma_count": 17,
+    "sell_ma_gap": 54
   },
   "protection_params": {},
   "roi_table": {

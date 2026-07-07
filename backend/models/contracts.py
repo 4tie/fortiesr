@@ -62,6 +62,9 @@ class SettingsModel(StrictModel):
     ollama_model_strategylab: str = ""
     ollama_model_optimizer: str = ""
 
+    # AI Assistant sandbox mode
+    ai_assistant_sandbox_enabled: bool = False
+
     # Discord integration
     discord_enabled: bool = False
     discord_bot_token: str = ""

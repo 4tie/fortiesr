@@ -345,6 +345,24 @@ async def _run_pair_group(
                 gkey, result_zip
             )
         
+        # Fallback: look for freqtrade's default backtest-result-*.zip files
+        if not metrics:
+            try:
+                for zip_file in sorted(group_result_dir.glob("backtest-result-*.zip")):
+                    metrics = _parse_zip_result(zip_file, strategy_name)
+                    if metrics:
+                        artifact_used = str(zip_file)
+                        logger.info(
+                            "[Pair Explorer] Group %s: loaded result from fallback ZIP %s",
+                            gkey, zip_file
+                        )
+                        break
+            except Exception as exc:
+                logger.warning(
+                    "[Pair Explorer] Group %s: failed to load fallback ZIP results: %s",
+                    gkey, exc
+                )
+        
         if not metrics:
             session["results"][gkey] = {
                 "group": gkey, "pairs": chunk, "status": "failed",

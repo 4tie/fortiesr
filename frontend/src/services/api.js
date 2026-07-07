@@ -471,6 +471,28 @@ export const api = {
   },
 
   /**
+   * Candidate readiness endpoints
+   */
+  readiness: {
+    /**
+     * Get a read-only candidate readiness report.
+     * @param {object} params
+     * @returns {Promise<object>}
+     */
+    async getReport(params = {}) {
+      const query = new URLSearchParams();
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== "") {
+          query.set(key, String(value));
+        }
+      });
+      const suffix = query.toString() ? `?${query.toString()}` : "";
+      const res = await fetch(`${API_BASE}/readiness/report${suffix}`);
+      return parseJsonResponse(res, "Failed to load candidate readiness report.");
+    },
+  },
+
+  /**
    * Session endpoints
    */
   session: {

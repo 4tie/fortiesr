@@ -42,19 +42,35 @@ def register_pair_screening_endpoints(router: APIRouter) -> None:
             for pair in body.pairs:
                 pair_clean = pair.replace("/", "_")
                 export_file = tmp_path / f"{pair_clean}.json"
-                cmd = [
-                    freqtrade_path, "backtesting",
-                    "--config", config_file,
-                    "--strategy", body.strategy,
-                    "--timerange", body.date_range,
-                    "--timeframe", body.timeframe,
-                    "--user-data-dir", user_data_dir,
-                    "--export", "trades",
-                    "--export-filename", str(export_file),
-                    "--no-color",
-                    "--cache", "none",
-                    "--pairs", pair,
-                ]
+                # Handle "py -m freqtrade" command by splitting it
+                if freqtrade_path == "py -m freqtrade":
+                    cmd = [
+                        "py", "-m", "freqtrade", "backtesting",
+                        "--config", config_file,
+                        "--strategy", body.strategy,
+                        "--timerange", body.date_range,
+                        "--timeframe", body.timeframe,
+                        "--user-data-dir", user_data_dir,
+                        "--export", "trades",
+                        "--export-filename", str(export_file),
+                        "--no-color",
+                        "--cache", "none",
+                        "--pairs", pair,
+                    ]
+                else:
+                    cmd = [
+                        freqtrade_path, "backtesting",
+                        "--config", config_file,
+                        "--strategy", body.strategy,
+                        "--timerange", body.date_range,
+                        "--timeframe", body.timeframe,
+                        "--user-data-dir", user_data_dir,
+                        "--export", "trades",
+                        "--export-filename", str(export_file),
+                        "--no-color",
+                        "--cache", "none",
+                        "--pairs", pair,
+                    ]
                 try:
                     proc = await asyncio.create_subprocess_exec(
                         *cmd,

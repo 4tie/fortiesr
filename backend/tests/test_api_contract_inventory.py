@@ -46,6 +46,7 @@ def test_frontend_tab_http_contract_routes_are_registered():
         ("POST", "/api/backtest/run"),
         ("GET", "/api/backtest/results/{run_id}"),
         ("GET", "/api/results"),
+        ("GET", "/api/readiness/report"),
         ("POST", "/api/data/download"),
         ("GET", "/api/session/status/{session_id}"),
         ("GET", "/api/session/list"),

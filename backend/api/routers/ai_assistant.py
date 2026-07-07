@@ -27,6 +27,7 @@ from ...services.agent_context import AgentContextService
 from ...services.ai.ollama_client import OllamaClient, build_headers
 from ...services.ai.ollama_config import config_from_settings
 from ...services.assistant_service import AssistantService
+from . import candidate
 
 router = APIRouter(prefix="/api/ai", tags=["AI Assistant"])
 
@@ -219,6 +220,61 @@ async def get_health_monitor_state(request: Request) -> dict:
         }
 
 
+@router.post(
+    "/health-monitor/reset",
+    summary="Reset Ollama health monitor failure count",
+    description=(
+        "Resets the consecutive failure count in the health monitor to allow recovery "
+        "after configuration changes or Ollama restarts."
+    ),
+)
+async def reset_health_monitor(request: Request) -> dict:
+    from ...services.ai.ollama_health_monitor import get_health_monitor
+
+    services = request.app.state.services
+    cfg = services.settings_store.load()
+    try:
+        monitor = await get_health_monitor(
+            cfg.user_data_directory_path,
+            check_interval=cfg.ollama_health_check_interval if cfg.ollama_enable_health_check else 0,
+            enabled=cfg.ollama_enable_health_check,
+        )
+        monitor.reset_failure_count()
+        return {"status": "reset", "message": "Health monitor failure count reset"}
+    except Exception as exc:
+        return {
+            "error": str(exc),
+            "status": "failed",
+        }
+
+
+@router.post(
+    "/health-monitor/check",
+    summary="Force immediate health check",
+    description=(
+        "Forces an immediate health check and returns the updated state."
+    ),
+)
+async def force_health_check(request: Request) -> dict:
+    from ...services.ai.ollama_health_monitor import get_health_monitor
+
+    services = request.app.state.services
+    cfg = services.settings_store.load()
+    try:
+        monitor = await get_health_monitor(
+            cfg.user_data_directory_path,
+            check_interval=cfg.ollama_health_check_interval if cfg.ollama_enable_health_check else 0,
+            enabled=cfg.ollama_enable_health_check,
+        )
+        return await monitor.force_check()
+    except Exception as exc:
+        return {
+            "error": str(exc),
+            "healthy": None,
+            "monitor_enabled": cfg.ollama_enable_health_check,
+        }
+
+
 class ChatRequest(BaseModel):
     message: str = Field(..., description="User message for the assistant.")
     session_id: str | None = Field(default=None, description="Existing assistant chat session id.")
@@ -344,9 +400,11 @@ def _assistant_service(request: Request) -> AssistantService:
         strategy_optimizer=getattr(services, "strategy_optimizer", None),
         backtest_runner=services.backtest_runner,
         optimizer_store=getattr(services, "optimizer_store", None),
+        sweep_store=getattr(services, "sweep_store", None),
         run_detail_callable=services.run_detail,
         log_broadcaster=getattr(request.app.state, "log_broadcaster", None),
         session_store=getattr(request.app.state, "session_store", None),
+        candidate_run_lookup=candidate.candidate_run_manager.get_run,
     )
     return AssistantService(
         settings_store=services.settings_store,
@@ -423,6 +481,17 @@ class AutoQuantRequest(BaseModel):
     message: str = Field(..., description="User message to the AutoQuant AI agent")
     session_id: str | None = Field(None, description="Session ID for tracking")
     model: str | None = Field(None, description="Ollama model to use (optional)")
+    context_overrides: dict | None = Field(default_factory=dict, description="Optional assistant context overrides")
+
+
+class ChartGenerationRequest(BaseModel):
+    chart_type: str = Field(..., description="Chart type: bar, pie, line")
+    data: list[dict] = Field(..., description="Chart data as list of dicts")
+    title: str = Field(default="", description="Chart title")
+    xlabel: str = Field(default="", description="X-axis label (for bar/line)")
+    ylabel: str = Field(default="", description="Y-axis label (for bar/line)")
+    width: int = Field(default=800, description="Image width in pixels")
+    height: int = Field(default=400, description="Image height in pixels")
 
 
 @router.post(
@@ -495,3 +564,56 @@ async def autoquant_chat(body: AutoQuantRequest, request: Request) -> dict:
             "model": body.model or settings.ollama_model,
             "error": str(e)
         }
+
+
+@router.post(
+    "/generate-chart",
+    summary="Generate chart image for AI analysis",
+    description="Generate a chart image (bar, pie, or line) from provided data and return base64-encoded PNG.",
+)
+async def generate_chart(body: ChartGenerationRequest) -> dict:
+    """Generate a chart image using matplotlib."""
+    from ...services.chart_generator import get_chart_generator
+
+    chart_gen = get_chart_generator()
+
+    try:
+        if body.chart_type == "bar":
+            img_base64 = chart_gen.generate_bar_chart(
+                data=body.data,
+                title=body.title,
+                xlabel=body.xlabel,
+                ylabel=body.ylabel,
+                width=body.width,
+                height=body.height,
+            )
+        elif body.chart_type == "pie":
+            img_base64 = chart_gen.generate_pie_chart(
+                data=body.data,
+                title=body.title,
+                width=body.width,
+                height=body.height,
+            )
+        elif body.chart_type == "line":
+            img_base64 = chart_gen.generate_line_chart(
+                data=body.data,
+                title=body.title,
+                xlabel=body.xlabel,
+                ylabel=body.ylabel,
+                width=body.width,
+                height=body.height,
+            )
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported chart type: {body.chart_type}. Supported types: bar, pie, line"
+            )
+
+        return {
+            "image": f"data:image/png;base64,{img_base64}",
+            "chart_type": body.chart_type,
+            "width": body.width,
+            "height": body.height,
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Chart generation failed: {str(exc)}")

@@ -1,13 +1,17 @@
 import { XMarkIcon } from "@heroicons/react/24/outline";
 import AssistantChatPanel from "../AssistantChatPanel.jsx";
 
-export default function AssistantDrawer({ context, onClose }) {
+export default function AssistantDrawer({ context, request = {}, onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/35 backdrop-blur-[1px]">
-      <div className="w-full max-w-2xl h-full bg-base-100 border-l border-base-300 shadow-2xl">
+      <div className="w-full max-w-[420px] h-full bg-base-100 border-l border-base-300 shadow-2xl flex flex-col">
         <AssistantChatPanel
           mode="drawer"
           initialContextOverrides={context}
+          initialPrompt={request.initialPrompt}
+          initialMode={request.initialMode}
+          initialIncludeStrategySource={request.initialIncludeStrategySource}
+          requestKey={request.requestKey}
           onClose={onClose}
         />
       </div>

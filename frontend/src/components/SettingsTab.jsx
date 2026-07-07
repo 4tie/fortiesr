@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { api } from "../services/api.js";
 import { useToast } from "../hooks/useToast.js";
+import PageContainer from "./shared/PageContainer.jsx";
+import PageHeader from "./shared/PageHeader.jsx";
 
 export function InputRow({ label, sub, value, onChange, disabled, placeholder, readOnly, type = "text", min, max }) {
   return (
@@ -181,41 +183,40 @@ export default function SettingsTab() {
   const currentModel = settings.ollama_model || "";
 
   return (
-    <div className="flex flex-col gap-0">
-      <div className="mx-auto w-full max-w-3xl px-4 py-8">
-        <div className="card bg-base-200 shadow-xl border border-base-300">
-          <div className="card-body gap-6">
+    <PageContainer>
+      <div className="card bg-base-200 shadow-xl border border-base-300">
+        <div className="card-body gap-6">
 
-            {/* Header */}
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <div>
-                <h2 className="card-title text-xl font-semibold tracking-tight">Settings</h2>
-                <p className="text-xs text-base-content/50 mt-0.5">
-                  Configure engine paths, directories, and AI assistant
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                {dirty && (
-                  <span className="badge badge-sm badge-warning gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-warning-content" />
-                    Unsaved changes
-                  </span>
-                )}
-                {saved && (
-                  <span className="badge badge-sm badge-success gap-1">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                    Saved
-                  </span>
-                )}
-                <button
-                  className={`btn btn-sm btn-primary ${saving ? "loading" : ""}`}
-                  onClick={handleSave}
-                  disabled={saving || !dirty}
-                >
-                  {saving ? "Saving…" : "Save Changes"}
-                </button>
-              </div>
+          {/* Header */}
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <h2 className="card-title text-xl font-semibold tracking-tight">Settings</h2>
+              <p className="text-xs text-base-content/50 mt-0.5">
+                Configure engine paths, directories, and AI assistant
+              </p>
             </div>
+            <div className="flex items-center gap-2">
+              {dirty && (
+                <span className="badge badge-sm badge-warning gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-warning-content" />
+                  Unsaved changes
+                </span>
+              )}
+              {saved && (
+                <span className="badge badge-sm badge-success gap-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  Saved
+                </span>
+              )}
+              <button
+                className={`btn btn-sm btn-primary ${saving ? "loading" : ""}`}
+                onClick={handleSave}
+                disabled={saving || !dirty}
+              >
+                {saving ? "Saving…" : "Save Changes"}
+              </button>
+            </div>
+          </div>
 
             {/* Error */}
             {error && (
@@ -847,7 +848,6 @@ export default function SettingsTab() {
 
           </div>
         </div>
-      </div>
-    </div>
+      </PageContainer>
   );
 }

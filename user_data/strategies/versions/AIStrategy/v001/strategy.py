@@ -21,26 +21,29 @@ class AIStrategy(IStrategy):
     INTERFACE_VERSION: int = 3
     # Buy hyperspace params:
     buy_params = {
-        "buy_ma_count": 4,
-        "buy_ma_gap": 15,
+        "buy_ma_count": 18,
+        "buy_ma_gap": 95,
     }
 
     # Sell hyperspace params:
     sell_params = {
-        "sell_ma_count": 12,
-        "sell_ma_gap": 68,
+        "sell_ma_count": 17,
+        "sell_ma_gap": 54,
     }
 
     # ROI table:
     minimal_roi = {
-        "0": 0.523,
+        "0": 0.192,
+        "12": 0.061,
+        "33": 0.017,
+        "145": 0.0,
         "1553": 0.123,
         "2332": 0.076,
         "3169": 0
     }
 
     # Stoploss:
-    stoploss = -0.30
+    stoploss = -0.336
 
     # Trailing stop:
     trailing_stop = False  # value loaded from strategy
@@ -54,11 +57,11 @@ class AIStrategy(IStrategy):
     count_max = 20
     gap_max = 100
 
-    buy_ma_count = IntParameter(1, count_max, default=7, space="buy")
-    buy_ma_gap = IntParameter(1, gap_max, default=7, space="buy")
+    buy_ma_count = IntParameter(1, count_max, default=18, space="buy")
+    buy_ma_gap = IntParameter(1, gap_max, default=95, space="buy")
 
-    sell_ma_count = IntParameter(1, count_max, default=7, space="sell")
-    sell_ma_gap = IntParameter(1, gap_max, default=94, space="sell")
+    sell_ma_count = IntParameter(1, count_max, default=17, space="sell")
+    sell_ma_gap = IntParameter(1, gap_max, default=54, space="sell")
 
     def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         periods = set()

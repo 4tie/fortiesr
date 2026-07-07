@@ -51,6 +51,10 @@ class CircuitBreaker:
         self.total_successes += 1
         self.last_failure_time = None
         self.state = "closed"
+        # Reset total failures on success to clear accumulated state
+        if self.total_failures > 0:
+            logger.info("Circuit breaker reset: clearing accumulated failures after successful call")
+            self.total_failures = 0
 
     def should_allow_call(self) -> bool:
         if self.state == "closed":
@@ -266,6 +270,7 @@ class OllamaClient:
                 model_count = 0
             return {
                 "status": "healthy",
+                "healthy": True,
                 "reachable": True,
                 "latency_ms": round((time.time() - start) * 1000, 2),
                 "model_count": model_count,

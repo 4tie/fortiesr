@@ -3,7 +3,7 @@ import ErrorBoundary from "../ErrorBoundary.jsx";
 import ResultsView from "../ResultsView.jsx";
 import { getTabConfig } from "../tabs/registry.js";
 
-function ResultsTabContent({ activeResult, clearActiveResult, handleLoadResult }) {
+function ResultsTabContent({ activeResult, clearActiveResult, handleLoadResult, onAskAi }) {
   return (
     <ErrorBoundary tabName="Results">
       {activeResult ? (
@@ -14,7 +14,32 @@ function ResultsTabContent({ activeResult, clearActiveResult, handleLoadResult }
               &larr; Back to list
             </button>
           </div>
-          <BacktestResults results={activeResult.results} runId={activeResult.run_id} />
+          <BacktestResults
+            results={activeResult.results}
+            runId={activeResult.run_id}
+            strategyName={activeResult.strategy_name}
+            onAnalyzeResult={({ runId, message }) => onAskAi?.({
+              context: {
+                active_tab: "results",
+                active_panel: "backtest_result",
+                strategy_name: activeResult.strategy_name || null,
+                backtest_run_id: runId,
+              },
+              message,
+              mode: "analysis",
+            })}
+            onAnalyzeReadiness={({ message, context }) => onAskAi?.({
+              context: {
+                ...context,
+                active_tab: "results",
+                active_panel: "candidate_readiness",
+                strategy_name: context?.strategy_name || activeResult.strategy_name || null,
+                backtest_run_id: context?.backtest_run_id || activeResult.run_id,
+              },
+              message,
+              mode: "analysis",
+            })}
+          />
         </div>
       ) : (
         <ResultsView onLoadResult={handleLoadResult} />
@@ -32,6 +57,7 @@ function BacktestTabContent({ component: TabComponent, tabProps }) {
     sharedState,
     sharedLoading,
     syncSharedState,
+    onAskAi,
   } = tabProps;
 
   return (
@@ -44,6 +70,31 @@ function BacktestTabContent({ component: TabComponent, tabProps }) {
         sharedState={sharedState}
         sharedLoading={sharedLoading}
         syncSharedState={syncSharedState}
+        onAskAi={onAskAi}
+      />
+    </ErrorBoundary>
+  );
+}
+
+function AutoQuantTabContent({ component: TabComponent, tabProps }) {
+  const {
+    strategies,
+    strategiesLoading,
+    sharedState,
+    sharedLoading,
+    syncSharedState,
+    onAskAi,
+  } = tabProps;
+
+  return (
+    <ErrorBoundary tabName="AutoQuant">
+      <TabComponent
+        strategies={strategies}
+        strategiesLoading={strategiesLoading}
+        sharedState={sharedState}
+        sharedLoading={sharedLoading}
+        syncSharedState={syncSharedState}
+        onAskAi={onAskAi}
       />
     </ErrorBoundary>
   );
@@ -61,12 +112,17 @@ export default function TabContentRenderer({ activeTab, tabProps }) {
         activeResult={tabProps.activeResult}
         clearActiveResult={tabProps.clearActiveResult}
         handleLoadResult={tabProps.handleLoadResult}
+        onAskAi={tabProps.onAskAi}
       />
     );
   }
 
   if (activeTab === "backtest") {
     return <BacktestTabContent component={TabComponent} tabProps={tabProps} />;
+  }
+
+  if (activeTab === "auto-quant") {
+    return <AutoQuantTabContent component={TabComponent} tabProps={tabProps} />;
   }
 
   return (

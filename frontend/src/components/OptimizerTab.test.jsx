@@ -153,7 +153,16 @@ function mockFetch({ completed = false, spaces = null, sessionOverride = null } 
       return { ok: true, json: async () => ({ ok: true, phase: 'cancelled' }) };
     }
     if (text === '/api/optimizer/apply-trial') {
-      return { ok: true, json: async () => ({ ok: true }) };
+      return {
+        ok: true,
+        json: async () => ({
+          ok: true,
+          written_paths: {
+            live_source_path: 'user_data/strategies/DemoStrategy.py',
+            live_sidecar_path: 'user_data/strategies/DemoStrategy.json',
+          },
+        }),
+      };
     }
     if (text.includes('/api/optimizer/session/optimizer-session-1')) {
       return {
@@ -452,6 +461,34 @@ describe('OptimizerTab', () => {
     await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/optimizer/export-trials', expect.any(Object)));
   });
 
+  test('opens AI analysis for best optimizer trial', async () => {
+    mockFetch({ completed: true });
+    const onAskAi = jest.fn();
+    render(<OptimizerTab strategies={strategies} onAskAi={onAskAi} />);
+
+    fireEvent.change(screen.getByLabelText('Strategy'), { target: { value: 'DemoStrategy' } });
+    await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/optimizer/search-spaces/DemoStrategy'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'History' }));
+    fireEvent.click((await screen.findByText('optimize')).closest('button'));
+
+    const analyzeButton = await screen.findByRole('button', { name: 'Analyze Best Result' });
+    await waitFor(() => expect(analyzeButton).not.toBeDisabled());
+    fireEvent.click(analyzeButton);
+
+    expect(onAskAi).toHaveBeenCalledWith(expect.objectContaining({
+      mode: 'analysis',
+      context: expect.objectContaining({
+        active_tab: 'optimizer',
+        active_panel: 'optimizer_trial_result',
+        strategy_name: 'DemoStrategy',
+        optimizer_session_id: 'optimizer-session-1',
+        optimizer_trial_number: 1,
+      }),
+      message: expect.stringContaining('optimizer trial'),
+    }));
+  });
+
   test('closes live log stream on unmount', async () => {
     const { unmount } = render(<OptimizerTab strategies={strategies} />);
 
@@ -468,7 +505,7 @@ describe('OptimizerTab', () => {
     expect(MockEventSource.instances[0].close).toHaveBeenCalled();
   });
 
-  test('requires exact overwrite confirmation before applying accepted params', async () => {
+  test('applies best trial after confirmation and shows written files', async () => {
     mockFetch({ completed: true });
     render(<OptimizerTab strategies={strategies} />);
 
@@ -480,19 +517,19 @@ describe('OptimizerTab', () => {
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'Promote Best to Candidate' })).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole('button', { name: 'Show overwrite actions' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Overwrite Accepted with Best Trial' }));
+    const applyBestButton = screen.getByRole('button', { name: 'Apply Best to Strategy' });
+    await waitFor(() => expect(applyBestButton).not.toBeDisabled());
+    fireEvent.click(applyBestButton);
 
-    const confirmButton = await screen.findByRole('button', { name: 'Yes, Overwrite Accepted Params' });
-    expect(confirmButton).toBeDisabled();
+    expect(await screen.findByText('Overwrite Accepted Params')).toBeInTheDocument();
+    expect(await screen.findByText('Preview loaded')).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText('Type OVERWRITE 1 to confirm'), { target: { value: 'OVERWRITE' } });
-    expect(confirmButton).toBeDisabled();
-
-    fireEvent.change(screen.getByLabelText('Type OVERWRITE 1 to confirm'), { target: { value: 'OVERWRITE 1' } });
+    const confirmButton = await screen.findByRole('button', { name: 'Apply Parameters' });
     expect(confirmButton).not.toBeDisabled();
 
     fireEvent.click(confirmButton);
     await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/optimizer/apply-trial', expect.any(Object)));
+    expect(await screen.findByText('Parameters applied')).toBeInTheDocument();
+    expect(screen.getByText('user_data/strategies/DemoStrategy.py')).toBeInTheDocument();
   });
 });

@@ -3,6 +3,9 @@ import { api } from "../services/api.js";
 import BacktestResults from "./BacktestResults";
 import SmartPairSelector from "./SmartPairSelector";
 import ErrorDisplay from "./shared/ErrorDisplay";
+import PageContainer from "./shared/PageContainer.jsx";
+import PageHeader from "./shared/PageHeader.jsx";
+import { pairsEqualUnordered } from "../utils/pairs.js";
 
 function CommandViewer({ command }) {
   const [copied, setCopied] = useState(false);
@@ -146,6 +149,7 @@ export default function BacktestForm({
   sharedState,
   sharedLoading,
   syncSharedState,
+  onAskAi,
 }) {
   // ── local form state ───────────────────────────────────────────────────────
   const [strategy,   setStrategy]   = useState("");
@@ -182,29 +186,70 @@ export default function BacktestForm({
   // ── hydration guard ────────────────────────────────────────────────────────
   const hydrated    = useRef(false);
   const initialized = useRef(false);
+  const lastUserPairChangeTime = useRef(0);
+
+  // ── localStorage persistence for backtest results ─────────────────────────
+  useEffect(() => {
+    // Load saved results on mount
+    try {
+      const savedResults = localStorage.getItem('backtest_last_results');
+      if (savedResults) {
+        const parsed = JSON.parse(savedResults);
+        if (parsed.results && parsed.runId) {
+          setResults(parsed.results);
+          setRunId(parsed.runId);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load saved backtest results:', e);
+    }
+  }, []);
+
+  // ── save results to localStorage when updated ────────────────────────────
+  useEffect(() => {
+    if (results && runId) {
+      try {
+        localStorage.setItem('backtest_last_results', JSON.stringify({ results, runId }));
+      } catch (e) {
+        console.error('Failed to save backtest results:', e);
+      }
+    }
+  }, [results, runId]);
 
   // ── pre-fill from shared state on load (unconditional, single-pass) ───────
   useEffect(() => {
-    if (sharedLoading || !sharedState || hydrated.current) return;
-    hydrated.current = true;
+    if (sharedLoading || !sharedState) return;
+    if (!hydrated.current) {
+      hydrated.current = true;
 
-    setTimeout(() => {
-      if (sharedState.strategy_name && strategy !== sharedState.strategy_name) setStrategy(sharedState.strategy_name);
-      if (sharedState.timeframe && timeframe !== sharedState.timeframe) setTimeframe(sharedState.timeframe);
-      if (sharedState.dry_run_wallet != null && wallet !== String(sharedState.dry_run_wallet)) setWallet(String(sharedState.dry_run_wallet));
-      if (sharedState.max_open_trades != null && maxTrades !== String(sharedState.max_open_trades)) setMaxTrades(String(sharedState.max_open_trades));
-      if (sharedState.pairs?.length && JSON.stringify(pairs) !== JSON.stringify(sharedState.pairs)) setPairs(sharedState.pairs);
+      setTimeout(() => {
+        if (sharedState.strategy_name && strategy !== sharedState.strategy_name) setStrategy(sharedState.strategy_name);
+        if (sharedState.timeframe && timeframe !== sharedState.timeframe) setTimeframe(sharedState.timeframe);
+        if (sharedState.dry_run_wallet != null && wallet !== String(sharedState.dry_run_wallet)) setWallet(String(sharedState.dry_run_wallet));
+        if (sharedState.max_open_trades != null && maxTrades !== String(sharedState.max_open_trades)) setMaxTrades(String(sharedState.max_open_trades));
+        if (sharedState.pairs?.length && !pairsEqualUnordered(pairs, sharedState.pairs)) {
+          setPairs(sharedState.pairs);
+        }
 
-      const savedStart = sharedState.start_date || "";
-      const savedEnd   = sharedState.end_date   || "";
+        const savedStart = sharedState.start_date || "";
+        const savedEnd   = sharedState.end_date   || "";
 
-      if (savedStart && savedEnd) {
-        if (startDate !== savedStart) setStartDate(savedStart);
-        if (endDate !== savedEnd) setEndDate(savedEnd);
-        const newTimerange = dateToTimerange(savedStart, savedEnd);
-        if (timerange !== newTimerange) setTimerange(newTimerange);
+        if (savedStart && savedEnd) {
+          if (startDate !== savedStart) setStartDate(savedStart);
+          if (endDate !== savedEnd) setEndDate(savedEnd);
+          const newTimerange = dateToTimerange(savedStart, savedEnd);
+          if (timerange !== newTimerange) setTimerange(newTimerange);
+        }
+        initialized.current = true;
+      }, 0);
+    }
+    // Only sync pairs from sharedState if not recently user-initiated (debounce 1 second)
+    const now = Date.now();
+    if (sharedState.pairs?.length && now - lastUserPairChangeTime.current > 1000) {
+      if (!pairsEqualUnordered(pairs, sharedState.pairs)) {
+        setPairs(sharedState.pairs);
       }
-    }, 0);
+    }
   }, [sharedState, sharedLoading, strategy, timeframe, wallet, maxTrades, pairs, startDate, endDate, timerange]);
 
 
@@ -438,6 +483,35 @@ export default function BacktestForm({
     setSessionId(null); setRunStatus(null); setRunError(null); setCommand(null);
   };
 
+  const handleAnalyzeResult = useCallback(({ runId, message }) => {
+    if (!runId || !onAskAi) return;
+    onAskAi({
+      context: {
+        active_tab: "backtest",
+        active_panel: "backtest_result",
+        strategy_name: strategy || null,
+        backtest_run_id: runId,
+      },
+      message,
+      mode: "analysis",
+    });
+  }, [onAskAi, strategy]);
+
+  const handleAnalyzeReadiness = useCallback(({ message, context }) => {
+    if (!onAskAi) return;
+    onAskAi({
+      context: {
+        ...context,
+        active_tab: "backtest",
+        active_panel: "candidate_readiness",
+        strategy_name: context?.strategy_name || strategy || null,
+        backtest_run_id: context?.backtest_run_id || runId,
+      },
+      message,
+      mode: "analysis",
+    });
+  }, [onAskAi, runId, strategy]);
+
   const isReady = strategy && timerange;
 
   const statusLabel = {
@@ -459,8 +533,8 @@ export default function BacktestForm({
 
   // ── render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col gap-0">
-      <div className="mx-auto w-full max-w-3xl px-4 py-8">
+    <PageContainer>
+      <div className="flex flex-col gap-0">
         <div className="card bg-base-200 shadow-xl border border-base-300">
           <div className="card-body gap-6">
 
@@ -597,7 +671,11 @@ export default function BacktestForm({
             <div className="relative">
               <SmartPairSelector
                 value={pairs}
-                onChange={(newPairs) => setPairs(newPairs)}
+                maxTrades={maxTrades}
+                onChange={(newPairs) => {
+                  lastUserPairChangeTime.current = Date.now();
+                  setPairs(newPairs);
+                }}
                 onMaxTradesChange={(n) => setMaxTrades(String(n))}
                 disabled={running || downloading}
               />
@@ -654,11 +732,10 @@ export default function BacktestForm({
 
           </div>
         </div>
-      </div>
 
-      {/* ── Download progress + logs ─────────────────────────────────────────── */}
+      {/* Download progress + logs */}
       {(downloading || downloadLogs.length > 0) && (
-        <div className="mx-auto w-full max-w-3xl px-4 pb-4 flex flex-col gap-3">
+        <div className="flex flex-col gap-3">
           {downloading && (
             <div className="alert bg-base-200 border border-info/30 flex items-center gap-3">
               <span className="loading loading-bars loading-sm text-info" />
@@ -679,9 +756,9 @@ export default function BacktestForm({
         </div>
       )}
 
-      {/* ── Backtest progress indicator ──────────────────────────────────────── */}
+      {/* Backtest progress indicator */}
       {running && (
-        <div className="mx-auto w-full max-w-3xl px-4 pb-4 flex flex-col gap-3">
+        <div className="flex flex-col gap-3">
           {isDownloading && (
             <div className="alert alert-warning border border-warning/40 flex items-start gap-3">
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 mt-0.5">
@@ -714,14 +791,12 @@ export default function BacktestForm({
 
       {/* Command Viewer */}
       {(running || command) && (
-        <div className="mx-auto w-full max-w-3xl px-4 pb-4">
-          <CommandViewer command={command} />
-        </div>
+        <CommandViewer command={command} />
       )}
 
       {/* Results loading skeleton */}
       {resultsLoading && !results && (
-        <div className="mx-auto w-full max-w-3xl px-4 pb-8 flex flex-col gap-4">
+        <div className="flex flex-col gap-4">
           <div className="skeleton h-24 w-full rounded-box" />
           <div className="skeleton h-16 w-full rounded-box" />
           <div className="skeleton h-32 w-full rounded-box" />
@@ -731,12 +806,19 @@ export default function BacktestForm({
       {/* Results panel */}
       {results && !resultsLoading && (
         <>
-          <div className="mx-auto w-full max-w-3xl px-4 pb-2">
+          <div className="pb-2">
             <div className="divider text-xs text-base-content/40 font-mono">BACKTEST RESULTS</div>
           </div>
-          <BacktestResults results={results} runId={runId} />
+          <BacktestResults
+            results={results}
+            runId={runId}
+            strategyName={strategy}
+            onAnalyzeResult={handleAnalyzeResult}
+            onAnalyzeReadiness={handleAnalyzeReadiness}
+          />
         </>
       )}
-    </div>
+      </div>
+    </PageContainer>
   );
 }

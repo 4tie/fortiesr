@@ -204,6 +204,138 @@ def test_read_only_view_best_params_action_is_audited(tmp_path):
     assert json.loads(audit_lines[-1])["status"] == "completed"
 
 
+def test_oos_validation_draft_is_read_only_and_audited(tmp_path):
+    client, _, user_data = _client(tmp_path)
+
+    response = client.post(
+        "/api/ai/actions/confirm",
+        json={
+            "action_type": "create_oos_validation_draft",
+            "payload": {
+                "strategy_name": "DemoStrategy",
+                "backtest_run_id": "bt-001",
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["read_only"] is True
+    assert body["draft"]["type"] == "oos_validation"
+    assert body["draft"]["source"]["backtest_run_id"] == "bt-001"
+
+    audit_lines = (user_data / "assistant" / "audit.jsonl").read_text(encoding="utf-8").splitlines()
+    assert json.loads(audit_lines[-1])["status"] == "completed"
+
+
+def test_backtest_start_action_is_not_directly_executable(tmp_path):
+    client, _, _ = _client(tmp_path)
+
+    response = client.post(
+        "/api/ai/actions/confirm",
+        json={
+            "action_type": "start_backtest",
+            "payload": {"strategy_name": "DemoStrategy"},
+        },
+    )
+
+    assert response.status_code == 400
+    assert "Unknown assistant action" in response.json()["detail"]
+
+
+def test_backtest_run_draft_is_read_only_and_audited(tmp_path):
+    client, _, user_data = _client(tmp_path)
+
+    response = client.post(
+        "/api/ai/actions/confirm",
+        json={
+            "action_type": "create_backtest_run_draft",
+            "payload": {
+                "strategy_name": "DemoStrategy",
+                "timerange": "20240101-20240201",
+                "pairs": "BTC/USDT, ETH/USDT",
+                "timeframe": "5m",
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["read_only"] is True
+    assert body["draft"]["type"] == "backtest_run"
+    assert body["draft"]["pairs"] == ["BTC/USDT", "ETH/USDT"]
+
+    audit_lines = (user_data / "assistant" / "audit.jsonl").read_text(encoding="utf-8").splitlines()
+    assert json.loads(audit_lines[-1])["status"] == "completed"
+
+
+def test_assistant_file_edit_preview_and_apply_are_fenced(tmp_path):
+    client, _, user_data = _client(tmp_path)
+    strategy_path = user_data / "strategies" / "DemoStrategy.py"
+    strategy_path.write_text("class DemoStrategy:\n    pass\n", encoding="utf-8")
+    outside_path = tmp_path / "outside.py"
+    outside_path.write_text("print('outside')\n", encoding="utf-8")
+
+    outside_preview = client.post(
+        "/api/ai/actions/confirm",
+        json={
+            "action_type": "preview_file_edit",
+            "payload": {
+                "file_path": str(outside_path),
+                "new_content": "print('changed')\n",
+            },
+        },
+    )
+    assert outside_preview.status_code == 403
+
+    preview = client.post(
+        "/api/ai/actions/confirm",
+        json={
+            "action_type": "preview_file_edit",
+            "payload": {
+                "file_path": str(strategy_path),
+                "new_content": "class DemoStrategy:\n    minimal_roi = {}\n",
+            },
+        },
+    )
+    assert preview.status_code == 200
+    preview_body = preview.json()
+    assert preview_body["read_only"] is True
+    assert preview_body["has_changes"] is True
+    assert preview_body["current_sha256"]
+
+    apply_without_preview_hash = client.post(
+        "/api/ai/actions/confirm",
+        json={
+            "action_type": "apply_file_edit",
+            "payload": {
+                "file_path": str(strategy_path),
+                "new_content": "class DemoStrategy:\n    minimal_roi = {}\n",
+            },
+            "confirmation_token": "CONFIRM",
+        },
+    )
+    assert apply_without_preview_hash.status_code == 409
+
+    apply_response = client.post(
+        "/api/ai/actions/confirm",
+        json={
+            "action_type": "apply_file_edit",
+            "payload": {
+                "file_path": str(strategy_path),
+                "new_content": "class DemoStrategy:\n    minimal_roi = {}\n",
+                "expected_sha256": preview_body["current_sha256"],
+            },
+            "confirmation_token": "CONFIRM",
+        },
+    )
+
+    assert apply_response.status_code == 200
+    assert "minimal_roi" in strategy_path.read_text(encoding="utf-8")
+    audit_lines = (user_data / "assistant" / "audit.jsonl").read_text(encoding="utf-8").splitlines()
+    assert json.loads(audit_lines[-1])["status"] == "completed"
+
+
 def test_guarded_action_requires_confirmation_token(tmp_path):
     client, _, user_data = _client(tmp_path)
 

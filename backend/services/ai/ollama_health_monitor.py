@@ -125,6 +125,14 @@ class OllamaHealthMonitor:
                 logger.warning("Ollama health changed: healthy -> unhealthy")
             self._healthy = False
 
+    def reset_failure_count(self) -> None:
+        """Reset consecutive failure count to allow recovery."""
+        if self._consecutive_failures > 0:
+            logger.info("Health monitor reset: clearing %d consecutive failures", self._consecutive_failures)
+            self._consecutive_failures = 0
+            self._consecutive_successes = 0
+            self._healthy = True
+
     def get_health_state(self) -> dict[str, Any]:
         """Get current health state for monitoring."""
         return {

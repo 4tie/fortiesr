@@ -20,6 +20,7 @@ from typing import Callable
 from ...core.errors import BackendError
 from ...models import (
     DownloadDataRequest,
+    ParamsSchema,
     RunMetadata,
     RunProgressUpdateSource,
     RunPhase,
@@ -215,6 +216,35 @@ class BacktestRunner(IBacktestRunner):
         self.progress_service.mark_terminal(run_dir, updated, RunPhase.CANCELLED)
         return updated
 
+    def _materialize_strategy_source_for_run(
+        self,
+        *,
+        strategy_name: str,
+        resolved_version_id: str,
+        params: ParamsSchema,
+        strategy_path: str | None = None,
+    ) -> str:
+        current_pointer = self.version_manager.get_current_pointer(strategy_name)
+        if (
+            current_pointer is not None
+            and current_pointer.accepted_version_id == resolved_version_id
+            and strategy_path
+        ):
+            live_path = Path(strategy_path)
+            if live_path.exists():
+                live_source = live_path.read_text(encoding="utf-8")
+                return self.version_manager.materialize_strategy_source(
+                    strategy_name,
+                    resolved_version_id,
+                    source=live_source,
+                    params=params,
+                )
+        return self.version_manager.materialize_strategy_source(
+            strategy_name,
+            resolved_version_id,
+            params=params,
+        )
+
     def _execute_run(
         self,
         *,
@@ -244,29 +274,12 @@ class BacktestRunner(IBacktestRunner):
         version = self.version_manager.resolve_version(strategy_name, version_id)
         resolved_version_id = version.version_id
         params = self.version_manager.load_params(strategy_name, resolved_version_id)
-
-        current_pointer = self.version_manager.get_current_pointer(strategy_name)
-        if (
-            current_pointer is not None
-            and current_pointer.accepted_version_id == resolved_version_id
-            and strategy_path
-        ):
-            parsed_path = Path(strategy_path)
-            if parsed_path.exists():
-                parsed = self.version_manager.strategy_parser.parse(parsed_path)
-                params = self.version_manager.strategy_parser.extract_params(parsed, resolved_version_id)
-                strategy_source = self.version_manager.materialize_strategy_source(
-                    strategy_name, resolved_version_id,
-                    source=parsed.source_text, params=params,
-                )
-            else:
-                strategy_source = self.version_manager.materialize_strategy_source(
-                    strategy_name, resolved_version_id,
-                )
-        else:
-            strategy_source = self.version_manager.materialize_strategy_source(
-                strategy_name, resolved_version_id,
-            )
+        strategy_source = self._materialize_strategy_source_for_run(
+            strategy_name=strategy_name,
+            resolved_version_id=resolved_version_id,
+            params=params,
+            strategy_path=strategy_path,
+        )
 
         settings = self.settings_store.load()
         config_payload = self._load_config_payload(config_file)

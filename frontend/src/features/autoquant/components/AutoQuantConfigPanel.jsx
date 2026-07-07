@@ -237,7 +237,7 @@ export default function AutoQuantConfigPanel({
   onStart,
   onLoadRun,
 }) {
-  const { form, updateField, toggleSpace, timeframeProfile, showAdvanced, setShowAdvanced } = formState;
+  const { form, updateField, toggleSpace, timeframeProfile, showAdvanced, setShowAdvanced, markUserInitiatedPairChange } = formState;
   const { generateStatus, isGenerating, templateType, setTemplateType, strategyList, handleGenerateTemplate } =
     strategyGen;
   const {
@@ -283,12 +283,14 @@ export default function AutoQuantConfigPanel({
 
   const copySelectedPairs = () => {
     if (selectedScreenedPairs.length > 0) {
+      markUserInitiatedPairChange();
       updateField("pair_universe", selectedScreenedPairs.join(","));
     }
   };
 
   const selectScreenedPair = (pair) => {
     setSelectedPair(pair);
+    markUserInitiatedPairChange();
     updateField("pair_universe", pair);
   };
 
@@ -570,7 +572,10 @@ export default function AutoQuantConfigPanel({
                 className="textarea textarea-bordered textarea-sm font-mono text-xs leading-relaxed"
                 rows={3}
                 value={form.pair_universe}
-                onChange={(e) => updateField("pair_universe", e.target.value)}
+                onChange={(e) => {
+                  markUserInitiatedPairChange();
+                  updateField("pair_universe", e.target.value);
+                }}
                 placeholder="BTC/USDT, ETH/USDT, SOL/USDT"
               />
             </label>
@@ -578,7 +583,10 @@ export default function AutoQuantConfigPanel({
               <button
                 type="button"
                 className="btn btn-xs btn-outline"
-                onClick={() => updateField("pair_universe", DEFAULT_PAIR_UNIVERSE)}
+                onClick={() => {
+                  markUserInitiatedPairChange();
+                  updateField("pair_universe", DEFAULT_PAIR_UNIVERSE);
+                }}
               >
                 Load Default Top 50
               </button>

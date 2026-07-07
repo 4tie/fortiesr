@@ -2,6 +2,14 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import AssistantChatPanel from './AssistantChatPanel.jsx';
 
+jest.mock('mermaid', () => ({
+  __esModule: true,
+  default: {
+    initialize: jest.fn(),
+    render: jest.fn(async () => ({ svg: '<svg data-testid="mermaid-diagram"></svg>' })),
+  },
+}));
+
 // Mock the clipboard API
 global.navigator.clipboard = {
   writeText: jest.fn().mockResolvedValue(undefined),
@@ -188,6 +196,32 @@ describe('AssistantChatPanel', () => {
     });
   });
 
+  test('auto-sends initial analysis prompt with context overrides', async () => {
+    global.fetch = mockAssistantFetch({
+      stream: () => streamResponse('event: token\ndata: {"content":"analysis"}\n\n'),
+    });
+
+    render(
+      <AssistantChatPanel
+        mode="drawer"
+        initialContextOverrides={{ backtest_run_id: 'bt-001' }}
+        initialPrompt="Analyze selected result"
+        initialMode="analysis"
+        requestKey="analysis-bt-001"
+      />,
+    );
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith('/api/ai/chat/stream', expect.any(Object));
+    });
+
+    const [, options] = global.fetch.mock.calls.find(([url]) => String(url).includes('/api/ai/chat/stream'));
+    const body = JSON.parse(options.body);
+    expect(body.message).toBe('Analyze selected result');
+    expect(body.mode).toBe('analysis');
+    expect(body.context_overrides.backtest_run_id).toBe('bt-001');
+  });
+
   test('does not send empty message', async () => {
     global.fetch = mockAssistantFetch();
 
@@ -295,7 +329,7 @@ describe('AssistantChatPanel', () => {
     fireEvent.change(textarea, { target: { value: 'Show code' } });
     fireEvent.click(screen.getByTitle(/Send/));
 
-    const copyButton = await screen.findByText('Copy');
+    const copyButton = await screen.findByTitle('Copy to clipboard');
     fireEvent.click(copyButton);
 
     await waitFor(() => {

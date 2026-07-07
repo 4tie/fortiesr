@@ -20,18 +20,33 @@ def _backtest_cmd(
     result_prefix: str,
     pairs: list[str] | None = None,
 ) -> list[str]:
-    cmd = [
-        state.freqtrade_path, "backtesting",
-        "--config", state.config_file,
-        "--strategy", strategy,
-        "--timerange", timerange,
-        "--timeframe", state.timeframe,
-        "--user-data-dir", state.user_data_dir,
-        "--export", "trades",
-        "--export-filename", result_prefix + ".json",
-        "--no-color",
-        "--cache", "none",
-    ]
+    # Handle "py -m freqtrade" command by splitting it
+    if state.freqtrade_path == "py -m freqtrade":
+        cmd = [
+            "py", "-m", "freqtrade", "backtesting",
+            "--config", state.config_file,
+            "--strategy", strategy,
+            "--timerange", timerange,
+            "--timeframe", state.timeframe,
+            "--user-data-dir", state.user_data_dir,
+            "--export", "trades",
+            "--export-filename", result_prefix + ".json",
+            "--no-color",
+            "--cache", "none",
+        ]
+    else:
+        cmd = [
+            state.freqtrade_path, "backtesting",
+            "--config", state.config_file,
+            "--strategy", strategy,
+            "--timerange", timerange,
+            "--timeframe", state.timeframe,
+            "--user-data-dir", state.user_data_dir,
+            "--export", "trades",
+            "--export-filename", result_prefix + ".json",
+            "--no-color",
+            "--cache", "none",
+        ]
     try:
         from ...variants import strategy_path_args
 
@@ -62,15 +77,27 @@ async def _extract_hyperopt_best(
     # ── Method 1: freqtrade hyperopt-show --print-json ─────────────────────
     # Scan for a valid JSON object rather than using a greedy regex that
     # captures everything from the first { to the last } in the full output.
-    cmd = [
-        state.freqtrade_path, "hyperopt-show",
-        "--config", state.config_file,
-        "--strategy", state.strategy,
-        "--user-data-dir", state.user_data_dir,
-        "--best",
-        "--print-json",
-        "--no-color",
-    ]
+    # Handle "py -m freqtrade" command by splitting it
+    if state.freqtrade_path == "py -m freqtrade":
+        cmd = [
+            "py", "-m", "freqtrade", "hyperopt-show",
+            "--config", state.config_file,
+            "--strategy", state.strategy,
+            "--user-data-dir", state.user_data_dir,
+            "--best",
+            "--print-json",
+            "--no-color",
+        ]
+    else:
+        cmd = [
+            state.freqtrade_path, "hyperopt-show",
+            "--config", state.config_file,
+            "--strategy", state.strategy,
+            "--user-data-dir", state.user_data_dir,
+            "--best",
+            "--print-json",
+            "--no-color",
+        ]
     try:
         from ...variants import strategy_path_args
 

@@ -212,18 +212,17 @@ export default function TopNav({ activeTab, onChange, backendOnline, isWorkRunni
   };
 
   return (
-    <nav className="fixed top-0 left-0 right-0 h-16 glass-card border-b border-white/10 z-50 px-6 flex items-center justify-between">
+    <nav className="fixed top-0 left-0 right-0 h-[56px] glass-card border-b border-white/10 z-50 px-6 flex items-center justify-between">
       <BrandMark backendOnline={backendOnline} isWorkRunning={isWorkRunning} />
 
-      <div className="flex items-center gap-3">
-        <WorkflowProgressBar activeTab={activeTab} />
+      <div className="flex items-center gap-4">
         <div className="flex items-center gap-1 bg-white/5 rounded-full p-1">
-          <div className="flex items-center gap-1 overflow-visible max-w-[70vw] scrollbar-hide">
+          <div className="flex items-center gap-1 overflow-visible max-w-[60vw] scrollbar-hide">
             {PRIMARY_TABS.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => onChange(tab.id)}
-                className={`px-3 py-2 rounded-full text-xs font-medium transition-all whitespace-nowrap ${
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap ${
                   activeTab === tab.id
                     ? "bg-white text-base-100 shadow-lg shadow-white/10"
                     : "text-text/60 hover:text-text hover:bg-white/5"
@@ -245,7 +244,7 @@ export default function TopNav({ activeTab, onChange, backendOnline, isWorkRunni
             ))}
             <button
               onClick={() => onChange("settings")}
-              className={`px-3 py-2 rounded-full text-xs font-medium transition-all whitespace-nowrap ${
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap ${
                 activeTab === "settings"
                   ? "bg-white text-base-100 shadow-lg shadow-white/10"
                   : "text-text/60 hover:text-text hover:bg-white/5"

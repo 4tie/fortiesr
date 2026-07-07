@@ -133,6 +133,13 @@ def _services() -> SimpleNamespace:
 
     version_manager = MagicMock()
     version_manager.get_current_pointer.return_value = SimpleNamespace(accepted_version_id="v1")
+    version_manager.load_params.return_value = SimpleNamespace()
+    version_manager.overwrite_accepted_params.return_value = {
+        "version_params_path": "versions/DemoStrategy/v1/params.json",
+        "version_source_path": "versions/DemoStrategy/v1/strategy.py",
+        "live_source_path": "user_data/strategies/DemoStrategy.py",
+        "live_sidecar_path": "user_data/strategies/DemoStrategy.json",
+    }
     version_manager.apply_optimizer_trial_to_new_version.return_value = {"version_id": "candidate-1"}
     version_manager.preview_optimizer_trial_application.return_value = {"modified_json": {"buy": {"buy_window": 14}}}
 
@@ -203,6 +210,26 @@ def test_run_returns_conflict_when_strategy_has_no_accepted_version():
 
     assert exc_info.value.status_code == 409
     assert "has no accepted version" in exc_info.value.detail
+
+
+def test_apply_trial_syncs_accepted_and_live_strategy_files():
+    services = _services()
+
+    result = asyncio.run(
+        optimizer_router.apply_trial(
+            optimizer_router.ApplyTrialRequest(
+                strategy_name="DemoStrategy",
+                parameters={"buy_window": 14},
+            ),
+            SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(services=services))),
+        )
+    )
+
+    services.strategy_optimizer.trial_executor.build_trial_params.assert_called_once()
+    services.version_manager.overwrite_accepted_params.assert_called_once()
+    assert result["ok"] is True
+    assert result["accepted_version_id"] == "v1"
+    assert result["written_paths"]["live_sidecar_path"].endswith("DemoStrategy.json")
 
 
 def test_run_maps_invalid_search_spaces_to_bad_request():

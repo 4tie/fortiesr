@@ -10,14 +10,20 @@ import useAutoQuantPipeline from "../features/autoquant/hooks/useAutoQuantPipeli
 import useAutoQuantScreening from "../features/autoquant/hooks/useAutoQuantScreening";
 import useAutoQuantStrategyGen from "../features/autoquant/hooks/useAutoQuantStrategyGen";
 import useAutoQuantUI from "../features/autoquant/hooks/useAutoQuantUI";
+import PageContainer from "./shared/PageContainer.jsx";
+import PageHeader from "./shared/PageHeader.jsx";
 
 export default function AutoQuantTab({
   strategies = [],
   strategiesLoading = false,
   onAgentContextChange = null,
   pipelineState: initialPipelineState = null,
+  sharedState = null,
+  sharedLoading = false,
+  syncSharedState = null,
+  onAskAi = null,
 }) {
-  const formState = useAutoQuantForm();
+  const formState = useAutoQuantForm({ sharedState, sharedLoading, syncSharedState });
   const pipeline = useAutoQuantPipeline(initialPipelineState);
   const strategyGen = useAutoQuantStrategyGen(strategies);
   const screening = useAutoQuantScreening();
@@ -153,7 +159,7 @@ export default function AutoQuantTab({
   const hasActiveRun = Boolean(pipelineState);
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-5 px-4 py-5 sm:px-6 cyber-grid">
+    <PageContainer>
       <div className="overflow-hidden rounded-lg border border-primary/30 bg-base-200/50 neon-glow scan-effect">
         <div className="flex flex-col gap-4 p-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex min-w-0 items-start gap-3">
@@ -262,8 +268,9 @@ export default function AutoQuantTab({
           onCancel={handleCancel}
           onReset={handleReset}
           onRetryRelaxed={handleRetryRelaxed}
+          onAskAi={onAskAi}
         />
       )}
-    </div>
+    </PageContainer>
   );
 }

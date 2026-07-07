@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { api } from "../services/api.js";
+import CandidateReadinessPanel from "./CandidateReadinessPanel.jsx";
 import StrategySpecPreview from "./StrategySpecPreview.jsx";
 
 const GATE_NAMES = [
@@ -735,7 +736,7 @@ function RepairAttemptsList({ repairAttempts }) {
   );
 }
 
-export default function StrategyLabTab() {
+export default function StrategyLabTab({ onAskAi = null }) {
   const [status, setStatus] = useState("idle");
   const [elapsed, setElapsed] = useState(0);
   const [runId, setRunId] = useState(null);
@@ -769,6 +770,21 @@ export default function StrategyLabTab() {
   const pollIntervalRef = useRef(null);
   const runActiveRef = useRef(false);
   const downloadPollRef = useRef(null);
+
+  const handleAnalyzeReadiness = useCallback(({ message, context }) => {
+    if (!onAskAi) return;
+    onAskAi({
+      context: {
+        ...context,
+        active_tab: "strategy-lab",
+        active_panel: "candidate_readiness",
+        strategy_name: context?.strategy_name || simpleForm.strategyName || null,
+        candidate_run_id: context?.candidate_run_id || runId,
+      },
+      message,
+      mode: "analysis",
+    });
+  }, [onAskAi, runId, simpleForm.strategyName]);
 
   // Timer effect
   useEffect(() => {
@@ -1719,6 +1735,13 @@ export default function StrategyLabTab() {
               )}
             </div>
           </div>
+
+          <CandidateReadinessPanel
+            strategyName={simpleForm.strategyName}
+            candidateRunId={runId}
+            profile={simpleForm.tradingHorizon}
+            onAnalyzeReadiness={onAskAi ? handleAnalyzeReadiness : null}
+          />
 
           {/* Backtest Metrics */}
           {backtestMetrics && (

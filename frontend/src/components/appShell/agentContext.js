@@ -1,6 +1,8 @@
 const AGENT_CONTEXT_TABS = new Set([
   "auto-quant",
+  "backtest",
   "optimizer",
+  "results",
   "strategy-editor",
   "performance",
 ]);
@@ -16,6 +18,10 @@ export function buildAgentContext({ activeTab, activeResult, agentTabContext }) 
     optimizer_session_id: activeTab === "optimizer" ? scoped.optimizer_session_id ?? null : null,
     optimizer_trial_number: activeTab === "optimizer" ? scoped.optimizer_trial_number ?? null : null,
     backtest_run_id: activeTab === "results" ? activeResult?.run_id ?? null : scoped.backtest_run_id ?? null,
+    candidate_run_id: scoped.candidate_run_id ?? null,
+    stress_session_id: scoped.stress_session_id ?? null,
+    temporal_stress_session_id: scoped.temporal_stress_session_id ?? null,
+    readiness_profile: scoped.readiness_profile ?? null,
     api_session_id: scoped.api_session_id ?? null,
   };
 }

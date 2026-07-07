@@ -34,12 +34,38 @@ export function useSharedState() {
 
     return () => {
       mounted.current = false;
-      if (timer.current) {
-        clearTimeout(timer.current);
-        timer.current = null;
-      }
     };
   }, []);
+
+  const flushPending = useCallback(() => {
+    if (!pending.current) return;
+    const body = pending.current;
+    pending.current = null;
+    if (timer.current) {
+      clearTimeout(timer.current);
+      timer.current = null;
+    }
+    const payload = JSON.stringify(body);
+    if (typeof navigator !== "undefined" && navigator.sendBeacon) {
+      const blob = new Blob([payload], { type: "application/json" });
+      navigator.sendBeacon("/api/shared-state", blob);
+      return;
+    }
+    fetch("/api/shared-state", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: payload,
+      keepalive: true,
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener("pagehide", flushPending);
+    return () => {
+      window.removeEventListener("pagehide", flushPending);
+      flushPending();
+    };
+  }, [flushPending]);
 
   const sync = useCallback((patch) => {
     setState((prev) => ({ ...(prev || {}), ...patch }));

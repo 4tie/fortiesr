@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { api } from "../services/api.js";
+import { pairsEqualUnordered } from "../utils/pairs.js";
 
 const TIMEFRAMES = ["1m","5m","15m","30m","1h","2h","4h","6h","8h","12h","1d","3d","1w"];
 
@@ -141,6 +142,8 @@ export default function StressTestTab({
 
   const pollRef  = useRef(null);
   const hasChanged = useRef(false);
+  const hydrated = useRef(false);
+  const lastUserPairChangeTime = useRef(0);
 
   // ── fetch exported optimizer trials on mount ───────────────────────────
   useEffect(() => {
@@ -175,15 +178,23 @@ export default function StressTestTab({
 
   useEffect(() => {
     if (!sharedState || sharedLoading) return;
+    const now = Date.now();
     setTimeout(() => {
-      if (sharedState.strategy_name && !strategy) setStrategy(sharedState.strategy_name);
-      if (sharedState.timeframe      && !timeframe) setTimeframe(sharedState.timeframe);
-      if (sharedState.pairs?.length  && !pairs.length) setPairs(sharedState.pairs);
+      if (!hydrated.current) hydrated.current = true;
+      if (sharedState.strategy_name && strategy !== sharedState.strategy_name) setStrategy(sharedState.strategy_name);
+      if (sharedState.timeframe && timeframe !== sharedState.timeframe) setTimeframe(sharedState.timeframe);
+      if (
+        sharedState.pairs?.length &&
+        now - lastUserPairChangeTime.current > 1000 &&
+        !pairsEqualUnordered(pairs, sharedState.pairs)
+      ) {
+        setPairs(sharedState.pairs);
+      }
       const s = sharedState.start_date || "";
       const e = sharedState.end_date   || "";
-      if (s && e && !startDate && !endDate) {
+      if (s && e && (startDate !== s || endDate !== e)) {
         setStartDate(s); setEndDate(e); setTimerange(toTimerange(s, e));
-      } else if (sharedState.timerange && !timerange) {
+      } else if (sharedState.timerange && timerange !== sharedState.timerange) {
         const { start, end } = fromTimerange(sharedState.timerange);
         setTimerange(sharedState.timerange);
         if (start) setStartDate(start);
@@ -193,7 +204,7 @@ export default function StressTestTab({
   }, [sharedState, sharedLoading, strategy, timeframe, pairs, startDate, endDate, timerange]);
 
   const triggerSync = useCallback(() => {
-    if (!hasChanged.current) return;
+    if (!syncSharedState || !hasChanged.current) return;
     hasChanged.current = false;
     const p = {};
     if (strategy)  p.strategy_name = strategy;
@@ -207,6 +218,10 @@ export default function StressTestTab({
 
   const markChanged = useCallback(() => {
     hasChanged.current = true;
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated.current) return;
     triggerSync();
   }, [triggerSync]);
 
@@ -250,10 +265,18 @@ export default function StressTestTab({
   }, [stopPoll]);
 
   const addPair = (p) => {
-    if (!pairs.includes(p)) { setPairs(prev => [...prev, p]); markChanged(); }
+    if (!pairs.includes(p)) {
+      lastUserPairChangeTime.current = Date.now();
+      setPairs(prev => [...prev, p]);
+      markChanged();
+    }
     setPairSearch(""); setPairDropOpen(false);
   };
-  const removePair = (p) => { setPairs(prev => prev.filter(x => x !== p)); markChanged(); };
+  const removePair = (p) => {
+    lastUserPairChangeTime.current = Date.now();
+    setPairs(prev => prev.filter(x => x !== p));
+    markChanged();
+  };
 
   const handleLaunch = async () => {
     setRunError(null); setResult(null); setProgress(null);

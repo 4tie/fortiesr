@@ -20,6 +20,7 @@ import AutoQuantTradeDistributionChart from "../../../components/autoquant/AutoQ
 import AutoQuantFinalReport from "../../../components/autoquant/AutoQuantFinalReport";
 import AutoQuantPipelineCard from "../../../components/autoquant/AutoQuantPipelineCard";
 import AutoQuantFinalResultCard from "../../../components/autoquant/AutoQuantFinalResultCard";
+import CandidateReadinessPanel from "../../../components/CandidateReadinessPanel.jsx";
 import ProfessionalChartsTab from "../../../components/ProfessionalChartsTab";
 import AutoQuantAISuggestionPanel from "./AutoQuantAISuggestionPanel";
 import { explainFailure, explainStage } from "../api";
@@ -576,6 +577,7 @@ export default function AutoQuantRunDashboard({
   onCancel,
   onReset,
   onRetryRelaxed,
+  onAskAi = null,
 }) {
   const flags = getRunStatusFlags(pipelineState?.status);
   const progress = getProgressPercent(pipelineState);
@@ -587,6 +589,29 @@ export default function AutoQuantRunDashboard({
   const stageNowMs = runStartedAtMs ? runStartedAtMs + elapsedSeconds * 1000 : null;
   const tradeDistribution =
     pipelineState?.stages?.[3]?.data?.trade_distribution || pipelineState?.stages?.[0]?.data?.trade_distribution;
+  const readinessIds = {
+    candidateRunId: pipelineState?.candidate_run_id || report?.candidate_run_id || report?.candidate?.run_id,
+    optimizerSessionId: pipelineState?.optimizer_session_id || report?.optimizer_session_id,
+    trialNumber: pipelineState?.trial_number || report?.trial_number,
+    backtestRunId: pipelineState?.backtest_run_id || report?.backtest_run_id,
+    stressSessionId: pipelineState?.stress_session_id || report?.stress_session_id,
+    temporalStressSessionId: pipelineState?.temporal_stress_session_id || report?.temporal_stress_session_id,
+  };
+  const hasReadinessEvidence = Object.values(readinessIds).some(Boolean);
+  const handleAnalyzeReadiness = ({ message, context }) => {
+    if (!onAskAi) return;
+    onAskAi({
+      context: {
+        ...context,
+        active_tab: "auto-quant",
+        active_panel: "candidate_readiness",
+        strategy_name: context?.strategy_name || pipelineState?.strategy || form?.strategy || null,
+        auto_quant_run_id: runId,
+      },
+      message,
+      mode: "analysis",
+    });
+  };
 
   // View mode state for pipeline display
   const [viewMode, setViewMode] = useState("compact"); // 'compact' or 'detailed'
@@ -923,6 +948,19 @@ export default function AutoQuantRunDashboard({
 
       {flags.isCompleted && report && (
         <>
+          {hasReadinessEvidence && (
+            <CandidateReadinessPanel
+              strategyName={pipelineState?.strategy || form?.strategy}
+              optimizerSessionId={readinessIds.optimizerSessionId}
+              trialNumber={readinessIds.trialNumber}
+              backtestRunId={readinessIds.backtestRunId}
+              candidateRunId={readinessIds.candidateRunId}
+              stressSessionId={readinessIds.stressSessionId}
+              temporalStressSessionId={readinessIds.temporalStressSessionId}
+              profile={form?.trading_style}
+              onAnalyzeReadiness={onAskAi ? handleAnalyzeReadiness : null}
+            />
+          )}
           {viewMode === "detailed" ? (
             <AutoQuantFinalResultCard report={report} onDownload={downloadFile} />
           ) : (

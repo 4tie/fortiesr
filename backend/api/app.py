@@ -34,7 +34,7 @@ from ..core.errors import BackendError
 from ..runtime import create_services
 from .log_broadcaster import LogBroadcaster, wire_service_callbacks
 from .session_store import SessionStore
-from .routers import data, backtest, stress_lab, temporal_stress_lab, session, settings, logs, strategies, pairs, shared_state, results, results_list, system_health, optimizer, performance, ai_assistant, pair_explorer, auto_quant, auto_quant_export, agent, ai_agent, candidate, charts, discord, quant, events, guidance
+from .routers import data, backtest, stress_lab, temporal_stress_lab, session, settings, logs, strategies, pairs, shared_state, results, results_list, readiness, system_health, optimizer, performance, ai_assistant, pair_explorer, auto_quant, auto_quant_export, agent, ai_agent, candidate, charts, discord, quant, events, guidance
 from ..services.auto_quant import pipeline as _aq_pipeline
 
 
@@ -193,6 +193,7 @@ def create_app(root_dir: Path | None = None) -> FastAPI:
     app.include_router(logs.router)
     app.include_router(results.router)
     app.include_router(results_list.router)
+    app.include_router(readiness.router)
     app.include_router(system_health.router)
     app.include_router(optimizer.router)
     app.include_router(performance.router)

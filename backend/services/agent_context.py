@@ -8,6 +8,7 @@ from typing import Any, TYPE_CHECKING
 
 from backend.core.errors import BackendError
 from backend.services.auto_quant import pipeline as auto_quant_pipeline
+from backend.services.readiness_service import ReadinessService
 from backend.utils import atomic_write_json, read_json
 
 if TYPE_CHECKING:
@@ -120,10 +121,12 @@ class AgentContextService:
         strategy_optimizer: Any | None = None,
         backtest_runner: Any | None = None,
         optimizer_store: Any | None = None,
+        sweep_store: Any | None = None,
         run_detail_callable: Any | None = None,
         *,
         log_broadcaster: Any | None = None,
         session_store: Any | None = None,
+        candidate_run_lookup: Any | None = None,
     ) -> None:
         self.root_dir: Path = root_dir
         self.run_repository: IRunRepository = run_repository
@@ -132,9 +135,11 @@ class AgentContextService:
         self.strategy_optimizer: Any = strategy_optimizer
         self.backtest_runner: Any = backtest_runner
         self.optimizer_store: Any = optimizer_store
+        self.sweep_store: Any = sweep_store
         self.run_detail_callable: Any = run_detail_callable
         self.log_broadcaster: Any = log_broadcaster
         self.session_store: Any = session_store
+        self.candidate_run_lookup: Any = candidate_run_lookup
 
     @property
     def ui_state_path(self) -> Path:
@@ -163,6 +168,7 @@ class AgentContextService:
         auto_quant = None
         optimizer = None
         backtest = None
+        readiness = None
 
         if active.get("auto_quant_run_id"):
             try:
@@ -202,7 +208,36 @@ class AgentContextService:
 
         if not ui_state:
             warnings.append("No frontend heartbeat has been received yet.")
-        if not any(active.get(key) for key in ("auto_quant_run_id", "optimizer_session_id", "backtest_run_id")):
+        readiness_ids = (
+            "optimizer_session_id",
+            "backtest_run_id",
+            "candidate_run_id",
+            "stress_session_id",
+            "temporal_stress_session_id",
+        )
+        if any(active.get(key) for key in readiness_ids):
+            try:
+                readiness = ReadinessService(
+                    root_dir=self.root_dir,
+                    run_repository=self.run_repository,
+                    optimizer_store=self.optimizer_store,
+                    sweep_store=self.sweep_store,
+                    session_store=self.session_store,
+                    candidate_run_lookup=self.candidate_run_lookup,
+                ).build_report(
+                    strategy_name=strategy_name,
+                    optimizer_session_id=active.get("optimizer_session_id"),
+                    trial_number=active.get("optimizer_trial_number"),
+                    backtest_run_id=active.get("backtest_run_id"),
+                    candidate_run_id=active.get("candidate_run_id"),
+                    stress_session_id=active.get("stress_session_id"),
+                    temporal_stress_session_id=active.get("temporal_stress_session_id"),
+                    profile=active.get("readiness_profile"),
+                )
+            except Exception as exc:  # noqa: BLE001 - context should degrade, not block chat.
+                warnings.append(f"Readiness report could not be built: {exc}")
+
+        if not any(active.get(key) for key in ("auto_quant_run_id", *readiness_ids)):
             warnings.append("No active run or optimizer session is selected.")
 
         return {
@@ -217,6 +252,7 @@ class AgentContextService:
             "auto_quant": auto_quant,
             "optimizer": optimizer,
             "backtest": backtest,
+            "readiness": readiness,
             "strategy": strategy,
             "logs": {
                 "source": "log_broadcaster.history" if self.log_broadcaster is not None else None,
@@ -239,6 +275,10 @@ class AgentContextService:
             "optimizer_session_id",
             "optimizer_trial_number",
             "backtest_run_id",
+            "candidate_run_id",
+            "stress_session_id",
+            "temporal_stress_session_id",
+            "readiness_profile",
             "api_session_id",
         )
         active: dict[str, Any] = {"sources": {}}

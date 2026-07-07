@@ -1,5 +1,8 @@
 import { useState, useMemo } from "react";
+import { SparklesIcon } from "@heroicons/react/24/outline";
+import CandidateReadinessPanel from "./CandidateReadinessPanel.jsx";
 import EquityCurveChart from "./EquityCurveChart.jsx";
+import { buildBacktestAnalysisPrompt } from "../utils/aiAnalysis.js";
 
 const PAGE_SIZE = 20;
 
@@ -265,7 +268,13 @@ function MetricCard({ label, value, sub, valueClass = "" }) {
   );
 }
 
-export default function BacktestResults({ results, runId }) {
+export default function BacktestResults({
+  results,
+  runId,
+  strategyName = null,
+  onAnalyzeResult = null,
+  onAnalyzeReadiness = null,
+}) {
   const { parsed_summary: s, pair_results, trades, advanced_metrics: adv, smart_flags, health_report } = results;
 
   const isProfit = (s.net_profit_pct ?? 0) >= 0;
@@ -293,6 +302,30 @@ export default function BacktestResults({ results, runId }) {
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 pb-12 flex flex-col gap-5">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-base-300 bg-base-200/45 px-4 py-3">
+        <div>
+          <div className="text-sm font-semibold">Backtest Result Analysis</div>
+          <div className="text-[11px] text-base-content/45 font-mono truncate">{runId || "No run id attached"}</div>
+        </div>
+        <button
+          type="button"
+          className="btn btn-sm btn-primary gap-2"
+          disabled={!runId || !onAnalyzeResult}
+          onClick={() => onAnalyzeResult?.({
+            runId,
+            message: buildBacktestAnalysisPrompt({ runId }),
+          })}
+        >
+          <SparklesIcon className="h-4 w-4" />
+          Analyze Result
+        </button>
+      </div>
+
+      <CandidateReadinessPanel
+        strategyName={strategyName || results?.metadata?.strategy_name || results?.strategy_name}
+        backtestRunId={runId}
+        onAnalyzeReadiness={onAnalyzeReadiness}
+      />
 
       {/* ── Smart Flags ─────────────────────────────────────────────────── */}
       {smart_flags && smart_flags.length > 0 && (

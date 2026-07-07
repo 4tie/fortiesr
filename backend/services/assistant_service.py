@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import difflib
+import hashlib
 import json
 import uuid
 from collections.abc import AsyncIterator
@@ -28,6 +30,7 @@ ASSISTANT_CHAT_SCHEMA = "assistant_chat_session_v1"
 AUDIT_SCHEMA = "assistant_action_audit_v1"
 MAX_CONTEXT_CHARS = 42000
 MAX_STRING_CHARS = 8000
+MAX_FILE_EDIT_CHARS = 200_000
 MAX_HISTORY_MESSAGES = 8
 MAX_RETRIES = 2
 RETRY_DELAY_BASE = 1.0  # seconds
@@ -39,6 +42,10 @@ sessions, backtest results, AutoQuant reports, parameters, and logs.
 
 Rules:
 - Treat backend context as the only source of trading metrics.
+- When a readiness report is present, explain readiness from
+  readiness.status, readiness.gates, blocking_failures, warnings, and
+  missing_sources. Do not override the backend readiness label with your own
+  profitability verdict.
 - Never invent profit, drawdown, profit factor, Sharpe, trade count, score,
   best-trial rank, readiness, OOS, WFO, or confidence values.
 - If a metric is missing, say it is missing.
@@ -50,6 +57,17 @@ Rules:
 - Dangerous actions such as overwriting accepted params, editing strategy.py,
   deleting files, accepting a candidate, or live/dry-run deployment are not
   available in this MVP.
+- For result analysis, explicitly cover performance drivers, weak pairs,
+  drawdown risk, exit reasons, overfitting or curve-fit warning signs, and the
+  safest validation step to run next.
+- OOS and walk-forward actions are drafts only. Export and candidate promotion
+  may be proposed as drafts or guarded review actions requiring confirmation.
+  Stress-lab and promotion-review actions from readiness are drafts only.
+  Never propose direct overwrite, strategy file edits, dry-run deployment, or
+  live deployment as automatic actions.
+- If you propose a file edit, present it as a preview/draft first. Applying it
+  is confirmation-gated, restricted to strategy workspace files, and must never
+  be bundled with deployment.
 """
 
 # Alias for backward compatibility
@@ -213,12 +231,23 @@ class AssistantService:
         "live_deploy",
         "dry_run_deploy",
     }
-    read_only_actions = {"view_best_params", "view_trial_params", "create_optimizer_run_draft"}
+    read_only_actions = {
+        "view_best_params",
+        "view_trial_params",
+        "create_optimizer_run_draft",
+        "create_backtest_run_draft",
+        "create_oos_validation_draft",
+        "create_walk_forward_draft",
+        "create_stress_lab_draft",
+        "create_candidate_promotion_review_draft",
+        "preview_file_edit",
+    }
     guarded_actions = {
         "promote_best_trial_to_candidate",
         "promote_trial_to_candidate",
         "export_best_trial_to_stress_lab",
         "export_trial_to_stress_lab",
+        "apply_file_edit",
     }
 
     def __init__(
@@ -328,6 +357,7 @@ class AssistantService:
         backtest = context.get("backtest") or {}
         auto_quant = context.get("auto_quant") or {}
         strategy = context.get("strategy") or {}
+        readiness = context.get("readiness") or {}
         chips = []
         if active.get("strategy_name"):
             chips.append({"kind": "strategy", "label": str(active["strategy_name"])})
@@ -343,6 +373,13 @@ class AssistantService:
             chips.append({"kind": "backtest", "label": str(active["backtest_run_id"])[:8]})
         if active.get("auto_quant_run_id"):
             chips.append({"kind": "autoquant", "label": str(active["auto_quant_run_id"])[:8]})
+        if readiness:
+            chips.append(
+                {
+                    "kind": "readiness",
+                    "label": f"{readiness.get('readiness_label', 'Readiness')} {readiness.get('overall_score', 0)}",
+                }
+            )
 
         return {
             "active_tab": active.get("active_tab"),
@@ -351,10 +388,16 @@ class AssistantService:
             "optimizer_session_id": active.get("optimizer_session_id"),
             "optimizer_trial_number": active.get("optimizer_trial_number"),
             "backtest_run_id": active.get("backtest_run_id"),
+            "candidate_run_id": active.get("candidate_run_id"),
+            "stress_session_id": active.get("stress_session_id"),
+            "temporal_stress_session_id": active.get("temporal_stress_session_id"),
             "auto_quant_run_id": active.get("auto_quant_run_id"),
             "optimizer_phase": optimizer.get("phase"),
             "backtest_status": backtest.get("status"),
             "auto_quant_status": auto_quant.get("status"),
+            "readiness_status": readiness.get("status"),
+            "readiness_score": readiness.get("overall_score"),
+            "readiness_blocking_failures": len(readiness.get("blocking_failures") or []),
             "chips": chips,
             "warnings": context.get("warnings", []),
         }
@@ -420,11 +463,82 @@ class AssistantService:
         return base_model, final_model
 
     def available_actions(self, context: dict[str, Any]) -> list[dict[str, Any]]:
+        active = context.get("active") or {}
         optimizer = context.get("optimizer") or {}
+        readiness = context.get("readiness") or {}
         session_id = optimizer.get("session_id")
         best_number = optimizer.get("summary", {}).get("best_trial_number")
         selected_number = optimizer.get("selected_trial_number")
         actions = []
+        validation_payload = {
+            "strategy_name": active.get("strategy_name"),
+            "backtest_run_id": active.get("backtest_run_id"),
+            "optimizer_session_id": session_id,
+            "trial_number": selected_number if selected_number is not None else best_number,
+            "candidate_run_id": active.get("candidate_run_id"),
+            "stress_session_id": active.get("stress_session_id"),
+            "temporal_stress_session_id": active.get("temporal_stress_session_id"),
+            "readiness": {
+                "status": readiness.get("status"),
+                "overall_score": readiness.get("overall_score"),
+                "blocking_failures": readiness.get("blocking_failures") or [],
+                "missing_sources": readiness.get("missing_sources") or [],
+                "draft_next_actions": readiness.get("draft_next_actions") or [],
+            } if readiness else None,
+        }
+        if validation_payload.get("backtest_run_id") or validation_payload.get("optimizer_session_id"):
+            actions.extend([
+                _action_card(
+                    "create_oos_validation_draft",
+                    "Draft OOS Validation",
+                    "Read-only",
+                    validation_payload,
+                    "Prepare an out-of-sample validation plan. It will not start a run.",
+                ),
+                _action_card(
+                    "create_walk_forward_draft",
+                    "Draft Walk-Forward Validation",
+                    "Read-only",
+                    validation_payload,
+                    "Prepare a walk-forward validation plan. It will not start a run.",
+                ),
+                _action_card(
+                    "create_stress_lab_draft",
+                    "Draft Stress-Lab Payload",
+                    "Read-only",
+                    validation_payload,
+                    "Prepare a stress-lab payload. It will not export or start a run.",
+                ),
+            ])
+
+        if readiness:
+            actions.append(
+                _action_card(
+                    "create_candidate_promotion_review_draft",
+                    "Draft Promotion Review",
+                    "Read-only",
+                    validation_payload,
+                    "Prepare a promotion-readiness checklist. It will not promote or edit anything.",
+                )
+            )
+
+        # Add backtest-related drafts when strategy context is available.
+        if active.get("strategy_name"):
+            backtest_payload = {
+                "strategy_name": active.get("strategy_name"),
+                "timerange": active.get("timerange", "20240101-20241231"),
+                "pairs": active.get("pairs", ["BTC/USDT"]),
+                "timeframe": active.get("timeframe", "5m"),
+            }
+            actions.extend([
+                _action_card(
+                    "create_backtest_run_draft",
+                    "Draft Backtest Run",
+                    "Read-only",
+                    backtest_payload,
+                    "Prepare a backtest run payload. It will not start a run.",
+                ),
+            ])
         if session_id and best_number is not None:
             payload = {"optimizer_session_id": session_id}
             actions.extend([
@@ -547,7 +661,7 @@ class AssistantService:
             response = await client.chat(
                 messages,
                 model=model,
-                options={"temperature": 0.25, "num_predict": 1400},
+                options={"temperature": 0.25, "num_predict": 4000},
             )
         except httpx.ConnectError as exc:
             raise BackendError("Ollama Offline: could not connect to the configured Ollama API URL after retries.", status_code=503) from exc
@@ -611,7 +725,7 @@ class AssistantService:
             async for data in client.stream_chat(
                 messages,
                 model=resolved_model,
-                options={"temperature": 0.25, "num_predict": 1400},
+                options={"temperature": 0.25, "num_predict": 4000},
             ):
                 chunk = data.get("message", {}).get("content", "")
                 if chunk:
@@ -730,6 +844,20 @@ class AssistantService:
             return {"ok": True, "read_only": True, "params": self._flat_params(session.strategy_name, trial.parameters)}
         if action_type == "create_optimizer_run_draft":
             return self._optimizer_draft(payload)
+        if action_type == "create_backtest_run_draft":
+            return self._backtest_run_draft(payload)
+        if action_type == "create_oos_validation_draft":
+            return self._validation_draft(payload, draft_type="oos_validation")
+        if action_type == "create_walk_forward_draft":
+            return self._validation_draft(payload, draft_type="walk_forward_validation")
+        if action_type == "create_stress_lab_draft":
+            return self._stress_lab_draft(payload)
+        if action_type == "create_candidate_promotion_review_draft":
+            return self._candidate_promotion_review_draft(payload)
+        if action_type == "preview_file_edit":
+            return self._preview_file_edit(payload)
+        if action_type == "apply_file_edit":
+            return self._apply_file_edit(payload)
         if action_type == "promote_best_trial_to_candidate":
             session, trial = self._resolve_trial(payload, best=True)
             return self._promote_trial(session, trial)
@@ -834,6 +962,107 @@ class AssistantService:
             },
         }
 
+    def _backtest_run_draft(self, payload: dict[str, Any]) -> dict[str, Any]:
+        strategy_name = payload.get("strategy_name")
+        if not strategy_name:
+            raise BackendError("strategy_name is required for create_backtest_run_draft action.", status_code=422)
+        pairs = payload.get("pairs") or []
+        if isinstance(pairs, str):
+            pairs = [item.strip() for item in pairs.split(",") if item.strip()]
+        if not isinstance(pairs, list):
+            raise BackendError("pairs must be a list or comma-separated string.", status_code=422)
+        return {
+            "ok": True,
+            "read_only": True,
+            "draft": {
+                "type": "backtest_run",
+                "strategy_name": strategy_name,
+                "timerange": payload.get("timerange", "20240101-20241231"),
+                "pairs": pairs,
+                "timeframe": payload.get("timeframe", "5m"),
+                "config_file": payload.get("config_file"),
+                "note": "Draft only. Review the fields and start the backtest manually.",
+            },
+        }
+
+    def _validation_draft(self, payload: dict[str, Any], *, draft_type: str) -> dict[str, Any]:
+        source = {
+            "strategy_name": payload.get("strategy_name"),
+            "backtest_run_id": payload.get("backtest_run_id"),
+            "optimizer_session_id": payload.get("optimizer_session_id"),
+            "trial_number": payload.get("trial_number"),
+        }
+        if draft_type == "oos_validation":
+            draft = {
+                "type": "oos_validation",
+                "source": source,
+                "holdout": "Use the most recent 20-30% of the available timerange, or a completely later unseen timerange if data exists.",
+                "controls": [
+                    "Keep the same strategy params, timeframe, pair list, wallet, fees, and max open trades.",
+                    "Compare profit, trade count, drawdown, win rate, profit factor, and exit-reason mix against the source run.",
+                    "Reject the result if profit depends on one pair, trade count collapses, or drawdown materially worsens.",
+                ],
+                "note": "Draft only. Review the timerange and start the validation manually.",
+            }
+        else:
+            draft = {
+                "type": "walk_forward_validation",
+                "source": source,
+                "windows": "Use rolling train/test windows, for example 3-6 months train and 1 month test, then aggregate the test windows only.",
+                "controls": [
+                    "Do not tune on the test windows.",
+                    "Track stability across windows, especially max drawdown, total trades, and pair-level concentration.",
+                    "Require multiple profitable test windows before considering promotion.",
+                ],
+                "note": "Draft only. Review windows and start the validation manually.",
+            }
+        return {"ok": True, "read_only": True, "draft": draft}
+
+    def _stress_lab_draft(self, payload: dict[str, Any]) -> dict[str, Any]:
+        source = {
+            "strategy_name": payload.get("strategy_name"),
+            "backtest_run_id": payload.get("backtest_run_id"),
+            "optimizer_session_id": payload.get("optimizer_session_id"),
+            "trial_number": payload.get("trial_number"),
+            "candidate_run_id": payload.get("candidate_run_id"),
+        }
+        draft = {
+            "type": "stress_lab_payload",
+            "source": source,
+            "checks": [
+                "Run the same parameter set over the selected pair universe.",
+                "Track pair-sweep average profit, failed iterations, drawdown variance, and pair concentration.",
+                "Reject or keep watching if one pair carries most positive profit or failed iterations are high.",
+            ],
+            "note": "Draft only. Review it in Stress Lab before exporting or running.",
+        }
+        return {"ok": True, "read_only": True, "draft": draft}
+
+    def _candidate_promotion_review_draft(self, payload: dict[str, Any]) -> dict[str, Any]:
+        readiness = payload.get("readiness") or {}
+        draft = {
+            "type": "candidate_promotion_review",
+            "source": {
+                "strategy_name": payload.get("strategy_name"),
+                "backtest_run_id": payload.get("backtest_run_id"),
+                "optimizer_session_id": payload.get("optimizer_session_id"),
+                "trial_number": payload.get("trial_number"),
+                "candidate_run_id": payload.get("candidate_run_id"),
+            },
+            "readiness_status": readiness.get("status"),
+            "readiness_score": readiness.get("overall_score"),
+            "blocking_failures": readiness.get("blocking_failures") or [],
+            "missing_sources": readiness.get("missing_sources") or [],
+            "review_steps": [
+                "Confirm no blocking readiness failures remain.",
+                "Confirm OOS or walk-forward validation exists and is not merely in-sample optimizer evidence.",
+                "Confirm pair and exit breakdowns do not show obvious concentration or stoploss dependence.",
+                "Promote only after explicit user confirmation in the app.",
+            ],
+            "note": "Draft only. This does not promote, overwrite, deploy, or edit files.",
+        }
+        return {"ok": True, "read_only": True, "draft": draft}
+
     def _flat_params(self, strategy_name: str, parameters: dict[str, Any]) -> dict[str, Any]:
         buy: dict[str, Any] = {}
         sell: dict[str, Any] = {}
@@ -861,6 +1090,165 @@ class AssistantService:
         if stoploss is not None:
             params["stoploss"] = stoploss
         return {"strategy_name": strategy_name, "params": params}
+
+    def _strategy_edit_roots(self) -> list[Path]:
+        roots: list[Path] = []
+        try:
+            settings = self.settings_store.load()
+            roots.append(Path(settings.strategies_directory_path))
+            roots.append(Path(settings.user_data_directory_path) / "strategies")
+        except Exception:
+            pass
+        if self.root_dir is not None:
+            roots.append(Path(self.root_dir) / "user_data" / "strategies")
+        unique: list[Path] = []
+        seen: set[str] = set()
+        for root in roots:
+            resolved = root.resolve(strict=False)
+            key = str(resolved).lower()
+            if key not in seen:
+                unique.append(resolved)
+                seen.add(key)
+        return unique
+
+    @staticmethod
+    def _is_relative_to(path: Path, root: Path) -> bool:
+        try:
+            path.relative_to(root)
+            return True
+        except ValueError:
+            return False
+
+    def _resolve_strategy_edit_path(self, file_path: Any) -> Path:
+        raw = str(file_path or "").strip()
+        if not raw:
+            raise BackendError("file_path is required.", status_code=422)
+        roots = self._strategy_edit_roots()
+        if not roots:
+            raise BackendError("No strategy workspace is configured for assistant file edits.", status_code=500)
+
+        candidate_paths: list[Path] = []
+        requested = Path(raw)
+        if requested.is_absolute():
+            candidate_paths.append(requested)
+        else:
+            bases: list[Path] = []
+            if self.root_dir is not None:
+                bases.append(Path(self.root_dir))
+            try:
+                settings = self.settings_store.load()
+                bases.append(Path(settings.user_data_directory_path))
+                bases.append(Path(settings.strategies_directory_path))
+            except Exception:
+                pass
+            candidate_paths.extend(base / requested for base in bases)
+
+        for candidate in candidate_paths:
+            resolved = candidate.resolve(strict=False)
+            if resolved.suffix.lower() not in {".py", ".json"}:
+                continue
+            if any(self._is_relative_to(resolved, root) for root in roots):
+                return resolved
+
+        allowed = ", ".join(str(root) for root in roots)
+        raise BackendError(
+            f"Assistant file edits are restricted to .py/.json files under: {allowed}",
+            status_code=403,
+        )
+
+    @staticmethod
+    def _sha256_text(text: str) -> str:
+        return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+    def _preview_file_edit(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Preview file changes with diff."""
+        file_path = payload.get("file_path")
+        new_content = payload.get("new_content")
+
+        if not file_path:
+            raise BackendError("file_path is required for preview_file_edit action.", status_code=422)
+        if new_content is None:
+            raise BackendError("new_content is required for preview_file_edit action.", status_code=422)
+        if not isinstance(new_content, str):
+            raise BackendError("new_content must be a string.", status_code=422)
+        if len(new_content) > MAX_FILE_EDIT_CHARS:
+            raise BackendError("new_content is too large for assistant file edit preview.", status_code=413)
+
+        try:
+            path = self._resolve_strategy_edit_path(file_path)
+            if not path.exists():
+                original_content = ""
+            else:
+                if not path.is_file():
+                    raise BackendError("file_path must point to a file.", status_code=422)
+                original_content = path.read_text(encoding="utf-8", errors="replace")
+
+            diff_lines = list(difflib.unified_diff(
+                original_content.splitlines(),
+                new_content.splitlines(),
+                fromfile=f"{path} (current)",
+                tofile=f"{path} (proposed)",
+                lineterm="",
+            ))
+            truncated = len(diff_lines) > 200
+            if truncated:
+                diff_lines = [*diff_lines[:200], "... diff truncated for preview"]
+
+            return {
+                "ok": True,
+                "read_only": True,
+                "file_path": str(path),
+                "original_content": original_content[:500] + "..." if len(original_content) > 500 else original_content,
+                "new_content": new_content[:500] + "..." if len(new_content) > 500 else new_content,
+                "diff": "\n".join(diff_lines),
+                "diff_truncated": truncated,
+                "has_changes": original_content != new_content,
+                "current_sha256": self._sha256_text(original_content),
+                "apply_requires_confirmation": True,
+            }
+        except BackendError:
+            raise
+        except Exception as exc:
+            raise BackendError(f"Failed to preview file edit: {exc}", status_code=500) from exc
+
+    def _apply_file_edit(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Apply confirmed file changes."""
+        file_path = payload.get("file_path")
+        new_content = payload.get("new_content")
+        expected_sha256 = payload.get("expected_sha256") or payload.get("current_sha256")
+
+        if not file_path:
+            raise BackendError("file_path is required for apply_file_edit action.", status_code=422)
+        if new_content is None:
+            raise BackendError("new_content is required for apply_file_edit action.", status_code=422)
+        if not isinstance(new_content, str):
+            raise BackendError("new_content must be a string.", status_code=422)
+        if len(new_content) > MAX_FILE_EDIT_CHARS:
+            raise BackendError("new_content is too large for assistant file edit.", status_code=413)
+        if not expected_sha256:
+            raise BackendError("A preview current_sha256 is required before applying assistant file edits.", status_code=409)
+
+        try:
+            path = self._resolve_strategy_edit_path(file_path)
+            original_content = path.read_text(encoding="utf-8", errors="replace") if path.exists() else ""
+            current_sha256 = self._sha256_text(original_content)
+            if current_sha256 != str(expected_sha256):
+                raise BackendError("File changed since preview. Refresh the preview before applying.", status_code=409)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(new_content, encoding="utf-8")
+
+            return {
+                "ok": True,
+                "file_path": str(path),
+                "bytes_written": len(new_content.encode("utf-8")),
+                "previous_sha256": current_sha256,
+                "new_sha256": self._sha256_text(new_content),
+                "message": f"File '{path}' updated successfully."
+            }
+        except BackendError:
+            raise
+        except Exception as exc:
+            raise BackendError(f"Failed to apply file edit: {exc}", status_code=500) from exc
 
     def _audit(
         self,

@@ -9,6 +9,12 @@ import {
   ClipboardDocumentIcon,
   CheckIcon,
 } from "@heroicons/react/24/outline";
+import {
+  MermaidDiagram,
+  StructuredChart,
+  ChartImage,
+  renderMessageWithCharts,
+} from "./AIChartRenderer.jsx";
 
 function compactId(value) {
   if (!value) return null;
@@ -88,7 +94,7 @@ function isCodeBlock(text) {
   return typeof text === 'string' && text.includes('```');
 }
 
-function renderMessageWithCode(content) {
+function renderMessageWithCodeOld(content) {
   if (!content) return null;
   
   const lines = content.split('\n');
@@ -178,7 +184,6 @@ function CodeBlock({ language, content }) {
     </div>
   );
 }
-
 function ThinkingSection({ thinking }) {
   const [expanded, setExpanded] = useState(true);
   
@@ -221,6 +226,33 @@ function SafetyBadge({ safety }) {
   );
 }
 
+function ActionButton({ action, onRun, disabled }) {
+  const handleClick = () => {
+    if (action.safety === "Read-only") {
+      onRun(action, false);
+    } else {
+      onRun(action, false);
+    }
+  };
+
+  const buttonClass = action.safety === "Read-only"
+    ? "btn btn-xs btn-success text-white"
+    : action.safety === "Needs confirmation"
+      ? "btn btn-xs btn-warning"
+      : "btn btn-xs btn-error";
+
+  return (
+    <button
+      className={buttonClass}
+      onClick={handleClick}
+      disabled={disabled}
+      title={action.description}
+    >
+      {action.label}
+    </button>
+  );
+}
+
 function ContextChips({ summary }) {
   const chips = summary?.chips || [];
   if (!chips.length) {
@@ -252,6 +284,10 @@ const MODE_LABELS = Object.fromEntries(MODE_OPTIONS.map(o => [o.value, o.label])
 export default function AssistantChatPanel({
   mode: panelMode = "page",
   initialContextOverrides = null,
+  initialPrompt = "",
+  initialMode = "auto",
+  initialIncludeStrategySource = false,
+  requestKey = null,
   onClose = null,
 }) {
   const [contextOverrides, setContextOverrides] = useState(initialContextOverrides || {});
@@ -269,7 +305,9 @@ export default function AssistantChatPanel({
   const [pendingAction, setPendingAction] = useState(null);
   const [actionBusy, setActionBusy] = useState(false);
   const [performanceMetrics, setPerformanceMetrics] = useState(null);
+  const [sandboxMode, setSandboxMode] = useState(false);
   const scrollerRef = useRef(null);
+  const sentInitialPromptRef = useRef(null);
 
   useEffect(() => {
     setContextOverrides(initialContextOverrides || {});
@@ -341,7 +379,7 @@ export default function AssistantChatPanel({
     }]);
   };
 
-  const sendNonStreaming = async (messageText, assistantId) => {
+  const sendNonStreaming = async (messageText, assistantId, request = {}) => {
     const res = await fetch("/api/ai/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -349,9 +387,9 @@ export default function AssistantChatPanel({
         message: messageText,
         session_id: sessionId,
         model: selectedModel || undefined,
-        mode: mode,
-        context_overrides: contextOverrides,
-        include_strategy_source: includeStrategySource,
+        mode: request.mode || mode,
+        context_overrides: request.contextOverrides || contextOverrides,
+        include_strategy_source: request.includeStrategySource ?? includeStrategySource,
       }),
     });
     const data = await res.json();
@@ -378,7 +416,7 @@ export default function AssistantChatPanel({
     }
   };
 
-  const sendStreaming = async (messageText, assistantId) => {
+  const sendStreaming = async (messageText, assistantId, request = {}) => {
     const res = await fetch("/api/ai/chat/stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -386,9 +424,9 @@ export default function AssistantChatPanel({
         message: messageText,
         session_id: sessionId,
         model: selectedModel || undefined,
-        mode: mode,
-        context_overrides: contextOverrides,
-        include_strategy_source: includeStrategySource,
+        mode: request.mode || mode,
+        context_overrides: request.contextOverrides || contextOverrides,
+        include_strategy_source: request.includeStrategySource ?? includeStrategySource,
       }),
     });
     if (!res.ok) {
@@ -396,7 +434,7 @@ export default function AssistantChatPanel({
       throw new Error(data.detail || "Assistant request failed.");
     }
     if (!res.body || !res.body.getReader) {
-      await sendNonStreaming(messageText, assistantId);
+      await sendNonStreaming(messageText, assistantId, request);
       return;
     }
     const reader = res.body.getReader();
@@ -448,7 +486,7 @@ export default function AssistantChatPanel({
     }
   };
 
-  const sendMessage = async (text = input) => {
+  const sendMessage = async (text = input, request = {}) => {
     const messageText = String(text || "").trim();
     if (!messageText || loading) return;
     setInput("");
@@ -461,7 +499,7 @@ export default function AssistantChatPanel({
       { id: assistantId, role: "assistant", content: "" },
     ]);
     try {
-      await sendStreaming(messageText, assistantId);
+      await sendStreaming(messageText, assistantId, request);
     } catch (err) {
       setError(err.message);
       setMessages(prev => prev.map(msg => (
@@ -471,6 +509,23 @@ export default function AssistantChatPanel({
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const messageText = String(initialPrompt || "").trim();
+    if (!messageText) return;
+    const key = requestKey || messageText;
+    if (sentInitialPromptRef.current === key) return;
+    sentInitialPromptRef.current = key;
+    const resolvedMode = initialMode || "analysis";
+    const attachSource = Boolean(initialIncludeStrategySource);
+    setMode(resolvedMode);
+    setIncludeStrategySource(attachSource);
+    sendMessage(messageText, {
+      mode: resolvedMode,
+      includeStrategySource: attachSource,
+      contextOverrides,
+    });
+  }, [contextOverrides, initialIncludeStrategySource, initialMode, initialPrompt, requestKey, sendMessage]);
 
   const runAction = async (action, confirmed = false) => {
     if (action.safety === "Destructive") return;
@@ -529,6 +584,16 @@ export default function AssistantChatPanel({
         </div>
         <div className="flex-1" />
         <div className="flex items-center gap-2">
+          <label className="inline-flex items-center gap-1.5 cursor-pointer">
+            <input
+              type="checkbox"
+              className="toggle toggle-xs toggle-primary"
+              checked={sandboxMode}
+              onChange={(e) => setSandboxMode(e.target.checked)}
+              title="Enable sandbox mode for isolated AI actions"
+            />
+            <span className="text-[10px] text-base-content/60 hidden sm:inline">Sandbox</span>
+          </label>
           <button
             className="btn btn-ghost btn-xs border border-base-300"
             onClick={() => setModelState(prev => ({ ...prev, loading: true }))}
@@ -540,7 +605,7 @@ export default function AssistantChatPanel({
           <span className={`hidden sm:inline-flex rounded border px-2 py-0.5 text-[10px] font-semibold ${
             modelState.reachable ? "border-success/30 bg-success/10 text-success" : "border-error/30 bg-error/10 text-error"
           }`}>
-            {modelState.reachable ? "Read-only" : "Ollama Offline"}
+            {modelState.reachable ? (sandboxMode ? "Sandbox" : "Read-only") : "Ollama Offline"}
           </span>
           {onClose && (
             <button className="btn btn-ghost btn-sm btn-square" onClick={onClose} title="Close AI Assistant">
@@ -571,212 +636,229 @@ export default function AssistantChatPanel({
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <section className="min-h-0 flex flex-col border-r border-base-300/70">
-          <div ref={scrollerRef} className="flex-1 overflow-y-auto p-4 space-y-3">
-            {messages.length === 0 && (
-              <div className="py-6 space-y-4">
-                <div className="rounded-lg border border-base-300 bg-base-200/45 px-4 py-3">
-                  <div className="flex items-center justify-between gap-3 mb-3">
-                    <div className="text-xs font-semibold text-base-content/60 uppercase tracking-wider">Attached Context</div>
-                    <button className="btn btn-ghost btn-xs border border-base-300" onClick={refreshContext}>Refresh</button>
-                  </div>
-                  <ContextChips summary={contextSummary} />
-                  {contextSummary?.warnings?.length > 0 && (
-                    <div className="mt-3 text-[11px] text-warning">
-                      {contextSummary.warnings.slice(0, 2).join(" ")}
-                    </div>
-                  )}
-                </div>
-                
-                {modelState.reachable ? (
-                  <>
-                    <div className="rounded-lg border border-base-300 bg-base-200/30 px-4 py-3">
-                      <div className="text-xs font-semibold text-base-content/60 uppercase tracking-wider mb-2">Quick Questions</div>
-                      <div className="flex flex-wrap gap-2">
-                        {suggestedQuestions.map(q => (
-                          <button key={q} className="btn btn-sm btn-ghost border border-base-300 normal-case" onClick={() => sendMessage(q)}>
-                            {q}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    
-                    <div className="rounded-lg border border-info/30 bg-info/5 px-4 py-3">
-                      <div className="flex items-start gap-2">
-                        <ShieldCheckIcon className="h-4 w-4 text-info mt-0.5 shrink-0" />
-                        <div className="text-[11px] text-base-content/70">
-                          <span className="font-medium text-info">Safe & Read-only:</span> This assistant analyzes your strategies, runs, and logs to provide insights. 
-                          It cannot modify files, start trading, or deploy changes without your explicit confirmation.
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <div className="rounded-lg border border-warning/30 bg-warning/10 px-4 py-3">
-                    <div className="flex items-start gap-2">
-                      <ExclamationTriangleIcon className="h-4 w-4 text-warning mt-0.5 shrink-0" />
-                      <div className="text-[11px] text-warning/90">
-                        <span className="font-medium">AI Model Unavailable:</span> The assistant requires Ollama to be configured and running. 
-                        Please check Settings → AI Assistant to configure your Ollama instance.
-                      </div>
-                    </div>
-                  </div>
-                )}
+      {/* Context Area - Collapsible */}
+      {messages.length === 0 && (
+        <div className="shrink-0 border-b border-base-300/50 bg-base-200/30 p-4 space-y-3">
+          <div className="rounded-lg border border-base-300 bg-base-100/50 px-4 py-3">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <div className="text-xs font-semibold text-base-content/60 uppercase tracking-wider">Attached Context</div>
+              <button className="btn btn-ghost btn-xs border border-base-300" onClick={refreshContext}>Refresh</button>
+            </div>
+            <ContextChips summary={contextSummary} />
+            {contextSummary?.warnings?.length > 0 && (
+              <div className="mt-3 text-[11px] text-warning">
+                {contextSummary.warnings.slice(0, 2).join(" ")}
               </div>
             )}
-
-            {messages.map(message => (
-              <div key={message.id} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
-                <div className={`max-w-[88%] rounded-lg border px-3 py-2 text-sm leading-relaxed ${
-                  message.role === "user"
-                    ? "bg-primary text-primary-content border-primary"
-                    : "bg-base-200 border-base-300 text-base-content/85"
-                }`}>
-                  {message.role === "assistant" && message.thinking && <ThinkingSection thinking={message.thinking} />}
-                  {message.content ? (
-                    isCodeBlock(message.content) ? renderMessageWithCode(message.content) : renderContent(message.content)
-                  ) : (
-                    <span className="loading loading-dots loading-sm" />
-                  )}
-                </div>
-              </div>
-            ))}
           </div>
 
-          {error && (
-            <div className="mx-4 mb-2 rounded border border-error/30 bg-error/10 px-3 py-2 text-xs text-error flex gap-2 items-start">
-              <ExclamationTriangleIcon className="h-4 w-4 shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <span className="font-medium">Error:</span> {error}
-                {!modelState.reachable && (
-                  <div className="mt-1 text-[11px] opacity-80">
-                    Please check your Ollama connection in Settings or ensure the service is running.
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          <div className="shrink-0 border-t border-base-300 bg-base-200/45 p-3">
-            <div className="flex items-center gap-2 mb-2 flex-wrap">
-              {modelState.models.length > 0 && (
-                <select
-                  className="select select-bordered select-xs w-32"
-                  value={selectedModel}
-                  onChange={e => setSelectedModel(e.target.value)}
-                  disabled={loading || !modelState.reachable}
-                  title="Select AI model"
-                >
-                  <option value="">Default model</option>
-                  {modelState.models.map(model => (
-                    <option key={model} value={model}>{model}</option>
-                  ))}
-                </select>
-              )}
-              <select
-                className="select select-bordered select-xs w-36"
-                value={mode}
-                onChange={e => setMode(e.target.value)}
-                title="Assistant mode"
-                disabled={loading}
-              >
-                {MODE_OPTIONS.map(opt => (
-                  <option key={opt.value} value={opt.value} title={opt.description}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-              <label className="inline-flex items-center gap-2 text-[11px] text-base-content/55">
-                <input
-                  type="checkbox"
-                  className="checkbox checkbox-xs checkbox-primary"
-                  checked={includeStrategySource}
-                  onChange={e => setIncludeStrategySource(e.target.checked)}
-                  disabled={loading}
-                />
-                Attach source
-              </label>
-            </div>
-            <form
-              className="flex items-end gap-2"
-              onSubmit={e => {
-                e.preventDefault();
-                sendMessage();
-              }}
-            >
-              <textarea
-                className="textarea textarea-bordered flex-1 min-h-[52px] max-h-32 text-sm resize-none"
-                value={input}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    sendMessage();
-                  }
-                }}
-                placeholder="Ask about this strategy, run, optimizer session, or report..."
-                disabled={loading}
-              />
-              <button 
-                className="btn btn-primary btn-square" 
-                disabled={loading || !input.trim()} 
-                title={loading ? "Sending..." : "Send (Enter)"}
-              >
-                {loading ? <span className="loading loading-spinner loading-sm" /> : <PaperAirplaneIcon className="h-5 w-5" />}
-              </button>
-            </form>
-          </div>
-        </section>
-
-        <aside className="hidden xl:flex min-h-0 flex-col bg-base-200/30">
-          <div className="p-4 border-b border-base-300">
-            <div className="text-[10px] font-semibold text-base-content/40 uppercase tracking-wider mb-2">Context</div>
-            <ContextChips summary={contextSummary} />
-            <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-base-content/50">
-              <span>Tab</span><span className="font-mono text-right truncate">{contextSummary?.active_tab || "-"}</span>
-              <span>Panel</span><span className="font-mono text-right truncate">{contextSummary?.active_panel || "-"}</span>
-              <span>Strategy</span><span className="font-mono text-right truncate">{contextSummary?.strategy_name || "-"}</span>
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            <div className="text-[10px] font-semibold text-base-content/40 uppercase tracking-wider">Suggested Questions</div>
-            <div className="space-y-2">
-              {suggestedQuestions.map(q => (
-                <button key={q} className="btn btn-sm btn-ghost border border-base-300 w-full justify-start normal-case h-auto min-h-9 text-left" onClick={() => sendMessage(q)}>
-                  {q}
-                </button>
-              ))}
-            </div>
-
-            {actions.length > 0 && (
-              <>
-                <div className="pt-2 text-[10px] font-semibold text-base-content/40 uppercase tracking-wider">Actions</div>
-                <div className="space-y-2">
-                  {actions.map(action => (
-                    <button
-                      key={`${action.action_type}-${JSON.stringify(action.payload || {})}`}
-                      className={`w-full text-left rounded-lg border px-3 py-2 transition-colors ${
-                        action.safety === "Destructive"
-                          ? "border-error/20 bg-error/5 opacity-60 cursor-not-allowed"
-                          : "border-base-300 bg-base-100/70 hover:border-primary/40"
-                      }`}
-                      disabled={action.safety === "Destructive" || actionBusy}
-                      onClick={() => runAction(action)}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <span className="text-xs font-semibold">{action.label}</span>
-                        <SafetyBadge safety={action.safety} />
-                      </div>
-                      <div className="mt-1 text-[11px] text-base-content/45 leading-snug">{action.description}</div>
+          {modelState.reachable ? (
+            <>
+              <div className="rounded-lg border border-base-300 bg-base-100/50 px-4 py-3">
+                <div className="text-xs font-semibold text-base-content/60 uppercase tracking-wider mb-2">Quick Questions</div>
+                <div className="flex flex-wrap gap-2">
+                  {suggestedQuestions.map(q => (
+                    <button key={q} className="btn btn-sm btn-ghost border border-base-300 normal-case" onClick={() => sendMessage(q)}>
+                      {q}
                     </button>
                   ))}
                 </div>
-              </>
+              </div>
+
+              <div className="rounded-lg border border-info/30 bg-info/5 px-4 py-3">
+                <div className="flex items-start gap-2">
+                  <ShieldCheckIcon className="h-4 w-4 text-info mt-0.5 shrink-0" />
+                  <div className="text-[11px] text-base-content/70">
+                    <span className="font-medium text-info">Safe & Read-only:</span> This assistant analyzes your strategies, runs, and logs to provide insights.
+                    It cannot modify files, start trading, or deploy changes without your explicit confirmation.
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="rounded-lg border border-warning/30 bg-warning/10 px-4 py-3">
+              <div className="flex items-start gap-2">
+                <ExclamationTriangleIcon className="h-4 w-4 text-warning mt-0.5 shrink-0" />
+                <div className="text-[11px] text-warning/90">
+                  <span className="font-medium">AI Model Unavailable:</span> The assistant requires Ollama to be configured and running.
+                  Please check Settings → AI Assistant to configure your Ollama instance.
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Messages - Only scrollable main region */}
+      <div ref={scrollerRef} className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3">
+        {messages.map(message => (
+          <div key={message.id} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
+            <div className={`max-w-[95%] w-full rounded-lg border px-3 py-2 text-sm leading-relaxed overflow-hidden ${
+              message.role === "user"
+                ? "bg-primary text-primary-content border-primary"
+                : "bg-base-200 border-base-300 text-base-content/85"
+            }`}>
+              {message.role === "assistant" && (
+                <div className="flex items-center justify-between mb-2 shrink-0">
+                  <span className="text-xs text-base-content/50 font-medium">AI Analysis</span>
+                  <button
+                    onClick={() => navigator.clipboard.writeText(message.content || "")}
+                    className="btn btn-ghost btn-xs px-1.5 py-0.5 h-5 min-h-0 gap-1 text-[10px] text-base-content/60 hover:text-base-content shrink-0"
+                    title="Copy entire message"
+                  >
+                    <ClipboardDocumentIcon className="h-3 w-3" />
+                    Copy
+                  </button>
+                </div>
+              )}
+              {message.role === "assistant" && message.thinking && <ThinkingSection thinking={message.thinking} />}
+              <div className="overflow-x-auto overflow-y-auto max-h-[600px]">
+                {message.content ? (
+                  renderMessageWithCharts(message.content)
+                ) : (
+                  <span className="loading loading-dots loading-sm" />
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Dedicated Suggested Actions Panel */}
+      {actions.length > 0 && (
+        <div className="shrink-0 border-t border-base-300 bg-base-100/50 p-3">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-xs font-semibold text-base-content/60 uppercase tracking-wider">Available Actions</div>
+            <button
+              className="btn btn-xs btn-ghost text-[10px]"
+              onClick={() => {
+                const safeActions = actions.filter(a => a.safety === "Read-only");
+                safeActions.forEach(action => runAction(action, false));
+              }}
+              disabled={actionBusy || loading}
+            >
+              Apply All Safe Actions
+            </button>
+          </div>
+          <div className="space-y-2">
+            {actions.filter(a => a.safety === "Read-only").length > 0 && (
+              <div>
+                <div className="text-[10px] text-success/70 mb-1 font-medium">Safe (Auto-execute)</div>
+                <div className="flex flex-wrap gap-2">
+                  {actions.filter(a => a.safety === "Read-only").map((action, idx) => (
+                    <ActionButton
+                      key={`safe-${action.action_type}-${idx}`}
+                      action={action}
+                      onRun={runAction}
+                      disabled={actionBusy || loading}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+            {actions.filter(a => a.safety === "Needs confirmation").length > 0 && (
+              <div>
+                <div className="text-[10px] text-warning/70 mb-1 font-medium">Guarded (Confirmation Required)</div>
+                <div className="flex flex-wrap gap-2">
+                  {actions.filter(a => a.safety === "Needs confirmation").map((action, idx) => (
+                    <ActionButton
+                      key={`guarded-${action.action_type}-${idx}`}
+                      action={action}
+                      onRun={runAction}
+                      disabled={actionBusy || loading}
+                    />
+                  ))}
+                </div>
+              </div>
             )}
           </div>
-        </aside>
+        </div>
+      )}
+
+      {/* Error Display */}
+      {error && (
+        <div className="shrink-0 mx-4 mb-2 rounded border border-error/30 bg-error/10 px-3 py-2 text-xs text-error flex gap-2 items-start">
+          <ExclamationTriangleIcon className="h-4 w-4 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <span className="font-medium">Error:</span> {error}
+            {!modelState.reachable && (
+              <div className="mt-1 text-[11px] opacity-80">
+                Please check your Ollama connection in Settings or ensure the service is running.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Composer - Fixed at bottom */}
+      <div className="shrink-0 border-t border-base-300 bg-base-200/45 p-3">
+        <div className="flex items-center gap-2 mb-2 flex-wrap">
+          {modelState.models.length > 0 && (
+            <select
+              className="select select-bordered select-xs w-32"
+              value={selectedModel}
+              onChange={e => setSelectedModel(e.target.value)}
+              disabled={loading || !modelState.reachable}
+              title="Select AI model"
+            >
+              <option value="">Default model</option>
+              {modelState.models.map(model => (
+                <option key={model} value={model}>{model}</option>
+              ))}
+            </select>
+          )}
+          <select
+            className="select select-bordered select-xs w-36"
+            value={mode}
+            onChange={e => setMode(e.target.value)}
+            title="Assistant mode"
+            disabled={loading}
+          >
+            {MODE_OPTIONS.map(opt => (
+              <option key={opt.value} value={opt.value} title={opt.description}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+          <label className="inline-flex items-center gap-2 text-[11px] text-base-content/55">
+            <input
+              type="checkbox"
+              className="checkbox checkbox-xs checkbox-primary"
+              checked={includeStrategySource}
+              onChange={e => setIncludeStrategySource(e.target.checked)}
+              disabled={loading}
+            />
+            Attach source
+          </label>
+        </div>
+        <form
+          className="flex items-end gap-2"
+          onSubmit={e => {
+            e.preventDefault();
+            sendMessage();
+          }}
+        >
+          <textarea
+            className="textarea textarea-bordered flex-1 min-h-[52px] max-h-32 text-sm resize-none"
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+              }
+            }}
+            placeholder="Ask about this strategy, run, optimizer session, or report..."
+            disabled={loading}
+          />
+          <button
+            className="btn btn-primary btn-square"
+            disabled={loading || !input.trim()}
+            title={loading ? "Sending..." : "Send (Enter)"}
+          >
+            {loading ? <span className="loading loading-spinner loading-sm" /> : <PaperAirplaneIcon className="h-5 w-5" />}
+          </button>
+        </form>
       </div>
 
       {pendingAction && (

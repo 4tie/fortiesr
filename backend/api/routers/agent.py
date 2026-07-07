@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict
 
 from ...core.errors import BackendError
 from ...services.agent_context import AgentContextService
+from . import candidate
 
 router = APIRouter(prefix="/api/agent", tags=["Agent Observability"])
 
@@ -23,6 +24,10 @@ class AgentUiStatePayload(BaseModel):
     optimizer_session_id: str | None = None
     optimizer_trial_number: int | None = None
     backtest_run_id: str | None = None
+    candidate_run_id: str | None = None
+    stress_session_id: str | None = None
+    temporal_stress_session_id: str | None = None
+    readiness_profile: str | None = None
     api_session_id: str | None = None
 
 
@@ -36,9 +41,11 @@ def _service(request: Request) -> AgentContextService:
         strategy_optimizer=getattr(services, "strategy_optimizer", None),
         backtest_runner=services.backtest_runner,
         optimizer_store=getattr(services, "optimizer_store", None),
+        sweep_store=getattr(services, "sweep_store", None),
         run_detail_callable=services.run_detail,
         log_broadcaster=getattr(request.app.state, "log_broadcaster", None),
         session_store=getattr(request.app.state, "session_store", None),
+        candidate_run_lookup=candidate.candidate_run_manager.get_run,
     )
 
 
@@ -69,6 +76,10 @@ async def get_agent_context(
     optimizer_session_id: str | None = Query(default=None),
     optimizer_trial_number: int | None = Query(default=None),
     backtest_run_id: str | None = Query(default=None),
+    candidate_run_id: str | None = Query(default=None),
+    stress_session_id: str | None = Query(default=None),
+    temporal_stress_session_id: str | None = Query(default=None),
+    readiness_profile: str | None = Query(default=None),
     api_session_id: str | None = Query(default=None),
 ) -> dict[str, Any]:
     overrides = {
@@ -79,6 +90,10 @@ async def get_agent_context(
         "optimizer_session_id": optimizer_session_id,
         "optimizer_trial_number": optimizer_trial_number,
         "backtest_run_id": backtest_run_id,
+        "candidate_run_id": candidate_run_id,
+        "stress_session_id": stress_session_id,
+        "temporal_stress_session_id": temporal_stress_session_id,
+        "readiness_profile": readiness_profile,
         "api_session_id": api_session_id,
     }
     return _service(request).build_context(overrides)

@@ -8,7 +8,7 @@ from __future__ import annotations
 import asyncio
 
 from pydantic import BaseModel
-from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect
 
 from ...models.strategy_spec import StrategySpec, validate_spec
 from ...services.candidate.models import (
@@ -19,7 +19,6 @@ from ...services.candidate.models import (
 )
 from ...services.candidate.orchestrator import evaluate_candidate
 from ...services.candidate.run_manager import CandidateRunManager
-from ..dependencies import get_services
 
 router = APIRouter(prefix="/api/candidate", tags=["Candidate"])
 candidate_run_manager = CandidateRunManager()
@@ -206,9 +205,10 @@ async def candidate_websocket(websocket: WebSocket, run_id: str) -> None:
 )
 async def evaluate_candidate_endpoint(
     body: CandidateEvaluateRequest,
-    services=Depends(get_services),
+    request: Request,
 ) -> CandidateEvaluateResponse:
     """Evaluate a strategy candidate through the multi-gate pipeline."""
+    services = getattr(request.app.state, "services", None)
     # Validate StrategySpec
     _raise_invalid_spec(body.spec)
 

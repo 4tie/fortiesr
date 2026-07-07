@@ -365,6 +365,51 @@ class VersionManager:
         """Public wrapper for rendering merged params back into strategy source."""
         return self._inject_params_into_source(source, params)
 
+    def overwrite_accepted_params(
+        self,
+        strategy_name: str,
+        version_id: str,
+        params: ParamsSchema,
+        output_strategy_name: str | None = None,
+    ) -> dict[str, str]:
+        """Overwrite accepted params and sync the live strategy .py/.json files."""
+        target_name = (output_strategy_name or "").strip() or strategy_name
+        if not target_name.isidentifier():
+            raise BackendError(
+                f"'{target_name}' is not a valid Python identifier for a strategy name.",
+                status_code=400,
+            )
+
+        version_dir = self.version_dir(strategy_name, version_id)
+        params = params.model_copy(update={"version_id": version_id, "extracted_at": utc_now()})
+        source = self.load_strategy_source(strategy_name, version_id)
+        materialized_source = self.materialize_strategy_source(
+            strategy_name,
+            version_id,
+            source=source,
+            params=params,
+        )
+
+        version_params_path = version_dir / "params.json"
+        version_source_path = version_dir / "strategy.py"
+        live_source_path = self.strategies_dir / f"{target_name}.py"
+        live_sidecar_path = self.strategies_dir / f"{target_name}.json"
+
+        atomic_write_json(version_params_path, params.model_dump(mode="json"))
+        atomic_write_text(version_source_path, materialized_source)
+        atomic_write_text(live_source_path, materialized_source)
+        atomic_write_text(
+            live_sidecar_path,
+            json.dumps(_params_to_sidecar_json(target_name, params), indent=2),
+        )
+
+        return {
+            "version_params_path": str(version_params_path),
+            "version_source_path": str(version_source_path),
+            "live_source_path": str(live_source_path),
+            "live_sidecar_path": str(live_sidecar_path),
+        }
+
     def preview_optimizer_trial_application(
         self,
         run_repository,

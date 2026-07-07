@@ -45,6 +45,7 @@ class SettingsStore(ISettingsStore):
             ollama_model_autoquant="",
             ollama_model_strategylab="hermes3:3b",
             ollama_model_optimizer="",
+            ai_assistant_sandbox_enabled=False,
         )
 
     def load(self) -> SettingsModel:

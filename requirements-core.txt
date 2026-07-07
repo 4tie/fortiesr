@@ -13,6 +13,9 @@ requests
 numpy
 pandas
 
+# Chart generation
+matplotlib
+
 # Utilities
 colorama
 filelock

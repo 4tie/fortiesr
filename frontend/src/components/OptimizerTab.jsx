@@ -35,6 +35,9 @@ import {
 import { buildOptimizerViewModel, optimizerRunDisabledReason } from "../features/optimizer/viewModel";
 import { useOptimizerForm } from "../features/optimizer/hooks/useOptimizerForm";
 import { useOptimizerSearchSpaces } from "../features/optimizer/hooks/useOptimizerSearchSpaces";
+import { SparklesIcon } from "@heroicons/react/24/outline";
+import CandidateReadinessPanel from "./CandidateReadinessPanel.jsx";
+import { buildOptimizerTrialAnalysisPrompt } from "../utils/aiAnalysis.js";
 import {
   AutoSafeEvents,
   BestSummary,
@@ -46,6 +49,8 @@ import {
   StatusBadge,
   TrialChart,
 } from "../features/optimizer/components/OptimizerPrimitives";
+import PageContainer from "./shared/PageContainer.jsx";
+import PageHeader from "./shared/PageHeader.jsx";
 
 function VectorBTReportSummary({ report }) {
   if (!report) {
@@ -133,6 +138,7 @@ export default function OptimizerTab({
   sharedLoading = false,
   syncSharedState = null,
   onAgentContextChange = null,
+  onAskAi = null,
 }) {
   const {
     strategyName,
@@ -168,6 +174,7 @@ export default function OptimizerTab({
     pairList,
     timerange,
     validDateRange,
+    markUserInitiatedPairChange,
   } = useOptimizerForm({ sharedState, sharedLoading, syncSharedState });
 
   const [pairsImported, setPairsImported] = useState(false);
@@ -218,6 +225,7 @@ export default function OptimizerTab({
 
   const [selectedTrial, setSelectedTrial] = useState(null);
   const [checkedTrials, setCheckedTrials] = useState(new Set());
+  const [exportedTrialNumbers, setExportedTrialNumbers] = useState(new Set());
   const [toasts, setToasts] = useState([]);
 
   const [promotingCandidate, setPromotingCandidate] = useState(false);
@@ -229,9 +237,10 @@ export default function OptimizerTab({
   const [paramsLoading, setParamsLoading] = useState(false);
 
   const [applyConfirmTrial, setApplyConfirmTrial] = useState(null);
-  const [applyConfirmText, setApplyConfirmText] = useState("");
   const [applyPreview, setApplyPreview] = useState(null);
   const [applyPreviewLoading, setApplyPreviewLoading] = useState(false);
+  const [applyLoading, setApplyLoading] = useState(false);
+  const [applyResult, setApplyResult] = useState(null);
   const [dangerOpen, setDangerOpen] = useState(false);
 
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -283,7 +292,7 @@ export default function OptimizerTab({
       auto_quant_run_id: null,
       optimizer_session_id: optSessionId,
       optimizer_trial_number: selectedTrial?.trial_number ?? null,
-      backtest_run_id: null,
+      backtest_run_id: selectedTrial?.run_id ?? null,
       api_session_id: apiSessionId,
     });
   }, [activeTab, apiSessionId, onAgentContextChange, optSessionId, selectedTrial, strategyName]);
@@ -455,6 +464,41 @@ export default function OptimizerTab({
   });
   const canRun = runDisabledReason == null;
 
+  const handleAnalyzeTrial = useCallback((trial = bestTrial) => {
+    if (!trial?.trial_number || !optSessionId || !onAskAi) return;
+    onAskAi({
+      context: {
+        active_tab: "optimizer",
+        active_panel: "optimizer_trial_result",
+        strategy_name: strategyName || null,
+        optimizer_session_id: optSessionId,
+        optimizer_trial_number: trial.trial_number,
+        backtest_run_id: trial.run_id || null,
+      },
+      message: buildOptimizerTrialAnalysisPrompt({
+        optimizerSessionId: optSessionId,
+        trialNumber: trial.trial_number,
+        strategyName,
+      }),
+      mode: "analysis",
+    });
+  }, [bestTrial, onAskAi, optSessionId, strategyName]);
+
+  const handleAnalyzeReadiness = useCallback(({ message, context }) => {
+    if (!onAskAi) return;
+    onAskAi({
+      context: {
+        ...context,
+        active_tab: "optimizer",
+        active_panel: "candidate_readiness",
+        strategy_name: context?.strategy_name || strategyName || null,
+        optimizer_session_id: context?.optimizer_session_id || optSessionId,
+      },
+      message,
+      mode: "analysis",
+    });
+  }, [onAskAi, optSessionId, strategyName]);
+
   const toggleCheck = (e, trialNumber) => {
     e.stopPropagation();
     setCheckedTrials(prev => {
@@ -539,20 +583,28 @@ export default function OptimizerTab({
 
   const handleApplyTrial = async trial => {
     if (!trial?.parameters) return;
+    setApplyLoading(true);
+    setApplyResult(null);
     try {
-      await runRequest(signal => applyOptimizerTrial({ strategyName, parameters: trial.parameters }, { signal }));
-      addToast(`Trial #${trial.trial_number} parameters overwritten on accepted version.`, "success");
+      const data = await runRequest(signal => applyOptimizerTrial({ strategyName, parameters: trial.parameters }, { signal }));
+      setApplyResult({ ok: true, ...data });
+      addToast(`Trial #${trial.trial_number} parameters applied to strategy files.`, "success");
+      return data;
     } catch (err) {
       if (isAbortError(err)) return;
+      setApplyResult({ ok: false, error: err.message || "Network error while applying parameters." });
       addToast(err.message || "Network error while applying parameters.", "error");
+    } finally {
+      setApplyLoading(false);
     }
   };
 
   const openApplyConfirm = async trial => {
     if (!trial) return;
     setApplyConfirmTrial(trial);
-    setApplyConfirmText("");
     setApplyPreview(null);
+    setApplyResult(null);
+    setApplyLoading(false);
     setApplyPreviewLoading(true);
     try {
       const data = await runRequest(signal => getTrialApplicationPreview({ optimizerSessionId: optSessionId, trialNumber: trial.trial_number }, { signal }));
@@ -682,8 +734,18 @@ export default function OptimizerTab({
       })),
     };
     try {
-      await runRequest(signal => exportOptimizerTrials(payload.trials, { signal }));
-      addToast(`${toExport.length} configuration${toExport.length > 1 ? "s" : ""} exported to Stress Test Lab.`, "success");
+      const data = await runRequest(signal => exportOptimizerTrials(payload.trials, { signal }));
+      setExportedTrialNumbers(prev => {
+        const next = new Set(prev);
+        toExport.forEach(t => next.add(t.trial_number));
+        return next;
+      });
+      const labels = (data.exported || []).map(record => record.label).filter(Boolean);
+      const detail = labels.length === 1 ? ` ${labels[0]}` : "";
+      addToast(
+        `${toExport.length} configuration${toExport.length > 1 ? "s" : ""} exported to Stress Test Lab.${detail} Open Stress Test Lab > Strategy > Exported from Optimizer.`,
+        "success",
+      );
       if (!specificTrial) setCheckedTrials(new Set());
     } catch (err) {
       if (isAbortError(err)) return;
@@ -693,7 +755,6 @@ export default function OptimizerTab({
 
   const metricTone = value => value > 0 ? "good" : value < 0 ? "bad" : "neutral";
   const scoreLabel = SCORE_METRICS.find(s => s.value === scoreMetric)?.label || scoreMetric;
-  const confirmToken = applyConfirmTrial ? `OVERWRITE ${applyConfirmTrial.trial_number}` : "";
   const previewChangedCount = applyPreview?.original_json && applyPreview?.modified_json
     ? Object.keys(applyPreview.modified_json).length
     : null;
@@ -724,7 +785,10 @@ export default function OptimizerTab({
                   className="textarea textarea-bordered min-h-[84px] text-xs font-mono"
                   value={pairsText}
                   placeholder="BTC/USDT, ETH/USDT"
-                  onChange={e => setPairsText(e.target.value)}
+                  onChange={e => {
+                    markUserInitiatedPairChange();
+                    setPairsText(e.target.value);
+                  }}
                   disabled={isRunning}
                 />
               </label>
@@ -1156,7 +1220,11 @@ export default function OptimizerTab({
                             onClick={e => e.stopPropagation()}
                           />
                         </td>
-                        <td className="font-mono font-semibold">#{t.trial_number}{isBest && <span className="ml-2 text-success text-[10px] uppercase">best</span>}</td>
+                        <td className="font-mono font-semibold">
+                          #{t.trial_number}
+                          {isBest && <span className="ml-2 text-success text-[10px] uppercase">best</span>}
+                          {exportedTrialNumbers.has(t.trial_number) && <span className="ml-2 text-info text-[10px] uppercase">exported</span>}
+                        </td>
                         <td><StatusBadge status={t.status} /></td>
                         <td className="text-right font-mono font-semibold">{fmtScore(t.metrics?.score)}</td>
                         <td className={`text-right font-mono font-semibold ${profit > 0 ? "text-success" : profit < 0 ? "text-error" : "text-base-content/45"}`}>{fmtPct(profit)}</td>
@@ -1203,6 +1271,14 @@ export default function OptimizerTab({
               <Panel title="Best Parameter Overrides">
                 <ParamPreview trial={bestTrial} spaces={searchSpaces} />
               </Panel>
+              <CandidateReadinessPanel
+                compact
+                strategyName={strategyName}
+                optimizerSessionId={optSessionId}
+                trialNumber={bestTrial.trial_number}
+                backtestRunId={bestTrial.run_id}
+                onAnalyzeReadiness={handleAnalyzeReadiness}
+              />
               <Panel title="Top Completed Trials">
                 <div className="overflow-x-auto">
                   <table className="table table-xs w-full">
@@ -1218,7 +1294,11 @@ export default function OptimizerTab({
                     <tbody>
                       {[...completedWithMetrics].sort((a, b) => (b.metrics?.score ?? -Infinity) - (a.metrics?.score ?? -Infinity)).slice(0, 8).map(t => (
                         <tr key={t.trial_number} className="cursor-pointer hover:bg-base-300/35" onClick={() => setSelectedTrial(t)}>
-                          <td className="font-mono">#{t.trial_number}{t.trial_number === bestTrialNum && <span className="ml-2 text-success text-[10px] uppercase">best</span>}</td>
+                          <td className="font-mono">
+                            #{t.trial_number}
+                            {t.trial_number === bestTrialNum && <span className="ml-2 text-success text-[10px] uppercase">best</span>}
+                            {exportedTrialNumbers.has(t.trial_number) && <span className="ml-2 text-info text-[10px] uppercase">exported</span>}
+                          </td>
                           <td className="text-right font-mono">{fmtScore(t.metrics?.score)}</td>
                           <td className={`text-right font-mono ${metricTone(t.metrics?.net_profit_pct) === "good" ? "text-success" : metricTone(t.metrics?.net_profit_pct) === "bad" ? "text-error" : ""}`}>{fmtPct(t.metrics?.net_profit_pct)}</td>
                           <td className="text-right font-mono text-warning">{t.metrics?.max_drawdown_pct != null ? fmtPct(Math.abs(t.metrics.max_drawdown_pct), 2, false) : "-"}</td>
@@ -1248,6 +1328,21 @@ export default function OptimizerTab({
               <button className="btn btn-ghost btn-sm w-full border border-base-300" disabled={!bestTrial || !optSessionId} onClick={() => handleViewParams()}>
                 View Best Params
               </button>
+              <button
+                className="btn btn-ghost btn-sm w-full border border-info/30 text-info gap-2"
+                disabled={!bestTrial || !optSessionId || !onAskAi}
+                onClick={() => handleAnalyzeTrial(bestTrial)}
+              >
+                <SparklesIcon className="h-4 w-4" />
+                Analyze Best Result
+              </button>
+              <button
+                className="btn btn-warning btn-sm w-full"
+                disabled={!bestTrial || !bestTrial.parameters}
+                onClick={() => openApplyConfirm(bestTrial)}
+              >
+                Apply Best to Strategy
+              </button>
               <button className="btn btn-ghost btn-sm w-full border border-base-300" disabled={!bestTrial} onClick={() => handleExportSelected(bestTrial)}>
                 Export Best to Stress Lab
               </button>
@@ -1273,13 +1368,9 @@ export default function OptimizerTab({
                 <div className="rounded border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
                   Overwrite writes directly into the accepted version params.json. Candidate promotion is the safer workflow.
                 </div>
-                <button
-                  className="btn btn-warning btn-sm w-full"
-                  disabled={!bestTrial || !bestTrial.parameters}
-                  onClick={() => openApplyConfirm(bestTrial)}
-                >
-                  Overwrite Accepted with Best Trial
-                </button>
+                <div className="text-[11px] text-base-content/45">
+                  Use Apply Best above to write the best trial into the accepted strategy params.
+                </div>
               </div>
             )}
           </Panel>
@@ -1289,7 +1380,7 @@ export default function OptimizerTab({
   );
 
   return (
-    <>
+    <PageContainer className="!px-0 !py-0">
       <div className="h-full flex flex-col overflow-hidden bg-base-100">
         <header className="shrink-0 border-b border-base-300 bg-base-200/80">
           <div className="flex items-center gap-3 px-4 py-3">
@@ -1434,13 +1525,27 @@ export default function OptimizerTab({
           <div className="flex-1 overflow-y-auto p-5 space-y-5">
             {selectedTrial.metrics && <BestSummary trial={selectedTrial} compact />}
             <ParamPreview trial={selectedTrial} spaces={searchSpaces} />
+            {selectedTrial.status === "completed" && (
+              <CandidateReadinessPanel
+                compact
+                strategyName={strategyName}
+                optimizerSessionId={optSessionId}
+                trialNumber={selectedTrial.trial_number}
+                backtestRunId={selectedTrial.run_id}
+                onAnalyzeReadiness={handleAnalyzeReadiness}
+              />
+            )}
             {selectedTrial.error && <div className="rounded border border-error/30 bg-error/10 p-3 text-xs text-error">{selectedTrial.error}</div>}
           </div>
           <div className="border-t border-base-300 p-4 flex flex-wrap gap-2 justify-end">
+            <button className="btn btn-ghost btn-xs border border-info/30 text-info gap-1" disabled={selectedTrial.status !== "completed" || !onAskAi || !optSessionId} onClick={() => handleAnalyzeTrial(selectedTrial)}>
+              <SparklesIcon className="h-3.5 w-3.5" />
+              Analyze Result
+            </button>
             <button className="btn btn-ghost btn-xs border border-base-300" disabled={selectedTrial.status !== "completed"} onClick={() => handleViewParams(selectedTrial.trial_number)}>View Params</button>
+            <button className="btn btn-warning btn-xs" disabled={selectedTrial.status !== "completed" || !selectedTrial.parameters} onClick={() => openApplyConfirm(selectedTrial)}>Apply to Strategy</button>
             <button className="btn btn-ghost btn-xs border border-base-300" disabled={selectedTrial.status !== "completed"} onClick={() => handleExportSelected(selectedTrial)}>Export to Stress Lab</button>
             <button className="btn btn-primary btn-xs" disabled={selectedTrial.status !== "completed" || promotingCandidate} onClick={() => handlePromoteCandidate(selectedTrial)}>Promote Trial</button>
-            <button className="btn btn-warning btn-xs" disabled={selectedTrial.status !== "completed"} onClick={() => openApplyConfirm(selectedTrial)}>Overwrite Accepted</button>
           </div>
         </div>
       )}
@@ -1482,16 +1587,27 @@ export default function OptimizerTab({
       )}
 
       {applyConfirmTrial && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm" onClick={() => setApplyConfirmTrial(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm" onClick={() => !applyLoading && setApplyConfirmTrial(null)}>
           <div className="bg-base-200 border border-warning/40 rounded-lg shadow-2xl w-full max-w-2xl mx-4" onClick={e => e.stopPropagation()}>
             <div className="px-5 py-4 border-b border-warning/20">
               <div className="text-sm font-bold text-warning">Overwrite Accepted Params</div>
-              <div className="text-[10px] text-base-content/40 mt-1">Trial #{applyConfirmTrial.trial_number} will be written into the accepted version params.json.</div>
+              <div className="text-[10px] text-base-content/40 mt-1">Trial #{applyConfirmTrial.trial_number} will be written into the accepted version and live strategy files.</div>
             </div>
             <div className="px-5 py-4 space-y-4 text-xs">
               <div className="rounded border border-warning/30 bg-warning/10 p-3 text-warning">
-                This bypasses the candidate review workflow. It does not create a new version and it cannot be undone automatically.
+                This overwrites the accepted strategy params.json, the live strategy .py, and the live strategy .json sidecar. It does not create a new version and it cannot be undone automatically.
               </div>
+              {applyLoading && <div className="rounded border border-info/30 bg-info/10 p-3 text-info"><span className="loading loading-spinner loading-xs" /> Applying parameters to strategy files</div>}
+              {applyResult?.ok && (
+                <div className="rounded border border-success/30 bg-success/10 p-3 text-success">
+                  <div className="font-semibold">Parameters applied</div>
+                  <div className="mt-1 text-[11px] text-success/80">Updated files:</div>
+                  <ul className="mt-2 space-y-1 font-mono text-[10px] break-all">
+                    {Object.values(applyResult.written_paths || {}).map(path => <li key={path}>{path}</li>)}
+                  </ul>
+                </div>
+              )}
+              {applyResult && !applyResult.ok && <div className="rounded border border-error/30 bg-error/10 p-3 text-error">{applyResult.error}</div>}
               {applyPreviewLoading && <div className="text-base-content/40"><span className="loading loading-spinner loading-xs" /> Loading preview</div>}
               {!applyPreviewLoading && applyPreview?.error && <div className="rounded border border-error/30 bg-error/10 p-3 text-error">{applyPreview.error}</div>}
               {!applyPreviewLoading && applyPreview && !applyPreview.error && (
@@ -1503,27 +1619,22 @@ export default function OptimizerTab({
                   </pre>
                 </div>
               )}
-              <label className="form-control">
-                <span className="label-text text-xs text-base-content/50 mb-1">Type {confirmToken} to confirm</span>
-                <input className="input input-bordered input-sm font-mono" value={applyConfirmText} onChange={e => setApplyConfirmText(e.target.value)} />
-              </label>
             </div>
             <div className="px-5 py-3 border-t border-base-300 flex gap-2 justify-end">
-              <button className="btn btn-ghost btn-xs" onClick={() => setApplyConfirmTrial(null)}>Cancel</button>
+              <button className="btn btn-ghost btn-xs" disabled={applyLoading} onClick={() => setApplyConfirmTrial(null)}>{applyResult?.ok ? "Close" : "Cancel"}</button>
               <button
                 className="btn btn-warning btn-xs"
-                disabled={applyConfirmText !== confirmToken}
-                onClick={() => {
-                  handleApplyTrial(applyConfirmTrial);
-                  setApplyConfirmTrial(null);
+                disabled={applyPreviewLoading || applyLoading || applyResult?.ok}
+                onClick={async () => {
+                  await handleApplyTrial(applyConfirmTrial);
                 }}
               >
-                Yes, Overwrite Accepted Params
+                {applyLoading ? <><span className="loading loading-spinner loading-xs" />Applying</> : "Apply Parameters"}
               </button>
             </div>
           </div>
         </div>
       )}
-    </>
+    </PageContainer>
   );
 }

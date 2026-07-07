@@ -1,12 +1,15 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { DEFAULT_AUTOQUANT_FORM } from "../constants";
 import { loadAutoQuantOptions, loadTimeframeThresholds, saveAutoQuantOptions } from "../api";
+import { pairsEqualUnordered } from "../../../utils/pairs.js";
 
-export default function useAutoQuantForm() {
+export default function useAutoQuantForm({ sharedState, sharedLoading, syncSharedState } = {}) {
   const [form, setForm] = useState(DEFAULT_AUTOQUANT_FORM);
   const [optionsLoaded, setOptionsLoaded] = useState(false);
   const [timeframeProfile, setTimeframeProfile] = useState(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const hydrated = useRef(false);
+  const lastUserPairChangeTime = useRef(0);
 
   // Load saved options on mount
   useEffect(() => {
@@ -16,6 +19,7 @@ export default function useAutoQuantForm() {
         setForm((prev) => ({
           ...prev,
           ...data,
+          pair_universe: prev.pair_universe || data.pair_universe || "",
         }));
       } catch (err) {
         console.error("Failed to load saved options:", err);
@@ -25,6 +29,52 @@ export default function useAutoQuantForm() {
     };
     loadOptions();
   }, []);
+
+  // Sync from sharedState
+  useEffect(() => {
+    if (sharedLoading || !sharedState) return;
+    if (!hydrated.current) {
+      hydrated.current = true;
+      if (sharedState.strategy_name && form.strategy !== sharedState.strategy_name) {
+        setForm((prev) => ({ ...prev, strategy: sharedState.strategy_name }));
+      }
+      if (sharedState.timeframe && form.timeframe !== sharedState.timeframe) {
+        setForm((prev) => ({ ...prev, timeframe: sharedState.timeframe }));
+      }
+      if (sharedState.dry_run_wallet != null && form.dry_run_wallet !== sharedState.dry_run_wallet) {
+        setForm((prev) => ({ ...prev, dry_run_wallet: sharedState.dry_run_wallet }));
+      }
+      if (sharedState.max_open_trades != null && form.max_open_trades !== sharedState.max_open_trades) {
+        setForm((prev) => ({ ...prev, max_open_trades: sharedState.max_open_trades }));
+      }
+    }
+    // Only sync pairs from sharedState if not recently user-initiated (debounce 1 second)
+    const now = Date.now();
+    if (sharedState.pairs?.length && now - lastUserPairChangeTime.current > 1000) {
+      const currentPairs = typeof form.pair_universe === 'string' 
+        ? form.pair_universe.split(',').map(p => p.trim()).filter(Boolean)
+        : [];
+      const sharedPairs = sharedState.pairs;
+      if (!pairsEqualUnordered(currentPairs, sharedPairs)) {
+        setForm((prev) => ({ ...prev, pair_universe: sharedPairs.join(', ') }));
+      }
+    }
+  }, [sharedState, sharedLoading, form]);
+
+  // Sync to sharedState
+  useEffect(() => {
+    if (!syncSharedState || !hydrated.current) return;
+    const pairs = typeof form.pair_universe === 'string' 
+      ? form.pair_universe.split(',').map(p => p.trim()).filter(p => p)
+      : [];
+    const payload = {};
+    if (form.strategy) payload.strategy_name = form.strategy;
+    if (form.timeframe) payload.timeframe = form.timeframe;
+    if (pairs.length) payload.pairs = pairs;
+    if (form.dry_run_wallet) payload.dry_run_wallet = form.dry_run_wallet;
+    if (form.max_open_trades) payload.max_open_trades = form.max_open_trades;
+    if (Object.keys(payload).length) syncSharedState(payload);
+  }, [form.strategy, form.timeframe, form.pair_universe, form.dry_run_wallet, form.max_open_trades, syncSharedState]);
 
   // Save options on form change with debouncing
   useEffect(() => {
@@ -68,6 +118,10 @@ export default function useAutoQuantForm() {
     setForm((prev) => ({ ...prev, [field]: value }))
   , []);
 
+  const markUserInitiatedPairChange = useCallback(() => {
+    lastUserPairChangeTime.current = Date.now();
+  }, []);
+
   const toggleSpace = useCallback((space) => {
     setForm((prev) => ({
       ...prev,
@@ -86,5 +140,6 @@ export default function useAutoQuantForm() {
     showAdvanced,
     setShowAdvanced,
     optionsLoaded,
+    markUserInitiatedPairChange,
   };
 }

@@ -291,8 +291,9 @@ async def get_optimizer_session(
     "/apply-trial",
     summary="Apply a trial's parameters to the current accepted version",
     description=(
-        "Writes the given parameter values into the accepted version's params.json so "
-        "subsequent backtests pick them up.  Does not create a new version or touch git."
+        "Writes the given parameter values into the accepted version and live strategy "
+        ".py/.json files so subsequent backtests and the strategy editor pick them up. "
+        "Does not create a new version or touch git."
     ),
 )
 async def apply_trial(body: ApplyTrialRequest, request: Request) -> dict:
@@ -323,11 +324,11 @@ async def apply_trial(body: ApplyTrialRequest, request: Request) -> dict:
         merged = services.strategy_optimizer.trial_executor.build_trial_params(
             parent_params, body.parameters
         )
-        params_path = (
-            services.version_manager.version_dir(body.strategy_name, version_id) / "params.json"
+        written_paths = services.version_manager.overwrite_accepted_params(
+            body.strategy_name,
+            version_id,
+            merged,
         )
-        from ...utils import atomic_write_json
-        atomic_write_json(params_path, merged.model_dump(mode="json"))
     except FileNotFoundError as exc:
         logger.error("Params file not found for strategy %s: %s", body.strategy_name, exc)
         raise HTTPException(
@@ -347,7 +348,13 @@ async def apply_trial(body: ApplyTrialRequest, request: Request) -> dict:
             detail=f"Failed to apply trial parameters: {exc}",
         )
 
-    return {"ok": True, "message": f"Parameters applied to '{body.strategy_name}' accepted version."}
+    return {
+        "ok": True,
+        "message": f"Parameters applied to '{body.strategy_name}' accepted version and live strategy files.",
+        "strategy_name": body.strategy_name,
+        "accepted_version_id": version_id,
+        "written_paths": written_paths,
+    }
 
 
 @router.post(

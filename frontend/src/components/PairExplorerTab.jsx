@@ -18,6 +18,8 @@ import {
   normalizeStrategies,
   saveLastUsedPairPreset,
 } from "../features/pairExplorer/utils";
+import PageContainer from "./shared/PageContainer.jsx";
+import PageHeader from "./shared/PageHeader.jsx";
 
 export default function PairExplorerTab({
   strategies = [],
@@ -139,78 +141,80 @@ export default function PairExplorerTab({
   };
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
-      <SessionHeader
-        session={session}
-        isRunning={isRunning}
-        completedPairs={completedPairs}
-        totalPairs={totalPairs}
-        failedCount={failedCount}
-        onRun={handleRun}
-        canRun={canRun}
-      />
+    <PageContainer className="!px-0 !py-0 !max-w-full">
+      <div className="h-full flex flex-col overflow-hidden">
+        <SessionHeader
+          session={session}
+          isRunning={isRunning}
+          completedPairs={completedPairs}
+          totalPairs={totalPairs}
+          failedCount={failedCount}
+          onRun={handleRun}
+          canRun={canRun}
+        />
 
-      <div className="flex flex-1 min-h-0 overflow-hidden">
-        <aside className="w-72 shrink-0 border-r border-base-300 bg-base-200/40 flex flex-col overflow-y-auto">
-          <SetupPanel
-            form={form}
-            strategies={normalizedStrategies}
-            strategiesLoading={strategiesLoading}
-            isRunning={isRunning}
-            submitError={submitError}
-            setField={setField}
-            setPairs={setPairs}
-          />
-          <HistoryPanel
-            open={historyOpen}
-            onToggle={() => setHistoryOpen((open) => !open)}
-            sessions={pastSessions}
-            loading={historyLoading}
-            activeSessionId={sessionId}
-            nowMs={nowMs}
-            onLoadSession={handleLoadSession}
-            onRefresh={loadHistory}
-          />
-        </aside>
+        <div className="flex flex-1 min-h-0 overflow-hidden">
+          <aside className="w-72 shrink-0 border-r border-base-300 bg-base-200/40 flex flex-col overflow-y-auto">
+            <SetupPanel
+              form={form}
+              strategies={normalizedStrategies}
+              strategiesLoading={strategiesLoading}
+              isRunning={isRunning}
+              submitError={submitError}
+              setField={setField}
+              setPairs={setPairs}
+            />
+            <HistoryPanel
+              open={historyOpen}
+              onToggle={() => setHistoryOpen((open) => !open)}
+              sessions={pastSessions}
+              loading={historyLoading}
+              activeSessionId={sessionId}
+              nowMs={nowMs}
+              onLoadSession={handleLoadSession}
+              onRefresh={loadHistory}
+            />
+          </aside>
 
-        <main className="flex-1 min-w-0 overflow-y-auto flex flex-col">
-          <SessionMeta
-            session={session}
-            isRunning={isRunning}
-            sessionId={sessionId}
-            completedCount={completedCount}
-            failedCount={failedCount}
-          />
-          <ProgressPanel
-            session={session}
-            isRunning={isRunning}
-            completedPairs={completedPairs}
-            totalPairs={totalPairs}
-            progressPct={progressPct}
-          />
+          <main className="flex-1 min-w-0 overflow-y-auto flex flex-col">
+            <SessionMeta
+              session={session}
+              isRunning={isRunning}
+              sessionId={sessionId}
+              completedCount={completedCount}
+              failedCount={failedCount}
+            />
+            <ProgressPanel
+              session={session}
+              isRunning={isRunning}
+              completedPairs={completedPairs}
+              totalPairs={totalPairs}
+              progressPct={progressPct}
+            />
 
-          {!session && !isRunning && (
-            <EmptyState hasHistory={pastSessions.length > 0} />
-          )}
-          {isRunning && !session && <StartingState />}
-          {session && sortedResults.length === 0 && (
-            <WaitingForResultsState session={session} />
-          )}
+            {!session && !isRunning && (
+              <EmptyState hasHistory={pastSessions.length > 0} />
+            )}
+            {isRunning && !session && <StartingState />}
+            {session && sortedResults.length === 0 && (
+              <WaitingForResultsState session={session} />
+            )}
 
-          <ResultsTable
-            sortedResults={sortedResults}
-            sortCol={sortCol}
-            sortDir={sortDir}
-            onSort={toggleSort}
-            checkedPairs={checkedPairs}
-            setCheckedPairs={setCheckedPairs}
-            applying={applying}
-            applySuccess={applySuccess}
-            onApplyPairs={() => applyPairs({ syncSharedState })}
-            syncEnabled={Boolean(syncSharedState)}
-          />
-        </main>
+            <ResultsTable
+              sortedResults={sortedResults}
+              sortCol={sortCol}
+              sortDir={sortDir}
+              onSort={toggleSort}
+              checkedPairs={checkedPairs}
+              setCheckedPairs={setCheckedPairs}
+              applying={applying}
+              applySuccess={applySuccess}
+              onApplyPairs={() => applyPairs({ syncSharedState })}
+              syncEnabled={Boolean(syncSharedState)}
+            />
+          </main>
+        </div>
       </div>
-    </div>
+    </PageContainer>
   );
 }

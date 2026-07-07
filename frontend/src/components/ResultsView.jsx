@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { api } from "../services/api.js";
 import ErrorDisplay from "./shared/ErrorDisplay";
+import PageContainer from "./shared/PageContainer.jsx";
+import PageHeader from "./shared/PageHeader.jsx";
 
 export default function ResultsView({ onLoadResult }) {
   const [results, setResults] = useState([]);
@@ -31,10 +33,15 @@ export default function ResultsView({ onLoadResult }) {
     fetchResults();
   }, []);
 
-  async function handleView(runId) {
+  async function handleView(resultRow) {
+    const runId = resultRow?.run_id || resultRow;
     try {
       const data = await api.backtest.getResults(runId);
-      onLoadResult({ run_id: runId, results: data });
+      onLoadResult({
+        run_id: runId,
+        strategy_name: resultRow?.strategy_name || data?.metadata?.strategy_name || data?.strategy_name || null,
+        results: data,
+      });
     } catch (e) {
       setError(e.message || "Network error loading result details.");
     }
@@ -42,17 +49,19 @@ export default function ResultsView({ onLoadResult }) {
 
   if (loading) {
     return (
-      <div className="p-8 flex flex-col gap-4 max-w-4xl">
-        <div className="skeleton h-12 w-full rounded-box" />
-        <div className="skeleton h-12 w-full rounded-box" />
-        <div className="skeleton h-12 w-full rounded-box" />
-      </div>
+      <PageContainer>
+        <div className="space-y-4">
+          <div className="skeleton h-12 w-full rounded-box" />
+          <div className="skeleton h-12 w-full rounded-box" />
+          <div className="skeleton h-12 w-full rounded-box" />
+        </div>
+      </PageContainer>
     );
   }
 
   if (error) {
     return (
-      <div className="p-8 max-w-4xl">
+      <PageContainer>
         <ErrorDisplay
           errorCode="config_error"
           title="Results Error"
@@ -61,13 +70,13 @@ export default function ResultsView({ onLoadResult }) {
           canAutoFix={false}
           suggestedAction="Check the backend connection and try again"
         />
-      </div>
+      </PageContainer>
     );
   }
 
   if (results.length === 0) {
     return (
-      <div className="p-8 max-w-4xl">
+      <PageContainer>
         <div className="text-center py-20">
           <div className="text-5xl mb-4 opacity-20">📊</div>
           <h3 className="text-lg font-semibold mb-1">No results yet</h3>
@@ -75,14 +84,14 @@ export default function ResultsView({ onLoadResult }) {
             Run a backtest and your results will appear here.
           </p>
         </div>
-      </div>
+      </PageContainer>
     );
   }
 
   return (
-    <div className="p-6 max-w-5xl">
-      <h2 className="text-lg font-semibold tracking-tight mb-4">Backtest Results</h2>
-      <div className="overflow-x-auto rounded-box border border-base-300">
+    <PageContainer>
+      <PageHeader title="Backtest Results" />
+      <div className="overflow-x-auto rounded-lg border border-base-300">
         <table className="table table-sm w-full">
           <thead>
             <tr className="text-xs text-base-content/50 bg-base-200">
@@ -121,7 +130,7 @@ export default function ResultsView({ onLoadResult }) {
                   <td className="text-right">
                     <button
                       className="btn btn-xs btn-ghost"
-                      onClick={() => handleView(res.run_id)}
+                      onClick={() => handleView(res)}
                     >
                       View
                     </button>
@@ -132,6 +141,6 @@ export default function ResultsView({ onLoadResult }) {
           </tbody>
         </table>
       </div>
-    </div>
+    </PageContainer>
   );
 }

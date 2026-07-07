@@ -22,6 +22,7 @@ function App() {
   const [agentTabContext, setAgentTabContext] = useState({});
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [assistantContext, setAssistantContext] = useState({});
+  const [assistantRequest, setAssistantRequest] = useState({});
   const [strategyEditorDirty, setStrategyEditorDirty] = useState(false);
 
   useTheme();
@@ -56,9 +57,19 @@ function App() {
     buildAgentContext({ activeTab, activeResult, agentTabContext })
   ), [activeResult, activeTab, agentTabContext]);
 
-  const openAssistant = useCallback(() => {
-    const overrides = currentAgentOverrides();
+  const openAssistant = useCallback((request = {}) => {
+    const requestContext = request.context || request.contextOverrides || {};
+    const overrides = {
+      ...currentAgentOverrides(),
+      ...requestContext,
+    };
     setAssistantContext(overrides);
+    setAssistantRequest({
+      initialPrompt: request.message || request.initialPrompt || "",
+      initialMode: request.mode || (request.message || request.initialPrompt ? "analysis" : "auto"),
+      initialIncludeStrategySource: Boolean(request.includeStrategySource),
+      requestKey: request.requestKey || `${Date.now()}-${Math.random()}`,
+    });
     setAssistantOpen(true);
     syncAgentUiState(overrides);
   }, [currentAgentOverrides, syncAgentUiState]);
@@ -92,7 +103,7 @@ function App() {
   return (
     <ToastProvider>
       <ErrorBoundary tabName="App">
-        <div className="h-screen flex flex-col bg-base-100 text-base-content overflow-hidden">
+        <div className="h-screen w-screen flex flex-col bg-base-100 text-base-content overflow-hidden">
           <div className="bg-orbs" />
           <div className="bg-dot-grid" />
           
@@ -103,30 +114,35 @@ function App() {
             isWorkRunning={isWorkRunning}
           />
 
-          <main className="flex-1 min-w-0 overflow-y-auto pt-20 px-6 pb-6">
-            <TabContentRenderer
-              activeTab={activeTab}
-              tabProps={{
-                strategies,
-                strategiesLoading,
-                availablePairs,
-                searchPairs,
-                sharedState,
-                sharedLoading,
-                syncSharedState,
-                activeResult,
-                clearActiveResult,
-                handleLoadResult,
-                onAgentContextChange: setAgentTabContext,
-                onDirtyChange: setStrategyEditorDirty,
-                onAskAi: openAssistant,
-              }}
-            />
+          <main className="flex-1 min-w-0 overflow-hidden">
+            <div className="h-full overflow-y-auto pt-[56px] px-6 pb-6">
+              <div className="max-w-[1600px] mx-auto">
+                <TabContentRenderer
+                  activeTab={activeTab}
+                  tabProps={{
+                    strategies,
+                    strategiesLoading,
+                    availablePairs,
+                    searchPairs,
+                    sharedState,
+                    sharedLoading,
+                    syncSharedState,
+                    activeResult,
+                    clearActiveResult,
+                    handleLoadResult,
+                    onAgentContextChange: setAgentTabContext,
+                    onDirtyChange: setStrategyEditorDirty,
+                    onAskAi: openAssistant,
+                  }}
+                />
+              </div>
+            </div>
           </main>
 
           {assistantOpen && (
             <AssistantDrawer
               context={assistantContext}
+              request={assistantRequest}
               onClose={() => setAssistantOpen(false)}
             />
           )}
