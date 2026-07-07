@@ -18,7 +18,10 @@ const WORKFLOW_EVENT_TYPES = new Set([
   "tool_failed",
   "tool_cancelled",
   "tool_timed_out",
+  "execution_timeout",
   "observation_timeout",
+  "observation_paused",
+  "monitoring_paused",
 ]);
 
 // ── SSE parser ────────────────────────────────────────────────────────────────
@@ -39,6 +42,17 @@ export function parseSseEvent(chunk) {
 
 function getDoneContent(data) {
   return data?.message?.content || data?.content || data?.text || "";
+}
+
+function mergeAssistantContent(current, incoming, { append = false } = {}) {
+  const prev = String(current || "");
+  const next = String(incoming || "");
+  if (!next) return prev;
+  if (append) return prev + next;
+  if (next === prev) return prev;
+  if (next.startsWith(prev)) return next;
+  if (prev.endsWith(next)) return prev;
+  return prev + next;
 }
 
 // ── rebuild timeline from persisted session ───────────────────────────────────
@@ -139,24 +153,16 @@ function buildCardsFromSession(session) {
       auto_quant_run_id:  job.auto_quant_run_id || null,
     });
 
-    if (job.progress || job.status) {
-      events.push({
-        type:               "job_active",
-        tool_name:          toolName,
-        tool_call_id:       job.tool_call_id   || null,
-        status:             job.status         || "running",
-        api_session_id:     job.api_session_id  || null,
-        optimizer_session_id: job.optimizer_session_id || null,
-        run_id:             job.run_id          || null,
-        auto_quant_run_id:  job.auto_quant_run_id || null,
-        progress:           job.progress        || null,
-      });
-    }
-
     events.push({
-      type:           "observation_timeout",
-      tool_name:      toolName,
-      api_session_id: job.api_session_id || null,
+      type:               "job_active",
+      tool_name:          toolName,
+      tool_call_id:       job.tool_call_id   || null,
+      status:             job.status         || "running",
+      api_session_id:     job.api_session_id  || null,
+      optimizer_session_id: job.optimizer_session_id || null,
+      run_id:             job.run_id          || null,
+      auto_quant_run_id:  job.auto_quant_run_id || null,
+      progress:           job.progress        || null,
     });
   }
 
@@ -165,7 +171,7 @@ function buildCardsFromSession(session) {
 
 // ── hook ──────────────────────────────────────────────────────────────────────
 
-export function useAssistantChat({ contextOverrides = {} } = {}) {
+export function useAssistantChat({ contextOverrides = {}, mode: defaultMode = "analysis" } = {}) {
   const [messages, setMessages]   = useState([]);
   const [sessionId, setSessionId] = useState(null);
   const [status, setStatus]       = useState("idle");
@@ -262,7 +268,7 @@ export function useAssistantChat({ contextOverrides = {} } = {}) {
             const token = event.data?.content || "";
             if (!token) continue;
             hasStreamedContent = true;
-            streamedContent += token;
+            streamedContent = mergeAssistantContent(streamedContent, token, { append: true });
             updateAssistantMessage(assistantId, (m) => ({ ...m, content: streamedContent }));
             continue;
           }
@@ -271,9 +277,9 @@ export function useAssistantChat({ contextOverrides = {} } = {}) {
             if (event.data?.session_id) setSessionId(event.data.session_id);
             if (event.data?.available_actions) setAvailableActions(event.data.available_actions);
             const finalContent = getDoneContent(event.data);
-            if (!hasStreamedContent && finalContent) {
-              streamedContent = finalContent;
-              updateAssistantMessage(assistantId, (m) => ({ ...m, content: finalContent }));
+            if (finalContent) {
+              streamedContent = mergeAssistantContent(streamedContent, finalContent);
+              updateAssistantMessage(assistantId, (m) => ({ ...m, content: streamedContent }));
             }
             setStatus("idle");
             continue;
@@ -284,11 +290,11 @@ export function useAssistantChat({ contextOverrides = {} } = {}) {
           }
 
           if (event.type === "message" || event.type === "final") {
-            // Copilot streaming: "message" carries partial text, "final" carries complete text
+            // Copilot streaming: message/final are content snapshots, not additive tokens.
             const chunk = event.data?.content || "";
             if (chunk) {
               hasStreamedContent = true;
-              streamedContent += chunk;
+              streamedContent = mergeAssistantContent(streamedContent, chunk);
               updateAssistantMessage(assistantId, (m) => ({ ...m, content: streamedContent }));
             }
             continue;
@@ -314,7 +320,7 @@ export function useAssistantChat({ contextOverrides = {} } = {}) {
   // ── send message ───────────────────────────────────────────────────────────
 
   const sendMessage = useCallback(
-    async (rawText) => {
+    async (rawText, request = {}) => {
       const text = String(rawText || "").trim();
       if (!text || status === "sending" || status === "streaming") return false;
 
@@ -338,8 +344,10 @@ export function useAssistantChat({ contextOverrides = {} } = {}) {
           body:    JSON.stringify({
             message:          text,
             session_id:       sessionId,
-            mode:             "analysis",
-            context_overrides: contextOverrides || {},
+            mode:             request.mode || defaultMode || "analysis",
+            model:            request.model || undefined,
+            include_strategy_source: Boolean(request.includeStrategySource),
+            context_overrides: request.contextOverrides || contextOverrides || {},
           }),
         });
 
@@ -367,7 +375,7 @@ export function useAssistantChat({ contextOverrides = {} } = {}) {
         return false;
       }
     },
-    [contextOverrides, sessionId, status, consumeStream, updateAssistantMessage]
+    [contextOverrides, defaultMode, sessionId, status, consumeStream, updateAssistantMessage]
   );
 
   // ── confirm workflow action ────────────────────────────────────────────────

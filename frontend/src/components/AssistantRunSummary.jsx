@@ -41,6 +41,19 @@ function InfoRow({ label, value }) {
   );
 }
 
+function navigationPayload(tab, ctx = {}, liveCard = {}) {
+  const payload = { tab };
+  const optimizerSessionId = ctx.optimizer_session_id || liveCard.optimizerSessionId || liveCard.result?.optimizer_session_id;
+  const apiSessionId = ctx.api_session_id || liveCard.apiSessionId;
+  const runId = ctx.backtest_run_id || ctx.run_id || liveCard.runId || liveCard.result?.run_id;
+  const autoQuantRunId = ctx.auto_quant_run_id || liveCard.autoQuantRunId || liveCard.result?.auto_quant_run_id;
+  if (optimizerSessionId) payload.optimizer_session_id = optimizerSessionId;
+  if (apiSessionId) payload.api_session_id = apiSessionId;
+  if (runId) payload.run_id = runId;
+  if (autoQuantRunId) payload.auto_quant_run_id = autoQuantRunId;
+  return payload;
+}
+
 // ── Optimizer summary ─────────────────────────────────────────────────────────
 function OptimizerSummary({ ctx, liveCard, onNavigate }) {
   const sessionId = ctx.optimizer_session_id;
@@ -86,7 +99,7 @@ function OptimizerSummary({ ctx, liveCard, onNavigate }) {
 
       <button
         type="button"
-        onClick={() => onNavigate?.("optimizer")}
+        onClick={() => onNavigate?.(navigationPayload("optimizer", ctx, liveCard))}
         className="w-full rounded-md border border-gray-300 dark:border-gray-700 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 transition-colors hover:border-violet-400 dark:hover:border-violet-600 hover:text-violet-700 dark:hover:text-violet-400"
       >
         Open Optimizer
@@ -120,7 +133,7 @@ function BacktestSummary({ ctx, liveCard, onNavigate }) {
 
       <button
         type="button"
-        onClick={() => onNavigate?.("results")}
+        onClick={() => onNavigate?.(navigationPayload("results", ctx, liveCard))}
         className="w-full rounded-md border border-gray-300 dark:border-gray-700 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 transition-colors hover:border-violet-400 dark:hover:border-violet-600 hover:text-violet-700 dark:hover:text-violet-400"
       >
         Open Results
@@ -158,7 +171,7 @@ function AutoQuantSummary({ ctx, liveCard, onNavigate }) {
 
       <button
         type="button"
-        onClick={() => onNavigate?.("auto-quant")}
+        onClick={() => onNavigate?.(navigationPayload("auto-quant", ctx, liveCard))}
         className="w-full rounded-md border border-gray-300 dark:border-gray-700 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 transition-colors hover:border-violet-400 dark:hover:border-violet-600 hover:text-violet-700 dark:hover:text-violet-400"
       >
         Open AutoQuant
@@ -186,7 +199,7 @@ function StressSummary({ ctx, liveCard, onNavigate }) {
 
       <button
         type="button"
-        onClick={() => onNavigate?.("stress-test")}
+        onClick={() => onNavigate?.(navigationPayload("stress-test", ctx, liveCard))}
         className="w-full rounded-md border border-gray-300 dark:border-gray-700 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 transition-colors hover:border-violet-400 dark:hover:border-violet-600 hover:text-violet-700 dark:hover:text-violet-400"
       >
         Open {label}
@@ -290,7 +303,7 @@ export default function AssistantRunSummary({ contextOverrides = {}, cards = {},
         {tabId && (
           <button
             type="button"
-            onClick={() => onNavigate?.(tabId)}
+            onClick={() => onNavigate?.(navigationPayload(tabId, ctx, runningCard))}
             className="w-full rounded-md border border-gray-300 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:border-violet-400 hover:text-violet-700"
           >
             Open {tabId.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}

@@ -87,14 +87,27 @@ export default function AutoQuantControlCenter({
   useEffect(() => {
     if (!onAgentContextChange) return;
     onAgentContextChange({
+      active_tab: "auto-quant",
       active_panel: pipelineState?.current_stage ? `stage-${pipelineState.current_stage}` : null,
+      current_stage: pipelineState?.current_stage || null,
       strategy_name: pipelineState?.strategy || form.strategy || null,
       auto_quant_run_id: runId,
+      pipeline_status: pipelineState?.status || null,
+      candidate_run_id: pipelineState?.candidate_run_id || null,
+      api_session_id: pipelineState?.api_session_id || null,
       optimizer_session_id: null,
       backtest_run_id: null,
-      api_session_id: null,
     });
-  }, [form.strategy, onAgentContextChange, pipelineState?.current_stage, pipelineState?.strategy, runId]);
+  }, [
+    form.strategy,
+    onAgentContextChange,
+    pipelineState?.api_session_id,
+    pipelineState?.candidate_run_id,
+    pipelineState?.current_stage,
+    pipelineState?.status,
+    pipelineState?.strategy,
+    runId,
+  ]);
 
   const handleStart = async () => {
     if (!form.strategy) return;

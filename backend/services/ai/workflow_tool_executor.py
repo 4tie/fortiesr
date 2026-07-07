@@ -200,7 +200,9 @@ class WorkflowToolExecutor:
             return ToolRunStatus.FAILED
         if normalized in {"cancelled", "canceled"}:
             return ToolRunStatus.CANCELLED
-        if normalized in {"timed_out", "timeout", "observation_timeout"}:
+        if normalized in {"observation_timeout", "observation_paused", "monitoring_paused"}:
+            return ToolRunStatus.OBSERVATION_PAUSED
+        if normalized in {"timed_out", "timeout", "execution_timeout", "execution_timed_out"}:
             return ToolRunStatus.TIMED_OUT
         if normalized in {"queued", "pending", "starting", "started", "running", "in_progress"}:
             return ToolRunStatus.RUNNING
@@ -495,7 +497,7 @@ class WorkflowToolExecutor:
                 # The job is still running from the backend's perspective, so it
                 # must NOT be reported as COMPLETED.
                 timed_out = True
-                final_status = "timed_out"
+                final_status = ToolRunStatus.OBSERVATION_PAUSED.value
                 if run_id is None and event.get("result"):
                     final_result = event.get("result", {})
                     if "run_id" in final_result:
@@ -620,7 +622,7 @@ class WorkflowToolExecutor:
                 # It is still running from the backend's perspective, so it
                 # must NOT be reported as COMPLETED.
                 timed_out = True
-                final_phase = ToolRunStatus.TIMED_OUT.value
+                final_phase = ToolRunStatus.OBSERVATION_PAUSED.value
                 continue
 
             if event["type"] == "optimizer_progress":

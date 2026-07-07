@@ -1,248 +1,204 @@
 /**
  * useAssistantWorkflow
  *
- * Manages workflow card state derived from real SSE events.
- * Cards have stable identity keyed on action_id → tool_call_id → tool_name.
- * Each lifecycle event updates the SAME card rather than appending a new one.
+ * Manages workflow card state derived from real SSE events. A card has one
+ * canonical key, while backend identifiers are tracked as aliases to that key.
  */
 import { useCallback, useReducer } from "react";
 
-// ── card lifecycle states ─────────────────────────────────────────────────────
 export const CARD_STATUS = {
-  PROPOSED:             "proposed",
-  AWAITING_CONFIRMATION:"awaiting_confirmation",
-  STARTING:             "starting",
-  QUEUED:               "queued",
-  RUNNING:              "running",
-  COMPLETED:            "completed",
-  FAILED:               "failed",
-  CANCELLED:            "cancelled",
-  // Two semantically distinct timeout states:
-  OBSERVATION_PAUSED:   "observation_paused",  // assistant stopped monitoring — job may still run
-  EXECUTION_TIMED_OUT:  "execution_timed_out", // backend job exceeded its limit
+  PROPOSED: "proposed",
+  AWAITING_CONFIRMATION: "awaiting_confirmation",
+  STARTING: "starting",
+  QUEUED: "queued",
+  RUNNING: "running",
+  COMPLETED: "completed",
+  FAILED: "failed",
+  CANCELLED: "cancelled",
+  OBSERVATION_PAUSED: "observation_paused",
+  EXECUTION_TIMED_OUT: "execution_timed_out",
 };
 
-/**
- * Derive the best stable card key from a workflow event.
- * Priority: action_id > tool_call_id > tool_name
- */
-export function cardKeyFromEvent(event) {
-  if (event.action_id)    return `action:${event.action_id}`;
-  if (event.tool_call_id) return `call:${event.tool_call_id}`;
-  if (event.tool_name)    return `tool:${event.tool_name}`;
-  return null;
-}
+export const INITIAL_WORKFLOW_STATE = {
+  cards: {},
+  aliases: {},
+  activeByTool: {},
+};
 
-/**
- * Friendly label for a tool name.
- */
+const TERMINAL_STATUSES = new Set([
+  CARD_STATUS.COMPLETED,
+  CARD_STATUS.FAILED,
+  CARD_STATUS.CANCELLED,
+  CARD_STATUS.OBSERVATION_PAUSED,
+  CARD_STATUS.EXECUTION_TIMED_OUT,
+]);
+
 function labelFromToolName(toolName) {
   return String(toolName || "")
     .replace(/_/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-// ── reducer ───────────────────────────────────────────────────────────────────
+function aliasEntriesFromEvent(event = {}) {
+  return [
+    ["action", event.action_id],
+    ["call", event.tool_call_id],
+    ["api", event.api_session_id],
+    ["optimizer", event.optimizer_session_id],
+    ["run", event.run_id || event.backtest_run_id],
+    ["autoquant", event.auto_quant_run_id],
+  ]
+    .filter(([, value]) => value != null && value !== "")
+    .map(([kind, value]) => `${kind}:${value}`);
+}
 
-function cardsReducer(state, action) {
-  const { event } = action;
-  const key = cardKeyFromEvent(event);
+export function cardKeyFromEvent(event) {
+  return aliasEntriesFromEvent(event)[0] || null;
+}
+
+function mergeAliases(state, canonicalKey, event) {
+  const aliases = { ...state.aliases, [canonicalKey]: canonicalKey };
+  for (const alias of aliasEntriesFromEvent(event)) {
+    aliases[alias] = canonicalKey;
+  }
+  return aliases;
+}
+
+function resolveCardKey(state, event) {
+  for (const alias of aliasEntriesFromEvent(event)) {
+    if (state.aliases[alias]) return state.aliases[alias];
+    if (state.cards[alias]) return alias;
+  }
+
+  const toolName = event.tool_name;
+  if (!toolName) return null;
+
+  const candidates = (state.activeByTool[toolName] || []).filter((key) => {
+    const card = state.cards[key];
+    return card && !TERMINAL_STATUSES.has(card.status);
+  });
+
+  return candidates.length === 1 ? candidates[0] : null;
+}
+
+function rememberActiveTool(state, card) {
+  if (!card?.toolName || TERMINAL_STATUSES.has(card.status)) return state.activeByTool;
+  const existing = state.activeByTool[card.toolName] || [];
+  return {
+    ...state.activeByTool,
+    [card.toolName]: [...existing.filter((key) => key !== card.key), card.key],
+  };
+}
+
+function withCard(state, key, card, event) {
+  const mergedCard = {
+    ...card,
+    key,
+    actionId: card.actionId || event.action_id || null,
+    toolCallId: card.toolCallId || event.tool_call_id || null,
+    apiSessionId: card.apiSessionId || event.api_session_id || null,
+    optimizerSessionId: card.optimizerSessionId || event.optimizer_session_id || null,
+    runId: card.runId || event.run_id || event.backtest_run_id || null,
+    autoQuantRunId: card.autoQuantRunId || event.auto_quant_run_id || null,
+    jobType: card.jobType || event.job_type || null,
+  };
+  const next = {
+    cards: { ...state.cards, [key]: mergedCard },
+    aliases: mergeAliases(state, key, event),
+    activeByTool: state.activeByTool,
+  };
+  return { ...next, activeByTool: rememberActiveTool(next, mergedCard) };
+}
+
+function baseCard(key, event, status) {
+  return {
+    key,
+    status,
+    toolName: event.tool_name,
+    title: labelFromToolName(event.tool_name),
+    arguments: event.arguments || {},
+    actionId: event.action_id || null,
+    toolCallId: event.tool_call_id || null,
+    confirmationEndpoint: event.confirmation_endpoint || "/api/ai/actions/confirm",
+    confirmationActionType: event.confirmation_action_type || "confirm_tool_action",
+    confirmationPayload: event.confirmation_payload || {},
+    sessionId: event.session_id || null,
+    progress: null,
+    error: null,
+    result: null,
+    confirming: false,
+  };
+}
+
+export function workflowReducer(state = INITIAL_WORKFLOW_STATE, action) {
+  const event = action?.event || {};
+  const resolvedKey = resolveCardKey(state, event);
+  const key = resolvedKey || cardKeyFromEvent(event);
   if (!key) return state;
 
-  const existing = state[key] || null;
+  const existing = state.cards[key] || null;
 
   switch (event.type) {
     case "tool_confirmation_required": {
-      if (existing) return state; // already created
-      return {
-        ...state,
-        [key]: {
-          key,
-          status:               CARD_STATUS.AWAITING_CONFIRMATION,
-          toolName:             event.tool_name,
-          title:                labelFromToolName(event.tool_name),
-          arguments:            event.arguments || {},
-          actionId:             event.action_id || null,
-          toolCallId:           null,
-          confirmationEndpoint: event.confirmation_endpoint || "/api/ai/actions/confirm",
-          confirmationActionType: event.confirmation_action_type || "confirm_tool_action",
-          confirmationPayload:  event.confirmation_payload || {},
-          sessionId:            event.session_id || null,
-          progress:             null,
-          error:                null,
-          result:               null,
-          confirming:           false,
-        },
-      };
+      if (existing) return withCard(state, key, existing, event);
+      return withCard(state, key, baseCard(key, event, CARD_STATUS.AWAITING_CONFIRMATION), event);
     }
 
     case "tool_started": {
-      if (!existing) {
-        // Synthesise a card for read-only tools that skip confirmation
-        return {
-          ...state,
-          [key]: {
-            key,
-            status:     CARD_STATUS.STARTING,
-            toolName:   event.tool_name,
-            title:      labelFromToolName(event.tool_name),
-            arguments:  event.arguments || {},
-            actionId:   event.action_id || null,
-            toolCallId: event.tool_call_id || null,
-            progress:   null,
-            error:      null,
-            result:     null,
-          },
-        };
-      }
-      return {
-        ...state,
-        [key]: { ...existing, status: CARD_STATUS.STARTING, toolCallId: event.tool_call_id || existing.toolCallId, confirming: false },
-      };
+      const card = existing || baseCard(key, event, CARD_STATUS.STARTING);
+      return withCard(state, key, { ...card, status: CARD_STATUS.STARTING, confirming: false }, event);
     }
 
     case "job_active": {
       const rawStatus = event.status || event.progress?.status || "running";
-      const cardStatus = rawStatus === "queued" ? CARD_STATUS.QUEUED : CARD_STATUS.RUNNING;
-      const base = existing || {
-        key,
-        toolName:   event.tool_name,
-        title:      labelFromToolName(event.tool_name),
-        arguments:  {},
-        actionId:   null,
-        toolCallId: event.tool_call_id || null,
-        error:      null,
-        result:     null,
-      };
-      return {
-        ...state,
-        [key]: { ...base, status: cardStatus, progress: event.progress || null },
-      };
+      const status = rawStatus === "queued" ? CARD_STATUS.QUEUED : CARD_STATUS.RUNNING;
+      const card = existing || baseCard(key, event, status);
+      return withCard(state, key, { ...card, status, progress: event.progress || null }, event);
     }
 
     case "tool_progress": {
-      const base = existing || {
-        key,
-        toolName:  event.tool_name,
-        title:     labelFromToolName(event.tool_name),
-        arguments: {},
-        actionId:  null,
-        toolCallId: event.tool_call_id || null,
-        error:     null,
-        result:    null,
-        status:    CARD_STATUS.RUNNING,
-      };
-      return {
-        ...state,
-        [key]: { ...base, status: CARD_STATUS.RUNNING, progress: event.progress || null },
-      };
+      const card = existing || baseCard(key, event, CARD_STATUS.RUNNING);
+      return withCard(state, key, { ...card, status: CARD_STATUS.RUNNING, progress: event.progress || null }, event);
     }
 
     case "tool_result": {
       if (!existing) return state;
-      return {
-        ...state,
-        [key]: {
-          ...existing,
-          status:   CARD_STATUS.COMPLETED,
-          result:   event.result || null,
-          error:    null,
-          progress: null,
-        },
-      };
+      return withCard(state, key, { ...existing, status: CARD_STATUS.COMPLETED, result: event.result || null, error: null, progress: null }, event);
     }
 
     case "tool_failed": {
       if (!existing) return state;
-      return {
-        ...state,
-        [key]: {
-          ...existing,
-          status: CARD_STATUS.FAILED,
-          error:  event.error || "Tool execution failed.",
-          progress: null,
-        },
-      };
+      return withCard(state, key, { ...existing, status: CARD_STATUS.FAILED, error: event.error || "Tool execution failed.", progress: null }, event);
     }
 
     case "tool_cancelled": {
       if (!existing) return state;
-      return {
-        ...state,
-        [key]: {
-          ...existing,
-          status: CARD_STATUS.CANCELLED,
-          error:  event.error || null,
-          progress: null,
-        },
-      };
+      return withCard(state, key, { ...existing, status: CARD_STATUS.CANCELLED, error: event.error || null, progress: null }, event);
     }
 
-    case "tool_timed_out": {
+    case "tool_timed_out":
+    case "execution_timeout": {
       if (!existing) return state;
-      // This is execution-level timeout (backend job exceeded its limit).
-      // Display as execution_timed_out with amber/red styling.
-      return {
-        ...state,
-        [key]: {
-          ...existing,
-          status: CARD_STATUS.EXECUTION_TIMED_OUT,
-          error:  event.error || "Execution timed out.",
-          progress: null,
-        },
-      };
+      return withCard(state, key, { ...existing, status: CARD_STATUS.EXECUTION_TIMED_OUT, error: event.error || "Execution timed out.", progress: null }, event);
     }
 
-    case "observation_timeout": {
-      // The assistant stopped monitoring — the job may still be running.
-      // Strategy: find the card to update by trying multiple matching approaches:
-      // 1. Direct api_session_id match against tool_call_id (most specific)
-      // 2. The tool_name key (synthesised key)
-      // 3. Any running card for this tool_name
-
-      const apiSessionId = event.api_session_id;
-      const toolName = event.tool_name;
-
-      // Try to find the card by tool_call_id stored in existing cards
-      let targetKey = null;
-      if (apiSessionId) {
-        // Check if any card was created with this api_session_id as toolCallId
-        const byCallId = `call:${apiSessionId}`;
-        if (state[byCallId]) {
-          targetKey = byCallId;
-        }
-      }
-      // Fall back to tool_name key
-      if (!targetKey && toolName) {
-        const byToolName = `tool:${toolName}`;
-        if (state[byToolName]) targetKey = byToolName;
-      }
-      // Fall back to scanning all cards for one with matching toolName that is running
-      if (!targetKey && toolName) {
-        for (const [k, c] of Object.entries(state)) {
-          if (c.toolName === toolName && ["starting", "queued", "running"].includes(c.status)) {
-            targetKey = k;
-            break;
-          }
-        }
-      }
-
-      if (!targetKey) return state;
-
-      return {
-        ...state,
-        [targetKey]: {
-          ...state[targetKey],
-          status:   CARD_STATUS.OBSERVATION_PAUSED,
-          progress: null,
-        },
-      };
+    case "observation_timeout":
+    case "observation_paused":
+    case "monitoring_paused": {
+      if (!existing) return state;
+      return withCard(state, key, { ...existing, status: CARD_STATUS.OBSERVATION_PAUSED, progress: null }, event);
     }
 
     case "__patch": {
-      const pKey = event.__key;
-      if (!pKey || !state[pKey]) return state;
-      return { ...state, [pKey]: { ...state[pKey], ...event.__patch } };
+      const patchKey = event.__key;
+      if (!patchKey || !state.cards[patchKey]) return state;
+      return {
+        ...state,
+        cards: {
+          ...state.cards,
+          [patchKey]: { ...state.cards[patchKey], ...event.__patch },
+        },
+      };
     }
 
     default:
@@ -250,28 +206,21 @@ function cardsReducer(state, action) {
   }
 }
 
-// ── hook ──────────────────────────────────────────────────────────────────────
-
 export function useAssistantWorkflow() {
-  const [cards, dispatch] = useReducer(cardsReducer, {});
+  const [state, dispatch] = useReducer(workflowReducer, INITIAL_WORKFLOW_STATE);
 
   const applyEvent = useCallback((event) => {
     dispatch({ event });
   }, []);
 
-  // Patch for confirming state (handled outside main reducer for simplicity)
   const patchCard = useCallback((key, patch) => {
     dispatch({ event: { type: "__patch", __key: key, __patch: patch } });
   }, []);
 
   return {
-    /** Map of cardKey → card object */
-    cards,
-    /** Sorted array of cards in insertion order */
-    cardList: Object.values(cards),
-    /** Apply a single workflow SSE event */
+    cards: state.cards,
+    cardList: Object.values(state.cards),
     applyEvent,
-    /** Patch a card's fields directly (e.g. confirming: true) */
     patchCard,
   };
 }

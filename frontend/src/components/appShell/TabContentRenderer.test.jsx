@@ -23,8 +23,32 @@ const mockOptimizerComponent = jest.fn((props) => (
       strategies: props.strategies,
       hasOnAgentContextChange: typeof props.onAgentContextChange === "function",
       hasOnDirtyChange: typeof props.onDirtyChange === "function",
+      deepNavigationTarget: props.deepNavigationTarget,
     })}
   </div>
+));
+
+const mockAutoQuantComponent = jest.fn((props) => (
+  <button
+    data-testid="auto-quant-tab"
+    type="button"
+    onClick={() => props.onAgentContextChange?.({
+      active_tab: "auto-quant",
+      active_panel: "stage-2",
+      strategy_name: "AQStrategy",
+      auto_quant_run_id: "aq-1",
+      pipeline_status: "running",
+      candidate_run_id: "candidate-1",
+      api_session_id: "api-1",
+      optimizer_session_id: null,
+      backtest_run_id: null,
+    })}
+  >
+    {JSON.stringify({
+      deepNavigationTarget: props.deepNavigationTarget,
+      hasOnAgentContextChange: typeof props.onAgentContextChange === "function",
+    })}
+  </button>
 ));
 
 jest.mock("../ErrorBoundary.jsx", () => ({ children, tabName }) => (
@@ -55,6 +79,11 @@ jest.mock("../tabs/registry.js", () => ({
         id: "optimizer",
         label: "Optimizer",
         component: mockOptimizerComponent,
+      },
+      "auto-quant": {
+        id: "auto-quant",
+        label: "AutoQuant",
+        component: mockAutoQuantComponent,
       },
       results: {
         id: "results",
@@ -165,6 +194,7 @@ describe("TabContentRenderer", () => {
           strategies: [{ strategy_name: "OptStrategy" }],
           onAgentContextChange,
           onDirtyChange,
+          deepNavigationTarget: { tab: "optimizer", optimizer_session_id: "opt-1" },
         }}
       />
     );
@@ -175,6 +205,39 @@ describe("TabContentRenderer", () => {
       strategies: [{ strategy_name: "OptStrategy" }],
       hasOnAgentContextChange: true,
       hasOnDirtyChange: true,
+      deepNavigationTarget: { tab: "optimizer", optimizer_session_id: "opt-1" },
     });
+  });
+
+  test("passes AutoQuant context callback and deep navigation target through wrapper", () => {
+    const onAgentContextChange = jest.fn();
+
+    render(
+      <TabContentRenderer
+        activeTab="auto-quant"
+        tabProps={{
+          strategies: [{ strategy_name: "AQStrategy" }],
+          onAgentContextChange,
+          deepNavigationTarget: { tab: "auto-quant", auto_quant_run_id: "aq-1" },
+        }}
+      />
+    );
+
+    expect(screen.getByTestId("boundary-AutoQuant")).toBeInTheDocument();
+    expect(JSON.parse(screen.getByTestId("auto-quant-tab").textContent)).toEqual({
+      deepNavigationTarget: { tab: "auto-quant", auto_quant_run_id: "aq-1" },
+      hasOnAgentContextChange: true,
+    });
+
+    fireEvent.click(screen.getByTestId("auto-quant-tab"));
+    expect(onAgentContextChange).toHaveBeenCalledWith(expect.objectContaining({
+      active_tab: "auto-quant",
+      active_panel: "stage-2",
+      auto_quant_run_id: "aq-1",
+      candidate_run_id: "candidate-1",
+      api_session_id: "api-1",
+      optimizer_session_id: null,
+      backtest_run_id: null,
+    }));
   });
 });

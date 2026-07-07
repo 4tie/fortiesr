@@ -682,6 +682,8 @@ class WorkflowCopilot:
             return {"type": "tool_cancelled", **base, "error": result.error}
         if status == ToolRunStatus.TIMED_OUT:
             return {"type": "tool_timed_out", **base, "error": result.error}
+        if status == ToolRunStatus.OBSERVATION_PAUSED:
+            return {"type": "observation_timeout", **base, "error": result.error}
         if status in {ToolRunStatus.RUNNING, ToolRunStatus.QUEUED}:
             return {"type": "job_active", **base, "error": result.error}
         return {"type": "tool_progress", **base, "error": result.error}

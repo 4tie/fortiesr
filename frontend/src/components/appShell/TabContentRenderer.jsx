@@ -58,6 +58,7 @@ function BacktestTabContent({ component: TabComponent, tabProps }) {
     sharedLoading,
     syncSharedState,
     onAskAi,
+    deepNavigationTarget,
   } = tabProps;
 
   return (
@@ -71,6 +72,7 @@ function BacktestTabContent({ component: TabComponent, tabProps }) {
         sharedLoading={sharedLoading}
         syncSharedState={syncSharedState}
         onAskAi={onAskAi}
+        deepNavigationTarget={deepNavigationTarget}
       />
     </ErrorBoundary>
   );
@@ -84,6 +86,7 @@ function AutoQuantTabContent({ component: TabComponent, tabProps }) {
     sharedLoading,
     syncSharedState,
     onAskAi,
+    deepNavigationTarget,
     // FIX (Item 8): forward onAgentContextChange so AutoQuantOverview can
     // report active_tab, pipeline stage, run IDs, etc. to the Mini Assistant.
     onAgentContextChange,
@@ -99,6 +102,7 @@ function AutoQuantTabContent({ component: TabComponent, tabProps }) {
         syncSharedState={syncSharedState}
         onAskAi={onAskAi}
         onAgentContextChange={onAgentContextChange}
+        deepNavigationTarget={deepNavigationTarget}
       />
     </ErrorBoundary>
   );

@@ -31,6 +31,7 @@ class ToolRunStatus(str, Enum):
     FAILED = "failed"
     CANCELLED = "cancelled"
     TIMED_OUT = "timed_out"
+    OBSERVATION_PAUSED = "observation_paused"
 
 
 class WorkflowToolCall(BaseModel):

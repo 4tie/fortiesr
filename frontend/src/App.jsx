@@ -23,6 +23,7 @@ function App() {
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [assistantContext, setAssistantContext] = useState({});
   const [assistantRequest, setAssistantRequest] = useState({});
+  const [deepNavigationTarget, setDeepNavigationTarget] = useState(null);
   const [strategyEditorDirty, setStrategyEditorDirty] = useState(false);
 
   useTheme();
@@ -104,9 +105,12 @@ function App() {
     // Merge any IDs into agentTabContext for downstream consumption
     if (destination && typeof destination === "object") {
       const { tab: _tab, ...ids } = destination;
+      setDeepNavigationTarget(destination);
       if (Object.keys(ids).length > 0) {
         setAgentTabContext((prev) => ({ ...prev, ...ids }));
       }
+    } else {
+      setDeepNavigationTarget({ tab: tabId });
     }
   }, [handleNavTabChange]);
 
@@ -159,6 +163,7 @@ function App() {
                     onAgentContextChange: setAgentTabContext,
                     onDirtyChange: setStrategyEditorDirty,
                     onAskAi: openAssistant,
+                    deepNavigationTarget,
                   }}
                 />
               </div>
