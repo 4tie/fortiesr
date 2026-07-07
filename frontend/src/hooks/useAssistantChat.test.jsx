@@ -2,8 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { useAssistantChat } from "./useAssistantChat.js";
 
 function streamResponse(events) {
-  const encoder = new TextEncoder();
-  const chunks = events.map(({ type, data }) => encoder.encode(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`));
+  const chunks = events.map(({ type, data }) => `event: ${type}\ndata: ${JSON.stringify(data)}\n\n`);
   return {
     ok: true,
     body: {
@@ -12,7 +11,7 @@ function streamResponse(events) {
         return {
           read: jest.fn(() => Promise.resolve(
             index < chunks.length
-              ? { value: chunks[index++], done: false }
+              ? { value: new TextEncoder().encode(chunks[index++]), done: false }
               : { value: undefined, done: true }
           )),
         };
@@ -96,5 +95,54 @@ describe("useAssistantChat shared stream behavior", () => {
       apiSessionId: "api-1",
       optimizerSessionId: "opt-1",
     });
+  });
+
+  test("shared state: Chat receives progress → Run tab immediately shows same progress", async () => {
+    global.fetch.mockResolvedValueOnce(streamResponse([
+      { type: "meta", data: { session_id: "session-x" } },
+      { type: "tool_confirmation_required", data: { action_id: "action-1", tool_name: "run_optimizer", arguments: {} } },
+      { type: "tool_started", data: { action_id: "action-1", tool_name: "run_optimizer" } },
+      { type: "job_active", data: { tool_name: "run_optimizer", progress: { completed_trials: 5, total_trials: 10 } } },
+    ]));
+
+    const { result } = renderHook(() => useAssistantChat());
+    await act(async () => {
+      await result.current.sendMessage("run optimizer");
+    });
+
+    await waitFor(() => expect(result.current.cardList).toHaveLength(1));
+    expect(result.current.cardList[0].progress).toMatchObject({
+      completed_trials: 5,
+      total_trials: 10,
+    });
+  });
+
+  test("deep navigation: workflow card carries real IDs for Optimizer, Backtest, AutoQuant", async () => {
+    global.fetch.mockResolvedValueOnce(streamResponse([
+      { type: "meta", data: { session_id: "session-x" } },
+      { type: "tool_confirmation_required", data: { 
+        action_id: "action-1", 
+        tool_name: "run_optimizer", 
+        arguments: {},
+        optimizer_session_id: "opt-123",
+        api_session_id: "api-456",
+      } },
+      { type: "tool_result", data: { 
+        tool_name: "run_optimizer",
+        tool_call_id: "call-1",
+        result: { run_id: "run-789" },
+      } },
+    ]));
+
+    const { result } = renderHook(() => useAssistantChat());
+    await act(async () => {
+      await result.current.sendMessage("run optimizer");
+    });
+
+    await waitFor(() => expect(result.current.cardList).toHaveLength(1));
+    const card = result.current.cardList[0];
+    expect(card.optimizerSessionId).toBe("opt-123");
+    expect(card.apiSessionId).toBe("api-456");
+    expect(card.runId).toBe("run-789");
   });
 });

@@ -53,7 +53,11 @@ function aliasEntriesFromEvent(event = {}) {
 }
 
 export function cardKeyFromEvent(event) {
-  return aliasEntriesFromEvent(event)[0] || null;
+  const aliases = aliasEntriesFromEvent(event);
+  if (aliases.length > 0) return aliases[0];
+  // Fallback to tool_name if no IDs are present
+  if (event.tool_name) return `tool:${event.tool_name}`;
+  return null;
 }
 
 function mergeAliases(state, canonicalKey, event) {
@@ -163,7 +167,18 @@ export function workflowReducer(state = INITIAL_WORKFLOW_STATE, action) {
 
     case "tool_result": {
       if (!existing) return state;
-      return withCard(state, key, { ...existing, status: CARD_STATUS.COMPLETED, result: event.result || null, error: null, progress: null }, event);
+      const result = event.result || {};
+      return withCard(state, key, { 
+        ...existing, 
+        status: CARD_STATUS.COMPLETED, 
+        result, 
+        error: null, 
+        progress: null,
+        // Extract IDs from result if not already present
+        runId: existing.runId || result.run_id || result.backtest_run_id || null,
+        optimizerSessionId: existing.optimizerSessionId || result.optimizer_session_id || null,
+        autoQuantRunId: existing.autoQuantRunId || result.auto_quant_run_id || null,
+      }, event);
     }
 
     case "tool_failed": {

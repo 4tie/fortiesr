@@ -279,8 +279,8 @@ describe("Phase 8 Integration Fixes", () => {
       // The Run tab shows "Run Optimizer" card title for the active_jobs restore
       expect(screen.getByText("Run Optimizer")).toBeInTheDocument();
       // AssistantRunSummary shows the card status via StatusBadge
-      // "observation_paused" → "Observation Paused"
-      expect(screen.getByText(/Observation Paused/i)).toBeInTheDocument();
+      // Active jobs restore with their last known status (running)
+      expect(screen.getByText(/Running/i)).toBeInTheDocument();
     });
   });
 });

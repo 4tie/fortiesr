@@ -239,7 +239,7 @@ export function useAssistantChat({ contextOverrides = {}, mode: defaultMode = "a
       const decoder = new TextDecoder();
       let buffer = "";
       let streamedContent = "";
-      let hasStreamedContent = false;
+      
 
       while (true) {
         const { value, done } = await reader.read();
@@ -267,7 +267,7 @@ export function useAssistantChat({ contextOverrides = {}, mode: defaultMode = "a
           if (event.type === "token") {
             const token = event.data?.content || "";
             if (!token) continue;
-            hasStreamedContent = true;
+            
             streamedContent = mergeAssistantContent(streamedContent, token, { append: true });
             updateAssistantMessage(assistantId, (m) => ({ ...m, content: streamedContent }));
             continue;
@@ -293,7 +293,7 @@ export function useAssistantChat({ contextOverrides = {}, mode: defaultMode = "a
             // Copilot streaming: message/final are content snapshots, not additive tokens.
             const chunk = event.data?.content || "";
             if (chunk) {
-              hasStreamedContent = true;
+              
               streamedContent = mergeAssistantContent(streamedContent, chunk);
               updateAssistantMessage(assistantId, (m) => ({ ...m, content: streamedContent }));
             }
