@@ -25,5 +25,13 @@ export function buildAgentContext({ activeTab, activeResult, agentTabContext }) 
     temporal_stress_session_id: scoped.temporal_stress_session_id ?? null,
     readiness_profile: scoped.readiness_profile ?? null,
     api_session_id: scoped.api_session_id ?? null,
+    timeframe: activeTab === "backtest" ? (scoped.timeframe ?? null) : null,
+    timerange: activeTab === "backtest" ? (scoped.timerange ?? null) : null,
+    start_date: activeTab === "backtest" ? (scoped.start_date ?? null) : null,
+    end_date: activeTab === "backtest" ? (scoped.end_date ?? null) : null,
+    pairs: activeTab === "backtest" ? (Array.isArray(scoped.pairs) ? scoped.pairs : []) : [],
+    dry_run_wallet: activeTab === "backtest" ? (scoped.dry_run_wallet ?? null) : null,
+    max_open_trades: activeTab === "backtest" ? (scoped.max_open_trades ?? null) : null,
+    backtest_status: activeTab === "backtest" ? (scoped.backtest_status ?? null) : null,
   };
 }

@@ -58,6 +58,7 @@ function BacktestTabContent({ component: TabComponent, tabProps }) {
     sharedLoading,
     syncSharedState,
     onAskAi,
+    onAgentContextChange,
     deepNavigationTarget,
   } = tabProps;
 
@@ -72,6 +73,7 @@ function BacktestTabContent({ component: TabComponent, tabProps }) {
         sharedLoading={sharedLoading}
         syncSharedState={syncSharedState}
         onAskAi={onAskAi}
+        onAgentContextChange={onAgentContextChange}
         deepNavigationTarget={deepNavigationTarget}
       />
     </ErrorBoundary>

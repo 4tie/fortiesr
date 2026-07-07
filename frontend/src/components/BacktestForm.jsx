@@ -6,6 +6,7 @@ import ErrorDisplay from "./shared/ErrorDisplay";
 import PageContainer from "./shared/PageContainer.jsx";
 import PageHeader from "./shared/PageHeader.jsx";
 import { pairsEqualUnordered } from "../utils/pairs.js";
+import { useBacktestAgentContext } from "./useBacktestAgentContext.js";
 
 function CommandViewer({ command }) {
   const [copied, setCopied] = useState(false);
@@ -150,6 +151,7 @@ export default function BacktestForm({
   sharedLoading,
   syncSharedState,
   onAskAi,
+  onAgentContextChange,
 }) {
   // ── local form state ───────────────────────────────────────────────────────
   const [strategy,   setStrategy]   = useState("");
@@ -188,7 +190,26 @@ export default function BacktestForm({
   const initialized = useRef(false);
   const lastUserPairChangeTime = useRef(0);
 
-  // ── localStorage persistence for backtest results ─────────────────────────
+  // ── publish agent context from real Backtest form state ─────────────────────
+  useBacktestAgentContext({
+    strategy,
+    timeframe,
+    timerange,
+    startDate,
+    endDate,
+    pairs,
+    wallet,
+    maxTrades,
+    running,
+    runStatus,
+    sessionId,
+    runId,
+    resultPanel: !!results,
+    downloading,
+    onAgentContextChange,
+  });
+
+  // ── localStorage persistence for backtest results ──────────────────────────
   useEffect(() => {
     // Load saved results on mount
     try {
@@ -196,8 +217,10 @@ export default function BacktestForm({
       if (savedResults) {
         const parsed = JSON.parse(savedResults);
         if (parsed.results && parsed.runId) {
-          setResults(parsed.results);
-          setRunId(parsed.runId);
+          requestAnimationFrame(() => {
+            setResults(parsed.results);
+            setRunId(parsed.runId);
+          });
         }
       }
     } catch (e) {
@@ -247,11 +270,14 @@ export default function BacktestForm({
     const now = Date.now();
     if (sharedState.pairs?.length && now - lastUserPairChangeTime.current > 1000) {
       if (!pairsEqualUnordered(pairs, sharedState.pairs)) {
-        setPairs(sharedState.pairs);
+        requestAnimationFrame(() => {
+          if (!pairsEqualUnordered(pairs, sharedState.pairs)) {
+            setPairs(sharedState.pairs);
+          }
+        });
       }
     }
   }, [sharedState, sharedLoading, strategy, timeframe, wallet, maxTrades, pairs, startDate, endDate, timerange]);
-
 
   // ── auto-sync to shared state after form values settle ────────────────────
   useEffect(() => {
@@ -600,7 +626,7 @@ export default function BacktestForm({
                   <span className="label-text-alt text-base-content/50">USDT</span>
                 </label>
                 <input
-                  type="number" min="0" step="100" placeholder="1000"
+                  type="number" min="0" step="0.1" placeholder="1000"
                   className="input input-bordered w-full"
                   value={wallet}
                   onChange={(e) => onWalletChange(e.target.value)}

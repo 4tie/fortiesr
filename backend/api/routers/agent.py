@@ -20,6 +20,14 @@ class AgentUiStatePayload(BaseModel):
     active_tab: str | None = None
     active_panel: str | None = None
     strategy_name: str | None = None
+    timeframe: str | None = None
+    timerange: str | None = None
+    start_date: str | None = None
+    end_date: str | None = None
+    pairs: list[str] | None = None
+    dry_run_wallet: float | None = None
+    max_open_trades: int | None = None
+    backtest_status: str | None = None
     auto_quant_run_id: str | None = None
     optimizer_session_id: str | None = None
     optimizer_trial_number: int | None = None
@@ -72,6 +80,14 @@ async def get_agent_context(
     active_tab: str | None = Query(default=None),
     active_panel: str | None = Query(default=None),
     strategy_name: str | None = Query(default=None),
+    timeframe: str | None = Query(default=None),
+    timerange: str | None = Query(default=None),
+    start_date: str | None = Query(default=None),
+    end_date: str | None = Query(default=None),
+    pairs: list[str] | None = Query(default=None),
+    dry_run_wallet: float | None = Query(default=None),
+    max_open_trades: int | None = Query(default=None),
+    backtest_status: str | None = Query(default=None),
     auto_quant_run_id: str | None = Query(default=None),
     optimizer_session_id: str | None = Query(default=None),
     optimizer_trial_number: int | None = Query(default=None),
@@ -86,6 +102,14 @@ async def get_agent_context(
         "active_tab": active_tab,
         "active_panel": active_panel,
         "strategy_name": strategy_name,
+        "timeframe": timeframe,
+        "timerange": timerange,
+        "start_date": start_date,
+        "end_date": end_date,
+        "pairs": pairs or [],
+        "dry_run_wallet": dry_run_wallet,
+        "max_open_trades": max_open_trades,
+        "backtest_status": backtest_status,
         "auto_quant_run_id": auto_quant_run_id,
         "optimizer_session_id": optimizer_session_id,
         "optimizer_trial_number": optimizer_trial_number,

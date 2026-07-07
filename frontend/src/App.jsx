@@ -117,11 +117,30 @@ function App() {
   const confirmLeave = () => {
     const dest = pendingTab;
     setPendingTab(null);
-    setAgentTabContext({});
     setStrategyEditorDirty(false);
     setActiveTab(dest);
     setActiveNavTab(dest); // With flat navigation, navTab equals tabId
     if (dest !== "results") setActiveResult(null);
+
+    if (dest !== "backtest") {
+      setAgentTabContext((prev) => {
+        const next = { ...prev };
+        [
+          "strategy_name",
+          "timeframe",
+          "timerange",
+          "start_date",
+          "end_date",
+          "pairs",
+          "dry_run_wallet",
+          "max_open_trades",
+          "backtest_status",
+          "backtest_run_id",
+          "api_session_id",
+        ].forEach((key) => delete next[key]);
+        return next;
+      });
+    }
   };
 
   const cancelLeave = () => setPendingTab(null);

@@ -385,6 +385,13 @@ class AssistantService:
             "active_tab": active.get("active_tab"),
             "active_panel": active.get("active_panel"),
             "strategy_name": active.get("strategy_name"),
+            "timeframe": active.get("timeframe"),
+            "timerange": active.get("timerange"),
+            "selected_pair_count": len(active.get("pairs") or []) if active.get("active_tab") == "backtest" else None,
+            "pairs": active.get("pairs") if active.get("active_tab") == "backtest" else None,
+            "dry_run_wallet": active.get("dry_run_wallet"),
+            "max_open_trades": active.get("max_open_trades"),
+            "backtest_status": active.get("backtest_status"),
             "optimizer_session_id": active.get("optimizer_session_id"),
             "optimizer_trial_number": active.get("optimizer_trial_number"),
             "backtest_run_id": active.get("backtest_run_id"),
@@ -526,9 +533,9 @@ class AssistantService:
         if active.get("strategy_name"):
             backtest_payload = {
                 "strategy_name": active.get("strategy_name"),
-                "timerange": active.get("timerange", "20240101-20241231"),
-                "pairs": active.get("pairs", ["BTC/USDT"]),
-                "timeframe": active.get("timeframe", "5m"),
+                "timeframe": active.get("timeframe"),
+                "timerange": active.get("timerange"),
+                "pairs": active.get("pairs", []) or [],
             }
             actions.extend([
                 _action_card(
@@ -971,16 +978,21 @@ class AssistantService:
             pairs = [item.strip() for item in pairs.split(",") if item.strip()]
         if not isinstance(pairs, list):
             raise BackendError("pairs must be a list or comma-separated string.", status_code=422)
+        required_fields = ["timeframe", "timerange", "pairs"]
+        missing_fields = [field for field in required_fields if not payload.get(field)]
         return {
             "ok": True,
             "read_only": True,
+            "ready": len(missing_fields) == 0,
+            "missing_fields": missing_fields,
             "draft": {
                 "type": "backtest_run",
                 "strategy_name": strategy_name,
-                "timerange": payload.get("timerange", "20240101-20241231"),
+                "timeframe": payload.get("timeframe"),
+                "timerange": payload.get("timerange"),
                 "pairs": pairs,
-                "timeframe": payload.get("timeframe", "5m"),
-                "config_file": payload.get("config_file"),
+                "dry_run_wallet": payload.get("dry_run_wallet"),
+                "max_open_trades": payload.get("max_open_trades"),
                 "note": "Draft only. Review the fields and start the backtest manually.",
             },
         }

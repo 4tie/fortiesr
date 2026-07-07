@@ -123,10 +123,14 @@ def _extract_trade_count(data: dict, strategy_name: str) -> int:
 
 def _extract_per_pair_results(data: dict, strategy_name: str) -> list[dict]:
     """Extract per-pair profit data from backtest result.
-    
+
     Supports both old format (strategy[strategy_name].per_pair) and new format
     (results_per_pair at top level) for backward compatibility.
     """
+    def extract_win_rate(pair_data: dict) -> float:
+        """Extract win rate from pair data, handling both 'winrate' and 'win_rate' field names."""
+        return pair_data.get("winrate", pair_data.get("win_rate", 0.0))
+
     # Try new format first (results_per_pair at top level)
     per_pair = data.get("results_per_pair", [])
     if per_pair:
@@ -138,11 +142,11 @@ def _extract_per_pair_results(data: dict, strategy_name: str) -> list[dict]:
                 "profit_total_abs": pair_data.get("profit_total_abs", 0.0),
                 "profit_factor": pair_data.get("profit_factor", 0.0),
                 "trades": pair_data.get("trades", 0),
-                "win_rate": pair_data.get("win_rate", 0.0),
+                "win_rate": extract_win_rate(pair_data),
                 "max_drawdown": pair_data.get("max_drawdown", 0.0),
             })
         return result
-    
+
     # Fallback to old format (strategy[strategy_name].results_per_pair or .per_pair)
     strategy_data = data.get("strategy", {})
     if strategy_name in strategy_data:
@@ -159,7 +163,7 @@ def _extract_per_pair_results(data: dict, strategy_name: str) -> list[dict]:
                 "profit_total_abs": pair_data.get("profit_total_abs", 0.0),
                 "profit_factor": pair_data.get("profit_factor", 0.0),
                 "trades": pair_data.get("trades", 0),
-                "win_rate": pair_data.get("win_rate", 0.0),
+                "win_rate": extract_win_rate(pair_data),
                 "max_drawdown": pair_data.get("max_drawdown", 0.0),
             })
         return result
