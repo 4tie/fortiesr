@@ -124,7 +124,7 @@ class WorkflowCopilot:
         resolved_model = model or session.get("model") or "llama3"
 
         # Build bounded context
-        context = await self._build_context(session, mode)
+        context = self._build_context(session, mode)
 
         # Build prompt messages
         messages = self._build_messages(session, context, mode)
@@ -362,15 +362,25 @@ class WorkflowCopilot:
             return
         
         # Build context and continue reasoning
-        context = await self._build_context(session, session.get("mode", "analysis"))
+        context = self._build_context(session, session.get("mode", "analysis"))
         messages = self._build_messages(session, context, session.get("mode", "analysis"))
         
-        # Add tool result message for the model
-        messages.append({
+        # Add tool result message for the model and persist to session
+        tool_result_msg = {
             "role": "tool",
             "content": json.dumps(result.get("result_summary") or {"error": result.get("error")}),
             "tool_call_id": tool_run.get("tool_call_id"),
-        })
+        }
+        messages.append(tool_result_msg)
+        
+        # Persist tool result to session for subsequent model calls
+        self.copilot_store.add_message(
+            session,
+            "tool",
+            json.dumps(result.get("result_summary") or {"error": result.get("error")}),
+            tool_call_id=tool_run.get("tool_call_id"),
+        )
+        self.copilot_store.save_session(session)
         
         # Continue orchestration loop
         step = 0
@@ -564,12 +574,16 @@ class WorkflowCopilot:
         context_msg = f"Current application context:\n{json.dumps(context, indent=2)}"
         messages.append({"role": "system", "content": context_msg})
         
-        # Add conversation history
+        # Add conversation history, preserving tool_calls
         for msg in session.get("messages", []):
-            messages.append({
+            message_dict = {
                 "role": msg["role"],
                 "content": msg["content"],
-            })
+            }
+            # Preserve tool_calls if present (for assistant messages with tool calls)
+            if "tool_calls" in msg and msg["tool_calls"]:
+                message_dict["tool_calls"] = msg["tool_calls"]
+            messages.append(message_dict)
         
         return messages
 

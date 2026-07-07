@@ -329,22 +329,38 @@ class WorkflowToolExecutor:
         if session is None:
             raise BackendError(f"Optimizer session not found: {args.optimizer_session_id}", status_code=404)
         
-        best_trial = session.best_trial
+        # Use real OptimizerSession fields: best_trial_number, best_metrics, trials
+        if session.best_trial_number is None:
+            return {
+                "summary": {
+                    "optimizer_session_id": args.optimizer_session_id,
+                    "best_trial_number": None,
+                    "message": "No best trial found yet",
+                }
+            }
+        
+        # Get the best trial from trials list
+        best_trial = None
+        for trial in session.trials:
+            if trial.trial_number == session.best_trial_number:
+                best_trial = trial
+                break
+        
         if best_trial is None:
             return {
                 "summary": {
                     "optimizer_session_id": args.optimizer_session_id,
-                    "best_trial": None,
-                    "message": "No best trial found yet",
+                    "best_trial_number": session.best_trial_number,
+                    "message": f"Best trial #{session.best_trial_number} not found in trials list",
                 }
             }
         
         return {
             "summary": {
                 "optimizer_session_id": args.optimizer_session_id,
-                "best_trial_number": best_trial.trial_number,
-                "best_params": best_trial.params,
-                "best_score": best_trial.score,
+                "best_trial_number": session.best_trial_number,
+                "parameters": best_trial.parameters or {},
+                "metrics": best_trial.metrics.model_dump() if best_trial.metrics else {},
             }
         }
 
@@ -370,8 +386,8 @@ class WorkflowToolExecutor:
             "summary": {
                 "optimizer_session_id": args.optimizer_session_id,
                 "trial_number": trial.trial_number,
-                "params": trial.params,
-                "score": trial.score,
+                "parameters": trial.parameters or {},
+                "metrics": trial.metrics.model_dump() if trial.metrics else {},
             }
         }
 
@@ -431,8 +447,19 @@ class WorkflowToolExecutor:
                 progress_callback("tool_progress", event)
             
             if event["type"] == "job_progress":
-                final_status = event["status"]
+                backend_status = event["status"]
                 final_result = event.get("result", {})
+                
+                # Map backend status to ToolRunStatus
+                if backend_status == "completed":
+                    final_status = "completed"
+                elif backend_status == "failed":
+                    final_status = "failed"
+                elif backend_status == "cancelled":
+                    final_status = "cancelled"
+                else:
+                    # queued, running, or timeout while still running
+                    final_status = "running"
                 
                 # Extract run_id from result when available
                 if "run_id" in final_result:
@@ -531,7 +558,7 @@ class WorkflowToolExecutor:
                 progress_callback("tool_progress", event)
             
             if event["type"] == "optimizer_progress":
-                final_phase = event["phase"]
+                backend_phase = event["phase"]
                 final_metrics = {
                     "total_trials": event["total_trials"],
                     "completed_trials": event["completed_trials"],
@@ -540,6 +567,17 @@ class WorkflowToolExecutor:
                     "best_metrics": event["best_metrics"],
                     "stop_reason": event["stop_reason"],
                 }
+                
+                # Map optimizer phase to ToolRunStatus
+                if backend_phase in ("completed", "stopped"):
+                    final_phase = "completed"
+                elif backend_phase == "failed":
+                    final_phase = "failed"
+                elif backend_phase == "cancelled":
+                    final_phase = "cancelled"
+                else:
+                    # queued, running, or timeout while still running
+                    final_phase = "running"
             
             if event["type"] == "error":
                 return {

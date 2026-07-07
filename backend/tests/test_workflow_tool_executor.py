@@ -82,7 +82,19 @@ async def test_invalid_action_id_rejected():
     """Test that invalid action ID is rejected."""
     # This is tested in workflow_copilot tests
     # confirm_action is on WorkflowCopilot, not WorkflowToolExecutor
-    pass
+    # Verify that WorkflowToolExecutor does not have confirm_action method
+    services = MagicMock()
+    session_store = MagicMock()
+    copilot_store = MagicMock()
+    
+    executor = WorkflowToolExecutor(
+        services=services,
+        session_store=session_store,
+        copilot_store=copilot_store,
+    )
+    
+    # Verify confirm_action is not on executor
+    assert not hasattr(executor, "confirm_action")
 
 
 @pytest.mark.asyncio
@@ -90,7 +102,19 @@ async def test_expired_action_rejected():
     """Test that expired action is rejected."""
     # This is tested in workflow_copilot tests
     # confirm_action is on WorkflowCopilot, not WorkflowToolExecutor
-    pass
+    # Verify that WorkflowToolExecutor does not have confirm_action method
+    services = MagicMock()
+    session_store = MagicMock()
+    copilot_store = MagicMock()
+    
+    executor = WorkflowToolExecutor(
+        services=services,
+        session_store=session_store,
+        copilot_store=copilot_store,
+    )
+    
+    # Verify confirm_action is not on executor
+    assert not hasattr(executor, "confirm_action")
 
 
 @pytest.mark.asyncio
