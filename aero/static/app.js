@@ -135,6 +135,8 @@ function populateLearn(findings, improvedPath) {
 function populateFix(findings, improvedPath) {
   const empty = document.getElementById('fix-empty');
   const container = document.getElementById('fix-body');
+  const download = document.getElementById('fix-download');
+  const apply = document.getElementById('fix-apply');
   if (!container) return;
   if (empty) empty.classList.add('hidden');
   const items = Array.isArray(findings) ? findings : [];
@@ -142,11 +144,24 @@ function populateFix(findings, improvedPath) {
   const pending = items.filter((f) => !f.applied);
 
   let html = '';
-  if (applied.length) {
+  if (improvedPath) {
+    if (download) {
+      download.href = `/api/aero/improved/${encodeURIComponent(latestRunId || '')}/download`;
+      download.classList.remove('hidden');
+    }
+    if (apply) {
+      apply.classList.remove('hidden');
+      apply.disabled = false;
+    }
     html += `<div class="chip-row">
-      <span class="chip chip-ok">Improved copy ready: ${improvedPath ? 'yes' : 'pending'}</span>
-      <a class="button" href="/api/aero/improved/${encodeURIComponent(latestRunId || '')}" target="_blank">Open improved copy</a>
+      <span class="chip chip-ok">Improved copy ready</span>
     </div>`;
+  } else {
+    if (download) download.classList.add('hidden');
+    if (apply) {
+      apply.classList.add('hidden');
+      apply.disabled = true;
+    }
   }
   if (pending.length) {
     html += `<div class="pending">
@@ -227,6 +242,36 @@ function wireUploadAction() {
       }
     } catch (err) {
       if (statusEl) statusEl.textContent = `Error: ${err.message}`;
+    }
+  });
+}
+
+function wireFixActions() {
+  const apply = document.getElementById('fix-apply');
+  if (!apply || apply.dataset.aeroWired) return;
+  apply.dataset.aeroWired = 'true';
+  apply.addEventListener('click', async () => {
+    if (!latestRunId) {
+      alert('Run doctor first so AeRo knows which result to apply.');
+      return;
+    }
+    apply.disabled = true;
+    try {
+      const response = await api(`/api/aero/improved/${encodeURIComponent(latestRunId)}/apply`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: '{}',
+      });
+      const message = response && response.applied
+        ? `Applied to sandbox: ${response.path || latestRunId}`
+        : 'Apply failed.';
+      const statusEl = document.getElementById('fix-status');
+      if (statusEl) statusEl.textContent = message;
+    } catch (err) {
+      const statusEl = document.getElementById('fix-status');
+      if (statusEl) statusEl.textContent = `Error: ${err.message}`;
+    } finally {
+      apply.disabled = false;
     }
   });
 }

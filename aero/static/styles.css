@@ -317,6 +317,10 @@ button.ghost {
   font-size: 13px;
 }
 
+.hidden {
+  display: none !important;
+}
+
 .error {
   color: #f87171;
 }

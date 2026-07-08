@@ -29,6 +29,14 @@ UPLOAD_DIR = ROOT / "uploads"
 
 
 app = FastAPI(title="AeRo", description="Strategy doctor for Fortiesr")
+
+
+@app.on_event("startup")
+async def _log_routes():
+    routes = [r.path for r in app.routes]
+    print("AERO_ROUTES=" + repr(routes))
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5174", "http://127.0.0.1:5174"],
@@ -138,6 +146,33 @@ async def improved_result(run_id: str) -> HTMLResponse:
         raise HTTPException(status_code=404, detail="Improved copy not found")
     content = path.read_text(encoding="utf-8")
     return HTMLResponse(f"<pre style='white-space:pre-wrap;color:#e2e8f0;background:#020617;padding:14px;border-radius:10px;'>{_escape(content)}</pre>")
+
+
+@app.get("/api/aero/improved/{run_id}/download")
+async def improved_download(run_id: str):
+    print("DEBUG download run_id=" + repr(run_id))
+    path = ROOT / "improved" / f"{run_id}_improved.py"
+    print("DEBUG download path=" + repr(str(path)) + " exists=" + str(path.exists()))
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Improved copy not found")
+    content = path.read_bytes()
+    filename = f"{run_id}_improved.py"
+    return StreamingResponse(
+        io.BytesIO(content),
+        media_type="text/x-python",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.post("/api/aero/improved/{run_id}/apply")
+async def improved_apply(run_id: str) -> JSONResponse:
+    source = ROOT / "improved" / f"{run_id}_improved.py"
+    if not source.exists():
+        raise HTTPException(status_code=404, detail="Improved copy not found")
+    destination = UPLOAD_DIR / f"{run_id}_improved.py"
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    destination.write_bytes(source.read_bytes())
+    return JSONResponse({"applied": True, "path": str(destination), "run_id": run_id})
 
 
 @app.get("/", response_class=HTMLResponse)
