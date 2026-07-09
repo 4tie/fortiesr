@@ -152,31 +152,45 @@ function getApprovalReview(pipelineState) {
     (pipelineState.stages || [])[0] ||
     null;
   const data = stage?.data || {};
-  
-  // For Stage 1 (Pre-flight Filtering), use discovery results if available
+
+  // Prefer this stage's own data — it reflects the review the user is
+  // actually being asked to act on right now. Only fall back to the
+  // separate auto-discovery results (a different run/step) when this
+  // stage produced no rows of its own, and always source "rows" and
+  // "recommended" from the SAME place so the counts never disagree
+  // (e.g. "Recommended: 3" next to an empty table).
   const discoveryResults = pipelineState.discovery_results || {};
   const pairMetrics = discoveryResults.pair_metrics || {};
-  
-  // Build rows from pair_metrics if available, otherwise fall back to existing logic
+
+  const stageRows = firstNonEmptyArray(data.all_pairs, data.per_pair, pipelineState.selected_pairs);
+
   let rows;
-  if (Object.keys(pairMetrics).length > 0) {
+  let recommended;
+  if (stageRows.length > 0) {
+    rows = stageRows;
+    recommended = firstNonEmptyArray(
+      data.pre_selected,
+      data.passing_pairs,
+      data.current_pairs,
+      pipelineState.user_approved_pairs,
+      (pipelineState.selected_pairs || []).map(pairKey).filter(Boolean)
+    );
+  } else if (Object.keys(pairMetrics).length > 0) {
     rows = Object.entries(pairMetrics).map(([key, metrics]) => ({
       key,
       ...metrics,
     }));
+    recommended = firstNonEmptyArray(discoveryResults.recommended_pairs);
   } else {
-    rows = firstNonEmptyArray(data.all_pairs, data.per_pair, pipelineState.selected_pairs);
+    rows = [];
+    recommended = firstNonEmptyArray(
+      data.pre_selected,
+      data.passing_pairs,
+      data.current_pairs,
+      pipelineState.user_approved_pairs,
+      (pipelineState.selected_pairs || []).map(pairKey).filter(Boolean)
+    );
   }
-  
-  // Use recommended_pairs from discovery results if available
-  const recommended = firstNonEmptyArray(
-    discoveryResults.recommended_pairs,
-    data.pre_selected,
-    data.passing_pairs,
-    data.current_pairs,
-    pipelineState.user_approved_pairs,
-    (pipelineState.selected_pairs || []).map(pairKey).filter(Boolean)
-  );
   
   const isPortfolioReview =
     pipelineState.current_stage === 2 ||

@@ -1,0 +1,126 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Dark glassmorphism design system with neon accents */
+:root {
+  --color-background: oklch(10% 0.01 240);
+  --color-surface: oklch(15% 0.02 240 / 0.4);
+  --color-surface-hover: oklch(20% 0.03 240 / 0.5);
+  --color-primary: oklch(75% 0.2 190);
+  --color-primary-dim: oklch(75% 0.15 190 / 0.5);
+  --color-accent: oklch(70% 0.25 330);
+  --color-success: oklch(70% 0.2 140);
+  --color-warning: oklch(80% 0.15 85);
+  --color-destructive: oklch(65% 0.25 25);
+  --color-text: oklch(95% 0.01 240);
+  --color-text-muted: oklch(70% 0.01 240);
+  --color-border: oklch(30% 0.02 240 / 0.3);
+  
+  --font-display: "Space Grotesk", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", monospace;
+}
+
+/* Custom utilities */
+.glass {
+  background: var(--color-surface);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--color-border);
+}
+
+.neon-ring-primary {
+  box-shadow: 0 0 0 1px var(--color-primary-dim),
+              0 0 20px -5px var(--color-primary);
+}
+
+.neon-ring-accent {
+  box-shadow: 0 0 0 1px oklch(70% 0.2 330 / 0.5),
+              0 0 20px -5px var(--color-accent);
+}
+
+.neon-ring-success {
+  box-shadow: 0 0 0 1px oklch(70% 0.15 140 / 0.5),
+              0 0 20px -5px var(--color-success);
+}
+
+.neon-ring-destructive {
+  box-shadow: 0 0 0 1px oklch(65% 0.2 25 / 0.5),
+              0 0 20px -5px var(--color-destructive);
+}
+
+.neon-glow-primary {
+  text-shadow: 0 0 10px var(--color-primary),
+               0 0 20px var(--color-primary-dim);
+}
+
+.neon-glow-accent {
+  text-shadow: 0 0 10px var(--color-accent),
+               0 0 20px oklch(70% 0.2 330 / 0.5);
+}
+
+.neon-glow-success {
+  text-shadow: 0 0 10px var(--color-success),
+               0 0 20px oklch(70% 0.15 140 / 0.5);
+}
+
+.neon-glow-destructive {
+  text-shadow: 0 0 10px var(--color-destructive),
+               0 0 20px oklch(65% 0.2 25 / 0.5);
+}
+
+.grid-noise {
+  background-image: 
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+/* Animations */
+@keyframes pulse-neon {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 10px var(--color-primary), 0 0 20px var(--color-primary-dim);
+  }
+  50% {
+    opacity: 0.7;
+    box-shadow: 0 0 5px var(--color-primary), 0 0 10px var(--color-primary-dim);
+  }
+}
+
+.animate-pulse-neon {
+  animation: pulse-neon 2s ease-in-out infinite;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-background);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+/* Base styles */
+body {
+  background: var(--color-background);
+  color: var(--color-text);
+  font-family: var(--font-display);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) var(--color-background);
+}

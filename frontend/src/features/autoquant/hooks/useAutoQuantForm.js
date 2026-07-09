@@ -10,6 +10,11 @@ export default function useAutoQuantForm({ sharedState, sharedLoading, syncShare
   const [showAdvanced, setShowAdvanced] = useState(false);
   const hydrated = useRef(false);
   const lastUserPairChangeTime = useRef(0);
+  const formRef = useRef(form);
+
+  useEffect(() => {
+    formRef.current = form;
+  }, [form]);
 
   // Load saved options on mount
   useEffect(() => {
@@ -33,33 +38,39 @@ export default function useAutoQuantForm({ sharedState, sharedLoading, syncShare
   // Sync from sharedState
   useEffect(() => {
     if (sharedLoading || !sharedState) return;
+    const currentForm = formRef.current;
     if (!hydrated.current) {
       hydrated.current = true;
-      if (sharedState.strategy_name && form.strategy !== sharedState.strategy_name) {
-        setForm((prev) => ({ ...prev, strategy: sharedState.strategy_name }));
+      const updates = {};
+      if (sharedState.strategy_name && currentForm.strategy !== sharedState.strategy_name) {
+        updates.strategy = sharedState.strategy_name;
       }
-      if (sharedState.timeframe && form.timeframe !== sharedState.timeframe) {
-        setForm((prev) => ({ ...prev, timeframe: sharedState.timeframe }));
+      if (sharedState.timeframe && currentForm.timeframe !== sharedState.timeframe) {
+        updates.timeframe = sharedState.timeframe;
       }
-      if (sharedState.dry_run_wallet != null && form.dry_run_wallet !== sharedState.dry_run_wallet) {
-        setForm((prev) => ({ ...prev, dry_run_wallet: sharedState.dry_run_wallet }));
+      if (sharedState.dry_run_wallet != null && currentForm.dry_run_wallet !== sharedState.dry_run_wallet) {
+        updates.dry_run_wallet = sharedState.dry_run_wallet;
       }
-      if (sharedState.max_open_trades != null && form.max_open_trades !== sharedState.max_open_trades) {
-        setForm((prev) => ({ ...prev, max_open_trades: sharedState.max_open_trades }));
+      if (sharedState.max_open_trades != null && currentForm.max_open_trades !== sharedState.max_open_trades) {
+        updates.max_open_trades = sharedState.max_open_trades;
+      }
+      if (Object.keys(updates).length) {
+        setForm((prev) => ({ ...prev, ...updates }));
       }
     }
     // Only sync pairs from sharedState if not recently user-initiated (debounce 1 second)
     const now = Date.now();
     if (sharedState.pairs?.length && now - lastUserPairChangeTime.current > 1000) {
-      const currentPairs = typeof form.pair_universe === 'string' 
-        ? form.pair_universe.split(',').map(p => p.trim()).filter(Boolean)
+      const currentPairs = typeof currentForm.pair_universe === 'string'
+        ? currentForm.pair_universe.split(',').map(p => p.trim()).filter(Boolean)
         : [];
       const sharedPairs = sharedState.pairs;
-      if (!pairsEqualUnordered(currentPairs, sharedPairs)) {
+      const equal = pairsEqualUnordered(currentPairs, sharedPairs);
+      if (!equal) {
         setForm((prev) => ({ ...prev, pair_universe: sharedPairs.join(', ') }));
       }
     }
-  }, [sharedState, sharedLoading, form]);
+  }, [sharedState, sharedLoading]);
 
   // Sync to sharedState
   useEffect(() => {
@@ -71,8 +82,8 @@ export default function useAutoQuantForm({ sharedState, sharedLoading, syncShare
     if (form.strategy) payload.strategy_name = form.strategy;
     if (form.timeframe) payload.timeframe = form.timeframe;
     if (pairs.length) payload.pairs = pairs;
-    if (form.dry_run_wallet) payload.dry_run_wallet = form.dry_run_wallet;
-    if (form.max_open_trades) payload.max_open_trades = form.max_open_trades;
+    if (form.dry_run_wallet != null) payload.dry_run_wallet = form.dry_run_wallet;
+    if (form.max_open_trades != null) payload.max_open_trades = form.max_open_trades;
     if (Object.keys(payload).length) syncSharedState(payload);
   }, [form.strategy, form.timeframe, form.pair_universe, form.dry_run_wallet, form.max_open_trades, syncSharedState]);
 

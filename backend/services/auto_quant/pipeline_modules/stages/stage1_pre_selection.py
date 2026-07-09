@@ -264,6 +264,37 @@ async def _stage_pre_flight_filtering(
             _rlog(run_id, 1, logging.INFO,
                   f"Stage 1 | Baseline complete: {len(per_pair)} pairs tested, {len(passing_pairs)} passed thresholds")
             
+            # Pre-select pairs that pass thresholds for user convenience
+            pre_selected = [p["key"] for p in passing_pairs]
+
+            # Defensive fallback: if the backtest result parsed with zero
+            # per-pair rows (e.g. freqtrade omits results_per_pair entirely
+            # when there were no trades at all), the review screen would
+            # otherwise show "Tested: 0 / Recommended: 0" with nothing to
+            # select and no way to proceed. In that case, surface every pair
+            # that was actually attempted (including losers/untraded ones)
+            # with placeholder metrics so the user can still hand-pick pairs
+            # and continue the run.
+            review_pairs = per_pair
+            if not review_pairs:
+                _rlog(run_id, 1, logging.WARNING,
+                      f"Stage 1 | Baseline backtest produced 0 per-pair results "
+                      f"(likely no trades for any pair); falling back to showing "
+                      f"all {len(surviving_pairs)} attempted pairs for manual selection.")
+                review_pairs = [
+                    {
+                        "key": pair,
+                        "profit_total": 0.0,
+                        "profit_total_abs": 0.0,
+                        "profit_factor": 0.0,
+                        "trades": 0,
+                        "win_rate": 0.0,
+                        "max_drawdown": 0.0,
+                        "no_trades": True,
+                    }
+                    for pair in surviving_pairs
+                ]
+
             summary = _extract_backtest_summary(result_data, state.strategy)
             summary["per_pair"] = per_pair
             summary["passing_pairs"] = [p["key"] for p in passing_pairs]
@@ -271,9 +302,13 @@ async def _stage_pre_flight_filtering(
             summary["baseline_attempts"] = baseline_attempt
             summary["discovery_gates"] = discovery_gates
             summary["validation_notes"] = state.validation_notes
-            
-            # Pre-select pairs that pass thresholds for user convenience
-            pre_selected = [p["key"] for p in passing_pairs]
+            # Persisted so the review UI (rows + counts) always matches this
+            # stage's own data instead of a stale/unrelated discovery run.
+            summary["all_pairs"] = review_pairs
+            summary["pre_selected"] = pre_selected
+            summary["total_tested"] = len(per_pair)
+            summary["total_passed"] = len(passing_pairs)
+            summary["no_trade_fallback"] = not per_pair
             
             # Emit WebSocket event with all pair results for user selection
             _emit(run_id, 1, "running",
@@ -281,7 +316,7 @@ async def _stage_pre_flight_filtering(
                   15,
                   {
                       "type": "pair_selection_request",
-                      "all_pairs": per_pair,
+                      "all_pairs": review_pairs,
                       "pre_selected": pre_selected,
                       "min_trades": min_discovery_trades,
                       "min_profit_factor": min_discovery_pf,

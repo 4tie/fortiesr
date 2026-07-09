@@ -321,8 +321,8 @@ function ResultsCard({ pipelineState }) {
   );
 }
 
-export default function AutoQuantOverview({ strategies = [], strategiesLoading = false, onAgentContextChange = null, pipelineState: initialPipelineState = null, syncSharedState = null }) {
-  const formState = useAutoQuantForm();
+export default function AutoQuantOverview({ strategies = [], strategiesLoading = false, onAgentContextChange = null, pipelineState: initialPipelineState = null, sharedState = null, sharedLoading = false, syncSharedState = null }) {
+  const formState = useAutoQuantForm({ sharedState, sharedLoading, syncSharedState });
   const pipeline = useAutoQuantPipeline(initialPipelineState);
   const strategyGen = useAutoQuantStrategyGen(strategies);
   const screening = useAutoQuantScreening();
