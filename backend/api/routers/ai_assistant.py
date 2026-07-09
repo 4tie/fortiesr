@@ -295,6 +295,15 @@ class ChatRequest(BaseModel):
         default=False,
         description="Attach allowlisted strategy .py/.json content to the prompt.",
     )
+    auto_confirm: bool = Field(
+        default=False,
+        description=(
+            "When true, guarded tools (backtest/optimizer/pair-explorer) that pass a "
+            "cheap local pre-check (strategy exists, timerange sane, pairs valid) are "
+            "auto-executed without waiting for the confirmation click. If the pre-check "
+            "fails, the tool still pauses for manual confirmation. No real-money path."
+        ),
+    )
 
 
 class ConfirmActionRequest(BaseModel):
@@ -436,6 +445,7 @@ async def chat(body: ChatRequest, request: Request) -> dict:
             mode=copilot_mode,
             stream=False,
             context_overrides=body.context_overrides or {},
+            auto_confirm=body.auto_confirm,
         ):
             events.append(event)
             if event.get("type") == "message":
@@ -504,6 +514,7 @@ async def chat_stream(body: ChatRequest, request: Request) -> StreamingResponse:
             mode=copilot_mode,
             stream=True,
             context_overrides=body.context_overrides or {},
+            auto_confirm=body.auto_confirm,
         ):
             event_type = event.get("type")
             if event_type == "message":

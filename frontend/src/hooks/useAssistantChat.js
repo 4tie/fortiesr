@@ -347,6 +347,7 @@ export function useAssistantChat({ contextOverrides = {}, mode: defaultMode = "a
             mode:             request.mode || defaultMode || "analysis",
             model:            request.model || undefined,
             include_strategy_source: Boolean(request.includeStrategySource),
+            auto_confirm: Boolean(request.autoConfirm),
             context_overrides: request.contextOverrides || contextOverrides || {},
           }),
         });

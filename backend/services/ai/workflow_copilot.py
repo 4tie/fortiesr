@@ -35,6 +35,7 @@ from ...services.agent_context import AgentContextService
 from .copilot_session_store import CopilotSessionStore
 from .intent_router import route_intent, WorkflowPlan
 from .ollama_client import OllamaClient
+from .strategy_resolver import resolve_strategy
 from .workflow_tool_executor import WorkflowToolExecutor
 from .workflow_tool_models import (
     PendingToolAction,
@@ -54,10 +55,21 @@ if TYPE_CHECKING:
     from ...api.session_store import SessionStore
 
 
+import re
+
 logger = logging.getLogger(__name__)
 
 MAX_ORCHESTRATION_STEPS = 10
 DUPLICATE_DETECTION_WINDOW = 3  # Check last N tool calls for duplicates
+
+# Cheap sanity patterns used by the guarded-tool auto-confirm pre-check.
+_TIMERANGE_RE = re.compile(r"^\d{8}-\d{8}$")
+_PAIR_RE = re.compile(r"^[A-Z0-9]{2,20}/[A-Z0-9]{2,10}$")
+_GUARDED_TOOLS_NEEDING_PAIRS = {
+    "run_pair_explorer",
+    "run_pair_stress_lab",
+    "run_temporal_stress_test",
+}
 
 
 class WorkflowCopilot:
@@ -81,6 +93,56 @@ class WorkflowCopilot:
         self.ollama_client = ollama_client
         self.root_dir = root_dir or Path.cwd()
 
+    # ── Guarded-tool auto-confirm pre-check ────────────────────────────────────
+
+    def _precheck_guarded_tool(self, tool_name: str, arguments: dict[str, Any]) -> tuple[bool, str]:
+        """Cheap, local sanity check for guarded tools before auto-confirming.
+
+        Runs NO backtest/optimizer — just validates the request is well-formed:
+        - strategy exists on disk (reuse the real resolver)
+        - timerange looks like YYYYMMDD-YYYYMMDD and start <= end
+        - if the tool needs pairs, the list is non-empty and each entry is a
+          sane pair symbol (BASE/QUOTE)
+
+        Returns (passed, reason). On failure the caller must still PAUSE and ask
+        the user, never auto-run.
+        """
+        try:
+            settings = self.services.settings_store.load()
+            strategies_dir = Path(settings.strategies_directory_path)
+        except Exception as exc:
+            return False, f"could not load settings: {exc}"
+
+        # 1) strategy exists
+        strategy_name = arguments.get("strategy_name")
+        if not strategy_name:
+            return False, "missing strategy_name"
+        try:
+            resolve_strategy(strategy_name, strategies_dir)
+        except Exception as exc:
+            return False, f"strategy not found: {exc}"
+
+        # 2) timerange sane (only when the tool declares one)
+        timerange = arguments.get("timerange")
+        if timerange:
+            m = _TIMERANGE_RE.match(str(timerange))
+            if not m:
+                return False, f"timerange '{timerange}' is not YYYYMMDD-YYYYMMDD"
+            start, end = str(timerange).split("-")
+            if start > end:
+                return False, f"timerange start {start} is after end {end}"
+
+        # 3) pairs valid (only for tools that require them)
+        if tool_name in _GUARDED_TOOLS_NEEDING_PAIRS:
+            pairs = arguments.get("pairs") or []
+            if not pairs:
+                return False, f"{tool_name} requires a non-empty pairs list"
+            for p in pairs:
+                if not _PAIR_RE.match(str(p)):
+                    return False, f"pair '{p}' is not a valid BASE/QUOTE symbol"
+
+        return True, "pre-check passed"
+
     async def process_turn(
         self,
         session_id: str,
@@ -89,6 +151,7 @@ class WorkflowCopilot:
         mode: str = "analysis",
         stream: bool = False,
         context_overrides: dict[str, Any] | None = None,
+        auto_confirm: bool = False,
     ) -> AsyncIterator[dict[str, Any]]:
         """Process a single user turn through the orchestration loop.
         
@@ -116,6 +179,10 @@ class WorkflowCopilot:
         if context_overrides:
             session["last_context_overrides"] = context_overrides
             self.copilot_store.save_session(session)
+
+        # Persist auto-confirm preference for this turn (honored on resume too)
+        session["auto_confirm"] = bool(auto_confirm)
+        self.copilot_store.save_session(session)
 
         # Add user message
         self.copilot_store.add_message(session, "user", user_message)
@@ -240,8 +307,70 @@ class WorkflowCopilot:
                     **workflow_call_kwargs,
                 )
 
-                # If confirmation required, pause and yield action card
+                # If confirmation required, decide auto-confirm vs. pause
                 if safety == ToolSafety.CONFIRMATION_REQUIRED:
+                    auto_confirm_now = bool(session.get("auto_confirm", False))
+                    if auto_confirm_now:
+                        passed, reason = self._precheck_guarded_tool(tool_name, arguments)
+                        if passed:
+                            yield {
+                                "type": "auto_confirmed",
+                                "tool_name": tool_name,
+                                "reason": reason,
+                            }
+                            yield {"type": "tool_started", "tool_name": tool_name}
+                            result = await self.executor.execute(
+                                tool_call=workflow_call,
+                                copilot_session_id=session_id,
+                                confirmed=True,
+                                progress_callback=None,
+                            )
+                            # Record + emit result (mirrors read-only path below)
+                            tool_run = ToolRunRecord(
+                                tool_call_id=workflow_call.tool_call_id,
+                                tool_name=tool_name,
+                                arguments=arguments,
+                                safety=safety,
+                                status=result.status,
+                                started_at=result.started_at,
+                                completed_at=result.completed_at,
+                                result_summary=result.result_summary,
+                                error=result.error,
+                            )
+                            self.copilot_store.add_tool_run(session, tool_run.model_dump())
+                            self.copilot_store.save_session(session)
+                            if result.status == ToolRunStatus.COMPLETED:
+                                yield {
+                                    "type": "tool_result",
+                                    "tool_name": tool_name,
+                                    "result": result.result_summary,
+                                }
+                            else:
+                                yield {
+                                    "type": "tool_failed",
+                                    "tool_name": tool_name,
+                                    "error": result.error,
+                                }
+                            # Add tool result to messages for next model turn.
+                            tool_result_content = json.dumps(result.result_summary or {"error": result.error})
+                            messages.append({
+                                "role": "tool",
+                                "content": tool_result_content,
+                                "tool_call_id": workflow_call.tool_call_id,
+                            })
+                            self.copilot_store.add_message(
+                                session, "tool", tool_result_content,
+                                tool_call_id=workflow_call.tool_call_id,
+                            )
+                            self.copilot_store.save_session(session)
+                            continue
+                        # Pre-check failed: still pause and surface the reason.
+                        yield {
+                            "type": "auto_confirm_blocked",
+                            "tool_name": tool_name,
+                            "reason": reason,
+                        }
+
                     pending_action = PendingToolAction(
                         session_id=session_id,
                         tool_call_id=workflow_call.tool_call_id,
@@ -567,8 +696,59 @@ class WorkflowCopilot:
                     **workflow_call_kwargs,
                 )
                 
-                # If confirmation required, pause again
+                # If confirmation required, decide auto-confirm vs. pause again
                 if safety == ToolSafety.CONFIRMATION_REQUIRED:
+                    auto_confirm_now = bool(session.get("auto_confirm", False))
+                    if auto_confirm_now:
+                        passed, reason = self._precheck_guarded_tool(tool_name, arguments)
+                        if passed:
+                            yield {
+                                "type": "auto_confirmed",
+                                "tool_name": tool_name,
+                                "reason": reason,
+                            }
+                            yield {"type": "tool_started", "tool_name": tool_name}
+                            result = await self.executor.execute(
+                                tool_call=workflow_call,
+                                copilot_session_id=session_id,
+                                confirmed=True,
+                                progress_callback=progress_callback,
+                            )
+                            tool_run = ToolRunRecord(
+                                tool_call_id=workflow_call.tool_call_id,
+                                tool_name=tool_name,
+                                arguments=arguments,
+                                safety=safety,
+                                status=result.status,
+                                started_at=result.started_at,
+                                completed_at=result.completed_at,
+                                result_summary=result.result_summary,
+                                error=result.error,
+                            )
+                            self.copilot_store.add_tool_run(session, tool_run.model_dump())
+                            self.copilot_store.save_session(session)
+                            if result.status == ToolRunStatus.COMPLETED:
+                                yield {"type": "tool_result", "tool_name": tool_name, "result": result.result_summary}
+                            else:
+                                yield {"type": "tool_failed", "tool_name": tool_name, "error": result.error}
+                            tool_result_content = json.dumps(result.result_summary or {"error": result.error})
+                            messages.append({
+                                "role": "tool",
+                                "content": tool_result_content,
+                                "tool_call_id": workflow_call.tool_call_id,
+                            })
+                            self.copilot_store.add_message(
+                                session, "tool", tool_result_content,
+                                tool_call_id=workflow_call.tool_call_id,
+                            )
+                            self.copilot_store.save_session(session)
+                            continue
+                        yield {
+                            "type": "auto_confirm_blocked",
+                            "tool_name": tool_name,
+                            "reason": reason,
+                        }
+
                     pending_action = PendingToolAction(
                         session_id=session_id,
                         tool_call_id=workflow_call.tool_call_id,

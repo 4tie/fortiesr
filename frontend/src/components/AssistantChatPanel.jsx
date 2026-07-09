@@ -306,6 +306,7 @@ export default function AssistantChatPanel({
   const [actionBusy, setActionBusy] = useState(false);
   const [performanceMetrics, setPerformanceMetrics] = useState(null);
   const [sandboxMode, setSandboxMode] = useState(false);
+  const [autoConfirm, setAutoConfirm] = useState(false);
   const scrollerRef = useRef(null);
   const sentInitialPromptRef = useRef(null);
 
@@ -400,7 +401,7 @@ export default function AssistantChatPanel({
     if (!messageText || hookLoading) return;
     setInput("");
     setError("");
-    await hookSendMessage(messageText, request);
+    await hookSendMessage(messageText, { ...request, autoConfirm });
   };
 
   useEffect(() => {
@@ -735,6 +736,16 @@ export default function AssistantChatPanel({
               disabled={loading}
             />
             Attach source
+          </label>
+          <label className="inline-flex items-center gap-2 text-[11px] text-base-content/55" title="Auto-run guarded tools (backtest/optimizer/pair-explorer) only if a quick safety pre-check passes. If it fails, you are still asked to confirm.">
+            <input
+              type="checkbox"
+              className="checkbox checkbox-xs checkbox-primary"
+              checked={autoConfirm}
+              onChange={e => setAutoConfirm(e.target.checked)}
+              disabled={loading}
+            />
+            Auto-confirm safe
           </label>
         </div>
         <form
