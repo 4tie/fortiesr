@@ -63,8 +63,14 @@ class ToolSpec:
         self.handler_name = handler_name or name
 
     def to_ollama_schema(self) -> dict[str, Any]:
-        """Convert to Ollama tool schema format."""
-        schema = {
+        """Convert to Ollama tool schema format.
+
+        Ollama (and OpenAI-compatible servers) expect each tool wrapped as
+        ``{"type": "function", "function": {name, description, parameters}}``.
+        Without the wrapper, models ignore the tool and answer with plain text,
+        which silently breaks the whole tool-calling loop.
+        """
+        function = {
             "name": self.name,
             "description": self.description,
             "parameters": {
@@ -92,13 +98,13 @@ class ToolSpec:
                         prop_schema["type"] = "array"
                         prop_schema["items"] = {"type": "string"}
 
-                schema["parameters"]["properties"][field_name] = prop_schema
+                function["parameters"]["properties"][field_name] = prop_schema
                 
                 # Check if required
                 if field_info.is_required():
-                    schema["parameters"]["required"].append(field_name)
+                    function["parameters"]["required"].append(field_name)
 
-        return schema
+        return {"type": "function", "function": function}
 
 
 # ── Registry definition ───────────────────────────────────────────────────────────
