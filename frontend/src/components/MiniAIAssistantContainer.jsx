@@ -11,6 +11,8 @@
  * - Session restore on mount (in container so Run tab sees active_jobs cards)
  */
 import { useCallback, useEffect, useRef, useState } from "react";
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { useAssistantChat } from "../hooks/useAssistantChat.js";
 import WorkflowCard from "./WorkflowCard.jsx";
 import AssistantRunSummary from "./AssistantRunSummary.jsx";
@@ -46,7 +48,7 @@ function MessageBubble({ message }) {
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
       <div
-        className={`max-w-[88%] whitespace-pre-wrap rounded-lg px-3 py-2 text-xs leading-relaxed ${
+        className={`max-w-[88%] rounded-lg px-3 py-2 text-xs leading-relaxed ${
           isUser
             ? "bg-violet-600 text-white"
             : isError
@@ -54,7 +56,15 @@ function MessageBubble({ message }) {
               : "border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 shadow-sm"
         }`}
       >
-        {message.content}
+        {isUser ? (
+          <div className="whitespace-pre-wrap">{message.content}</div>
+        ) : (
+          <div className="prose prose-sm prose-invert max-w-none">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {message.content}
+            </ReactMarkdown>
+          </div>
+        )}
       </div>
     </div>
   );

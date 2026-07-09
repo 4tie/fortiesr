@@ -143,8 +143,10 @@ function TopCandidates({ data }) {
 function getApprovalReview(pipelineState) {
   if (pipelineState?.status !== "awaiting_user_approval") return null;
 
-  // For Stage 2 (Portfolio Baseline), get pair selection data from Stage 1
-  const stageIndex = pipelineState.current_stage === 2 ? 1 : pipelineState.current_stage;
+  // Read the stage that actually holds the review data. The portfolio review
+  // payload (per_pair, current_pairs, portfolio_summary) is stored on Stage 2's
+  // own stage object, so reading Stage 1 produced an empty pair list ("0 of 0").
+  const stageIndex = pipelineState.current_stage;
   const stage =
     (pipelineState.stages || []).find((item) => item.index === stageIndex) ||
     (pipelineState.stages || [])[0] ||
@@ -195,6 +197,7 @@ function PortfolioBaselineReview({ data, onResume }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [selectedPairs, setSelectedPairs] = useState([]);
+  const initializedRef = useRef(false);
 
   const perPair = data.per_pair || [];
   const portfolioProfit = data.portfolio_profit ?? 0;
@@ -202,10 +205,13 @@ function PortfolioBaselineReview({ data, onResume }) {
   const portfolioTrades = data.portfolio_trades ?? 0;
   const maxOpenTrades = data.max_open_trades || 3;
 
-  // Initialize selected pairs with all pairs from current_pairs or per_pair
+  // Initialize selected pairs with all pairs from current_pairs or per_pair (only once)
   useEffect(() => {
-    const initialPairs = (data.current_pairs || perPair.map(p => p.key)).filter(Boolean);
-    setSelectedPairs(initialPairs);
+    if (!initializedRef.current) {
+      const initialPairs = (data.current_pairs || perPair.map(p => p.key)).filter(Boolean);
+      setSelectedPairs(initialPairs);
+      initializedRef.current = true;
+    }
   }, [data.current_pairs, perPair]);
 
   // Calculate pair contributions and detect dominance
@@ -336,12 +342,16 @@ function PortfolioBaselineReview({ data, onResume }) {
                       ? 'bg-primary/10 border-primary/30' 
                       : 'bg-base-100 border-base-200 hover:border-base-300'
                   }`}
+                  onClick={() => togglePair(pair.key)}
                 >
                   <div className="flex items-center gap-3">
                     <input
                       type="checkbox"
                       checked={isSelected}
-                      onChange={() => togglePair(pair.key)}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        togglePair(pair.key);
+                      }}
                       className="checkbox checkbox-xs"
                     />
                     <div className="flex flex-col">

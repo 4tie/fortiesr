@@ -58,10 +58,76 @@ def _backtest_cmd(
     return cmd
 
 
+def _parse_fthypt_file(filepath: Path) -> dict | None:
+    """Parse a freqtrade 2024+ hyperopt result file (``*.fthypt``).
+
+    Modern freqtrade writes JSON-lines (one epoch per line). Each line is a
+    complete JSON object carrying ``params_dict``, ``loss`` and (optionally)
+    ``is_best``. We pick the epoch flagged ``is_best`` or, if none is flagged,
+    the one with the lowest ``loss``.
+    """
+    try:
+        with open(filepath, encoding="utf-8") as fh:
+            lines = [ln for ln in fh.read().splitlines() if ln.strip()]
+    except Exception as exc:
+        logger.warning("Helpers | failed to read hyperopt file %s: %s", filepath, exc)
+        return None
+
+    # Some versions store a single JSON object with a "results" array instead.
+    if len(lines) == 1:
+        try:
+            single = json.loads(lines[0])
+            if isinstance(single, dict) and "results" in single:
+                lines = [json.dumps(r) for r in single["results"]]
+        except Exception:
+            pass
+
+    epochs = []
+    for ln in lines:
+        try:
+            obj = json.loads(ln)
+        except Exception:
+            continue
+        if isinstance(obj, dict) and ("params_dict" in obj or "loss" in obj):
+            epochs.append(obj)
+
+    if not epochs:
+        logger.warning("Helpers | no valid hyperopt epochs found in %s", filepath)
+        return None
+
+    # Only short-circuit when a trade-count field is genuinely present AND zero
+    # everywhere. freqtrade 2026.6 .fthypt epochs omit the top-level
+    # "total_trades" key (trades live under results_metrics), so its absence
+    # must NOT be interpreted as "no trades".
+    trades_present = [e["total_trades"] for e in epochs if "total_trades" in e]
+    if trades_present and all(t == 0 for t in trades_present):
+        logger.warning(
+            "Helpers | hyperopt produced 0 trades across %d epochs - no parameters to extract. "
+            "Check strategy config, timerange, or hyperopt spaces.",
+            len(epochs)
+        )
+        return None
+
+    best = next((e for e in epochs if e.get("is_best")), None)
+    if best is None:
+        best = min(epochs, key=lambda e: e.get("loss", float("inf")))
+
+    params_dict = best.get("params_dict") or {}
+    
+    # If we still have no params_dict but have a valid epoch, log a warning
+    if not params_dict:
+        logger.warning(
+            "Helpers | best epoch has no params_dict field - "
+            "hyperopt may have failed to optimize parameters"
+        )
+    
+    return {"params_dict": params_dict, "loss": best.get("loss")}
+
+
 async def _extract_hyperopt_best(
     state: PipelineState, out_dir: Path
 ) -> dict | None:
-    """Extract best hyperopt result using three methods in order of reliability."""
+    """Extract best hyperopt result using multiple methods in order of reliability."""
 
     def _save_and_return(obj: dict) -> dict:
         try:
@@ -73,48 +139,57 @@ async def _extract_hyperopt_best(
         return obj
 
     logger.info("Helpers | Attempting to extract best hyperopt parameters")
-    
-    # ── Method 1: freqtrade hyperopt-show --print-json ─────────────────────
-    # Scan for a valid JSON object rather than using a greedy regex that
-    # captures everything from the first { to the last } in the full output.
-    # Handle "py -m freqtrade" command by splitting it
-    if state.freqtrade_path == "py -m freqtrade":
-        cmd = [
-            "py", "-m", "freqtrade", "hyperopt-show",
-            "--config", state.config_file,
-            "--strategy", state.strategy,
-            "--user-data-dir", state.user_data_dir,
-            "--best",
-            "--print-json",
-            "--no-color",
-        ]
-    else:
-        cmd = [
-            state.freqtrade_path, "hyperopt-show",
-            "--config", state.config_file,
-            "--strategy", state.strategy,
-            "--user-data-dir", state.user_data_dir,
-            "--best",
-            "--print-json",
-            "--no-color",
-        ]
-    try:
-        from ...variants import strategy_path_args
 
-        cmd += strategy_path_args(state)
-    except Exception:
-        pass
-    
+    # ── Method 1: Parse the on-disk .fthypt result file directly ────────────
+    # Modern freqtrade (2024+) stores results as ``*.fthypt`` in the
+    # user_data/hyperopt_results directory — NOT the legacy ``hyperopt_results.json``.
+    # Reading the file directly is version-proof and avoids spawning a subprocess.
+    logger.info("Helpers | Method 1: Parsing .fthypt result file")
+    hyperopt_dir = Path(state.user_data_dir) / "hyperopt_results"
+    try:
+        candidates = sorted(
+            hyperopt_dir.glob("*.fthypt"),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
+    except Exception as exc:
+        logger.warning("Helpers | failed to list hyperopt_results dir: %s", exc)
+        candidates = []
+    for path in candidates:
+        # Skip ticker data pickle leftovers that share the extension pattern.
+        if path.name == "hyperopt_tickerdata.pkl":
+            continue
+        result = _parse_fthypt_file(path)
+        if result and result.get("params_dict"):
+            logger.info(
+                "Helpers | Method 1 succeeded: parsed %s (params=%d)",
+                path.name, len(result["params_dict"]),
+            )
+            return _save_and_return(result)
+
+    # ── Method 2: freqtrade hyperopt-show --print-json ─────────────────────
+    # NOTE: modern ``hyperopt-show`` does NOT accept ``--strategy`` (it reads the
+    # latest result automatically), so we must omit it — otherwise the command
+    # aborts with "unrecognized arguments: --strategy".
+    logger.info("Helpers | Method 2: Running hyperopt-show")
+    cmd = [
+        state.freqtrade_path, "hyperopt-show",
+        "--config", state.config_file,
+        "--user-data-dir", state.user_data_dir,
+        "--best",
+        "--print-json",
+        "--no-color",
+    ]
     import shlex
-    logger.info("Helpers | Method 1: Running hyperopt-show command: %s", shlex.join(cmd))
-    
+    logger.info("Helpers | Method 2: Running hyperopt-show command: %s", shlex.join(cmd))
+
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
         output = (result.stdout + result.stderr).strip()
         logger.info("Helpers | hyperopt-show stdout length: %d, stderr length: %d", len(result.stdout), len(result.stderr))
         logger.debug("Helpers | hyperopt-show stdout: %s", result.stdout[:500] if result.stdout else "empty")
         logger.debug("Helpers | hyperopt-show stderr: %s", result.stderr[:500] if result.stderr else "empty")
-        
+
         if not output:
             logger.warning("Helpers | hyperopt-show produced no output")
         else:
@@ -127,7 +202,7 @@ async def _extract_hyperopt_best(
                         if isinstance(obj, dict):
                             # Direct params_dict or loss
                             if "params_dict" in obj or "loss" in obj:
-                                logger.info("Helpers | Method 1 succeeded: found direct params_dict or loss in output")
+                                logger.info("Helpers | Method 2 succeeded: found direct params_dict or loss in output")
                                 return _save_and_return(obj)
                             # Nested params structure (from hyperopt-show)
                             if "params" in obj:
@@ -141,7 +216,7 @@ async def _extract_hyperopt_best(
                                         params_dict["minimal_roi"] = vals
                                     else:
                                         params_dict.update(vals)
-                                logger.info("Helpers | Method 1 succeeded: extracted params from nested structure")
+                                logger.info("Helpers | Method 2 succeeded: extracted params from nested structure")
                                 return _save_and_return({"params_dict": params_dict, "loss": obj.get("loss")})
                     except json.JSONDecodeError:
                         continue
@@ -150,8 +225,8 @@ async def _extract_hyperopt_best(
     except Exception as exc:
         logger.warning("Helpers | hyperopt-show failed: %s", exc)
 
-    # ── Method 2: Parse hyperopt_results.json ───────────────────────────────
-    logger.info("Helpers | Method 2: Parsing hyperopt_results.json")
+    # ── Method 3: Legacy hyperopt_results.json fallback ─────────────────────
+    logger.info("Helpers | Method 3: Parsing legacy hyperopt_results.json")
     hyperopt_results_file = Path(state.user_data_dir) / "hyperopt_results" / "hyperopt_results.json"
     if hyperopt_results_file.exists():
         try:
@@ -160,13 +235,12 @@ async def _extract_hyperopt_best(
             if isinstance(data, dict) and "best_result" in data:
                 best = data["best_result"]
                 if isinstance(best, dict):
-                    logger.info("Helpers | Method 2 succeeded: found best_result in hyperopt_results.json")
+                    logger.info("Helpers | Method 3 succeeded: found best_result in hyperopt_results.json")
                     return _save_and_return(best)
         except Exception as exc:
             logger.warning("Helpers | Failed to parse hyperopt_results.json: %s", exc)
 
-    # ── Method 3: Parse hyperopt_tickerdata.pkl fallback ───────────────────────
-    logger.info("Helpers | Method 3: Fallback - no valid hyperopt result found")
+    logger.warning("Helpers | All methods failed: no valid hyperopt result found")
     return None
 
 

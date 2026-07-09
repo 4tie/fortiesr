@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import mermaid from "mermaid";
 import {
   BarChart,
@@ -23,14 +25,31 @@ import {
 // Initialize mermaid
 mermaid.initialize({ startOnLoad: false, theme: 'dark' });
 
-// Helper function to render text content
+// Helper function to render text content with markdown
 function renderContent(text) {
-  return String(text || "").split("\n").map((line, idx) => (
-    <span key={idx}>
-      {line}
-      {idx < String(text || "").split("\n").length - 1 && <br />}
-    </span>
-  ));
+  if (!text || typeof text !== 'string') return <span>{text}</span>;
+  
+  return (
+    <div className="prose prose-sm prose-invert max-w-none">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          code({ node, inline, className, children, ...props }) {
+            const match = /language-(\w+)/.exec(className || '');
+            const language = match ? match[1] : 'text';
+            
+            if (!inline) {
+              return <CodeBlock language={language} content={String(children).replace(/\n$/, '')} />;
+            }
+            
+            return <code className="bg-base-300 px-1 py-0.5 rounded text-xs font-mono text-base-content" {...props}>{children}</code>;
+          },
+        }}
+      >
+        {text}
+      </ReactMarkdown>
+    </div>
+  );
 }
 
 // Code block component
@@ -330,14 +349,14 @@ export function renderMessageWithCharts(content) {
       if (segment.type === 'code') {
         return <CodeBlock key={`code-${idx}`} language={segment.language} content={segment.content} />;
       }
-      return <span key={`text-${idx}`}>{renderContent(segment.content)}</span>;
+      return <div key={`text-${idx}`} className="markdown-content">{renderContent(segment.content)}</div>;
     });
 
     // Wrap in fragment to ensure proper rendering
     return <>{elements}</>;
   } catch (err) {
     console.error('Error rendering message with charts:', err);
-    // Fallback to simple text rendering
-    return <span>{renderContent(content)}</span>;
+    // Fallback to simple markdown rendering
+    return <div className="markdown-content">{renderContent(content)}</div>;
   }
 }

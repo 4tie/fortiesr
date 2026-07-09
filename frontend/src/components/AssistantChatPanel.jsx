@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { api } from "../services/api.js";
 import {
   ExclamationTriangleIcon,
@@ -91,6 +93,36 @@ function renderContent(text) {
       {idx < String(text || "").split("\n").length - 1 && <br />}
     </span>
   ));
+}
+
+function MarkdownRenderer({ content }) {
+  if (!content || typeof content !== 'string') return <span>{content}</span>;
+  
+  return (
+    <div className="prose prose-sm prose-invert max-w-none">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          code({ node, inline, className, children, ...props }) {
+            const match = /language-(\w+)/.exec(className || '');
+            const language = match ? match[1] : 'text';
+            
+            if (!inline) {
+              return <CodeBlock language={language} content={String(children).replace(/\n$/, '')} />;
+            }
+            
+            return (
+              <code className="bg-base-300 px-1 py-0.5 rounded text-xs font-mono text-base-content" {...props}>
+                {children}
+              </code>
+            );
+          },
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+    </div>
+  );
 }
 
 function isCodeBlock(text) {
@@ -620,7 +652,11 @@ export default function AssistantChatPanel({
                 {message.role === "assistant" && message.thinking && <ThinkingSection thinking={message.thinking} />}
                 <div className="overflow-x-auto overflow-y-auto max-h-[600px]">
                   {message.content || message.error ? (
-                    renderMessageWithCharts(message.content)
+                    <div className="prose prose-sm prose-invert max-w-none">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {message.content || message.error}
+                      </ReactMarkdown>
+                    </div>
                   ) : (
                     <span className="loading loading-dots loading-sm" />
                   )}

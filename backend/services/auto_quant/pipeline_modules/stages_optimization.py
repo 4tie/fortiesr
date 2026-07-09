@@ -212,7 +212,16 @@ async def _stage_hyperopt_standard(
         state.param_overrides = {}
     
     if best_params is None:
-        msg = "Hyperopt completed but could not extract best parameters."
+        msg = (
+            "```\n"
+            "ERROR: Hyperopt completed but could not extract best parameters\n"
+            "```\n\n"
+            "Root cause: Hyperopt produced 0 trades across all epochs\n\n"
+            "Common causes:\n"
+            "- Strategy configuration prevents trading\n"
+            "- Timerange has insufficient data\n"
+            "- Hyperopt spaces are misconfigured"
+        )
         _rlog(run_id, 3, logging.ERROR, f"Stage 3 | FAIL | {msg}")
         _fail_stage(run_id, state, 3, msg)
         return None

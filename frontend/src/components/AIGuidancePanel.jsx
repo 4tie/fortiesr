@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from "react";
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { XMarkIcon, MinusIcon, ArrowsPointingOutIcon, SparklesIcon, ChatBubbleLeftIcon } from "@heroicons/react/24/outline";
 import { useGuidanceContext } from "../features/guidance/hooks/useGuidanceContext";
 import { guidanceApi } from "../features/guidance/api";
@@ -6,6 +8,18 @@ import { guidanceApi } from "../features/guidance/api";
 const DEFAULT_POSITION = { x: 20, y: 20 };
 const MIN_SIZE = { width: 300, height: 200 };
 const PANEL_Z_INDEX = 9999;
+
+function MarkdownRenderer({ content }) {
+  if (!content || typeof content !== 'string') return <span>{content}</span>;
+  
+  return (
+    <div className="prose prose-sm prose-invert max-w-none">
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+        {content}
+      </ReactMarkdown>
+    </div>
+  );
+}
 
 export default function AIGuidancePanel({ activeTab = null }) {
   const { context, getContextSuggestions } = useGuidanceContext(activeTab);
@@ -242,76 +256,41 @@ export default function AIGuidancePanel({ activeTab = null }) {
                 </div>
 
                 {guidanceResponse.message && (
-                  <p className="text-sm text-gray-700">{guidanceResponse.message}</p>
+                  <MarkdownRenderer content={guidanceResponse.message} />
                 )}
 
                 {guidanceResponse.steps && (
                   <div className="bg-gray-50 rounded-lg p-3">
                     <p className="text-xs font-medium text-gray-600 mb-2">Steps:</p>
-                    <ul className="text-xs text-gray-600 space-y-1">
-                      {guidanceResponse.steps.map((step, idx) => (
-                        <li key={idx} className="flex items-start gap-2">
-                          <span className="text-purple-600">{idx + 1}.</span>
-                          <span>{step}</span>
-                        </li>
-                      ))}
-                    </ul>
+                    <MarkdownRenderer content={guidanceResponse.steps.map((step, idx) => `${idx + 1}. ${step}`).join('\n')} />
                   </div>
                 )}
 
                 {guidanceResponse.recommendations && (
                   <div className="bg-green-50 border border-green-200 rounded-lg p-3">
                     <p className="text-xs font-medium text-green-800 mb-2">Recommendations:</p>
-                    <ul className="text-xs text-green-700 space-y-1">
-                      {guidanceResponse.recommendations.map((rec, idx) => (
-                        <li key={idx} className="flex items-start gap-2">
-                          <ChatBubbleLeftIcon className="h-3 w-3 mt-0.5 flex-shrink-0" />
-                          <span>{rec}</span>
-                        </li>
-                      ))}
-                    </ul>
+                    <MarkdownRenderer content={guidanceResponse.recommendations.map(rec => `- ${rec}`).join('\n')} />
                   </div>
                 )}
 
                 {guidanceResponse.issues && (
                   <div className="bg-red-50 border border-red-200 rounded-lg p-3">
                     <p className="text-xs font-medium text-red-800 mb-2">Issues Detected:</p>
-                    <ul className="text-xs text-red-700 space-y-1">
-                      {guidanceResponse.issues.map((issue, idx) => (
-                        <li key={idx} className="flex items-start gap-2">
-                          <span className="text-red-600">•</span>
-                          <span>{issue}</span>
-                        </li>
-                      ))}
-                    </ul>
+                    <MarkdownRenderer content={guidanceResponse.issues.map(issue => `- ${issue}`).join('\n')} />
                   </div>
                 )}
 
                 {guidanceResponse.metrics && (
                   <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
                     <p className="text-xs font-medium text-yellow-800 mb-2">Key Metrics:</p>
-                    <ul className="text-xs text-yellow-700 space-y-1">
-                      {guidanceResponse.metrics.map((metric, idx) => (
-                        <li key={idx} className="flex items-start gap-2">
-                          <span className="text-yellow-600">•</span>
-                          <span>{metric}</span>
-                        </li>
-                      ))}
-                    </ul>
+                    <MarkdownRenderer content={guidanceResponse.metrics.map(metric => `- ${metric}`).join('\n')} />
                   </div>
                 )}
 
                 {guidanceResponse.tips && (
                   <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
                     <p className="text-xs font-medium text-purple-800 mb-2">Tips:</p>
-                    <ul className="text-xs text-purple-700 space-y-1">
-                      {guidanceResponse.tips.map((tip, idx) => (
-                        <li key={idx} className="flex items-start gap-2">
-                          <SparklesIcon className="h-3 w-3 mt-0.5 flex-shrink-0" />
-                          <span>{tip}</span>
-                        </li>
-                      ))}
-                    </ul>
+                    <MarkdownRenderer content={guidanceResponse.tips.map(tip => `- ${tip}`).join('\n')} />
                   </div>
                 )}
               </div>

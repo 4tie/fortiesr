@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useCallback } from "react";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -152,6 +152,16 @@ export default function EquityCurveChart({ trades }) {
   /* X-axis — show ~7 evenly-spaced labels */
   const xInterval = Math.max(1, Math.floor(data.length / 7));
 
+  const tickFormatter = useCallback(
+    (_, i) => data[i]?.tickLabel ?? "",
+    [data],
+  );
+
+  const yAxisTickFormatter = useCallback(
+    (v) => `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`,
+    [],
+  );
+
   return (
     <div style={{ width: "100%", minWidth: 0, height: 230 }}>
       <ResponsiveContainer width="100%" height="100%" debounce={60}>
@@ -184,7 +194,7 @@ export default function EquityCurveChart({ trades }) {
           <XAxis
             dataKey="idx"
             interval={xInterval - 1}
-            tickFormatter={(_, i) => data[i]?.tickLabel ?? ""}
+            tickFormatter={tickFormatter}
             tick={{ fill: C_MUTED, fontSize: 10 }}
             axisLine={{ stroke: C_GRID }}
             tickLine={false}
@@ -193,7 +203,7 @@ export default function EquityCurveChart({ trades }) {
 
           <YAxis
             domain={yDomain}
-            tickFormatter={(v) => `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`}
+            tickFormatter={yAxisTickFormatter}
             tick={{ fill: C_MUTED, fontSize: 10 }}
             axisLine={false}
             tickLine={false}
