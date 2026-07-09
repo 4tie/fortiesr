@@ -4,6 +4,7 @@ import { Link } from '@tanstack/react-router'
 import { fetchRuns } from '../lib/api'
 import { formatRelativeTime } from '../lib/format'
 import type { Run } from '../lib/autoquant.types'
+import RunProgressChart from '../components/autoquant/RunProgressChart'
 
 export const Route = createFileRoute('/')({
   component: RunsList,
@@ -57,56 +58,69 @@ function RunsList() {
           </Link>
         </div>
       ) : (
-        <div className="glass rounded-lg overflow-hidden">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-border">
-                <th className="px-4 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">
-                  Strategy
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">
-                  Stage
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">
-                  Created
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-text-muted uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {runs.map((run: Run, index) => (
-                <tr key={run.id || index} className="border-b border-border hover:bg-surface-hover transition-colors">
-                  <td className="px-4 py-3">
-                    <div className="font-mono text-sm">{run.strategy}</div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <RunStatusBadge status={run.status} />
-                  </td>
-                  <td className="px-4 py-3 text-sm text-text-muted">
-                    Stage {run.current_stage}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-text-muted">
-                    {formatRelativeTime(run.created_at)}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <Link
-                      to="/runs/$runId"
-                      params={{ runId: run.id }}
-                      className="text-sm text-primary hover:text-primary-dim transition-colors"
-                    >
-                      View
-                    </Link>
-                  </td>
+        <>
+          <div className="glass rounded-lg overflow-hidden">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">
+                    Strategy
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">
+                    Stage
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">
+                    Created
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-text-muted uppercase tracking-wider">
+                    Progress
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-text-muted uppercase tracking-wider">
+                    Actions
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {runs.map((run: Run, index) => (
+                  <tr key={run.id || index} className="border-b border-border hover:bg-surface-hover transition-colors">
+                    <td className="px-4 py-3">
+                      <div className="font-mono text-sm">{run.strategy}</div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <RunStatusBadge status={run.status} />
+                    </td>
+                    <td className="px-4 py-3 text-sm text-text-muted">
+                      Stage {run.current_stage}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-text-muted">
+                      {formatRelativeTime(run.created_at)}
+                    </td>
+                    <td className="px-4 py-3 text-right text-sm text-text-muted">
+                      {typeof run.progress === 'number' ? `${run.progress.toFixed(1)}%` : 'N/A'}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <Link
+                        to="/runs/$runId"
+                        params={{ runId: run.id }}
+                        className="text-sm text-primary hover:text-primary-dim transition-colors"
+                      >
+                        View
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="glass rounded-lg p-6">
+            <h3 className="text-sm font-semibold mb-4">Run Progress Overview</h3>
+            <RunProgressChart runs={runs} />
+          </div>
+        </>
       )}
     </div>
   )

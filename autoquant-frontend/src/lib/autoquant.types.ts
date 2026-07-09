@@ -27,6 +27,7 @@ export interface Run {
   strategy: string;
   status: RunStatus;
   current_stage: number;
+  progress?: number;
   created_at: string;
   updated_at: string;
   error?: string;
