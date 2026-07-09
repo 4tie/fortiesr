@@ -450,5 +450,10 @@ async def _stage_robustness_feature_injection(
         "injection_error": injection_error,
         "warnings": warnings,
     }
-    _pass_stage(run_id, state, 4, "Robustness & Feature Injection complete", summary)
+    pass_message = "Robustness & Feature Injection complete"
+    if not injection_success:
+        pass_message += f" (feature injection failed: {injection_error}; strategy left unmodified)"
+    elif warnings:
+        pass_message += f" — {'; '.join(warnings)}"
+    _pass_stage(run_id, state, 4, pass_message, summary)
     return summary

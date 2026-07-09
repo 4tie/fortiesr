@@ -20,7 +20,7 @@ from .stages_optimization import _stage_hyperopt, _stage_patch
 from .stages_genetic import _stage_genetic_evolution
 from .stages_regime import _stage_regime_detection
 from .stages_rl import _stage_rl_deployment, _stage_rl_training
-from .stages_validation import _stage_oos_validation, _stage_portfolio_baseline, _stage_robustness_feature_injection, _stage_pre_flight_filtering, _stage_pre_selection, _stage_sanity_backtest, _stage_stress_test
+from .stages_validation import _stage_oos_validation, _stage_portfolio_baseline, _stage_robustness_feature_injection, _stage_pre_flight_filtering, _stage_sanity_backtest, _stage_stress_test
 from .helpers import _fail_stage, _pass_stage
 from .stage_runtime import ensure_validation_attempt, is_validate_existing, update_validation_attempt
 from .state import (
@@ -31,6 +31,33 @@ from .state import (
     _now,
     get_states,
 )
+
+# Tracks the currently in-flight orchestrator asyncio.Task per run_id so
+# start/resume endpoints can never double-launch run_pipeline() for the same
+# run — a duplicate launch would spawn a second set of freqtrade subprocesses
+# against the same output directory and corrupt shared state.
+_active_run_tasks: dict[str, "asyncio.Task"] = {}
+
+
+def launch_pipeline_task(run_id: str):
+    """Schedule run_pipeline(run_id) as a background task, unless one is
+    already running for this run_id. Returns the (possibly pre-existing)
+    asyncio.Task, or None if a task is already active."""
+    import asyncio
+
+    existing = _active_run_tasks.get(run_id)
+    if existing is not None and not existing.done():
+        logger.warning(
+            "launch_pipeline_task: run %s already has an active orchestrator "
+            "task — ignoring duplicate launch request.",
+            run_id,
+        )
+        return None
+
+    task = asyncio.create_task(run_pipeline(run_id))
+    _active_run_tasks[run_id] = task
+    task.add_done_callback(lambda t, rid=run_id: _active_run_tasks.pop(rid, None))
+    return task
 
 
 def _merge_timeranges(r1: str, r2: str) -> str:
@@ -69,10 +96,20 @@ async def run_pipeline(run_id: str) -> None:
         logger.info("run_pipeline: resuming from user approval checkpoint at stage %d", state.current_stage)
         state.status = "running"
         
-        # Transfer user_approved_pairs to selected_pairs if they exist
+        # Transfer user_approved_pairs to selected_pairs if they exist.
+        # Strip any freqtrade aggregate summary rows (e.g. "TOTAL") that are
+        # not real trading pairs and must never be forwarded to freqtrade.
         if state.user_approved_pairs and not state.selected_pairs:
-            state.selected_pairs = [{"key": pair} for pair in state.user_approved_pairs]
-            logger.info("run_pipeline: transferred %d user_approved_pairs to selected_pairs", len(state.user_approved_pairs))
+            real_pairs = [p for p in state.user_approved_pairs if p.strip().upper() != "TOTAL"]
+            if len(real_pairs) < len(state.user_approved_pairs):
+                logger.warning(
+                    "run_pipeline: stripped %d non-pair summary row(s) from user_approved_pairs "
+                    "(e.g. 'TOTAL'); proceeding with %d real pairs.",
+                    len(state.user_approved_pairs) - len(real_pairs),
+                    len(real_pairs),
+                )
+            state.selected_pairs = [{"key": pair} for pair in real_pairs]
+            logger.info("run_pipeline: transferred %d user_approved_pairs to selected_pairs", len(real_pairs))
         
         _save_state_to_disk(state)
     else:
@@ -139,11 +176,18 @@ async def run_pipeline(run_id: str) -> None:
             s1_result = state.stages[0].data if state.stages else {}
             _rlog(run_id, 1, logging.INFO, "── RESUMING: Stage 1 already completed")
             
-            # Set selected_pairs from user_approved_pairs (set by resume endpoint)
+            # Set selected_pairs from user_approved_pairs (set by resume endpoint).
+            # Strip freqtrade aggregate summary rows (e.g. "TOTAL") — these are
+            # not real trading pairs and must not be forwarded to freqtrade.
             if state.user_approved_pairs:
-                state.selected_pairs = [{"key": pair} for pair in state.user_approved_pairs]
+                real_pairs = [p for p in state.user_approved_pairs if p.strip().upper() != "TOTAL"]
+                if len(real_pairs) < len(state.user_approved_pairs):
+                    _rlog(run_id, 1, logging.WARNING,
+                          f"Stage 1 | Stripped {len(state.user_approved_pairs) - len(real_pairs)} "
+                          f"non-pair summary row(s) (e.g. 'TOTAL') from user_approved_pairs.")
+                state.selected_pairs = [{"key": pair} for pair in real_pairs]
                 _rlog(run_id, 1, logging.INFO,
-                      f"Stage 1 | User approved {len(state.user_approved_pairs)} pairs")
+                      f"Stage 1 | User approved {len(real_pairs)} pairs")
             else:
                 # Fallback to passing_pairs from Stage 1 result
                 passing_pairs = s1_result.get("passing_pairs", [])

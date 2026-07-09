@@ -131,11 +131,19 @@ def _extract_per_pair_results(data: dict, strategy_name: str) -> list[dict]:
         """Extract win rate from pair data, handling both 'winrate' and 'win_rate' field names."""
         return pair_data.get("winrate", pair_data.get("win_rate", 0.0))
 
+    def _is_summary_row(pair_data: dict) -> bool:
+        """Return True for freqtrade aggregate summary rows (e.g. 'TOTAL') that
+        are not real trading pairs and must never be included in pair lists."""
+        key = pair_data.get("key", "")
+        return key.strip().upper() == "TOTAL"
+
     # Try new format first (results_per_pair at top level)
     per_pair = data.get("results_per_pair", [])
     if per_pair:
         result = []
         for pair_data in per_pair:
+            if _is_summary_row(pair_data):
+                continue  # skip the freqtrade aggregate TOTAL row
             result.append({
                 "key": pair_data.get("key", ""),
                 "profit_total": pair_data.get("profit_total", 0.0),
@@ -157,6 +165,8 @@ def _extract_per_pair_results(data: dict, strategy_name: str) -> list[dict]:
             per_pair = strategy_data[strategy_name].get("per_pair", [])
         result = []
         for pair_data in per_pair:
+            if _is_summary_row(pair_data):
+                continue  # skip the freqtrade aggregate TOTAL row
             result.append({
                 "key": pair_data.get("key", ""),
                 "profit_total": pair_data.get("profit_total", 0.0),

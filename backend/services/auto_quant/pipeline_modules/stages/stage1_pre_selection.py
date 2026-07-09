@@ -12,9 +12,7 @@ from ...variants import (
     create_variant,
     read_strategy_source,
 )
-from ..config import TOP_PAIRS_SELECTION_COUNT
 from ..data_healer import _stage_data_healing
-from ..filters import _filter_winning_pairs
 from ..helpers import (
     _backtest_cmd,
     _classify_subprocess_error,
@@ -31,82 +29,6 @@ from ..helpers import (
 )
 from ..logging import _rlog
 from ..state import PipelineState, _Cancelled, _cancelled
-
-
-async def _stage_pre_selection(
-    run_id: str, state: PipelineState, out_dir: Path
-) -> dict | None:
-    _start_stage(run_id, state, 1)
-    pairs_to_test = state.pair_universe
-    _rlog(run_id, 1, logging.INFO,
-          f"Stage 1 | Pre-Selection | strategy={state.strategy} | range={state.in_sample_range} | tf={state.timeframe} | pairs={len(pairs_to_test)}")
-    _emit(run_id, 1, "running", f"Running pre-selection backtest across {len(pairs_to_test)} pairs...", 5)
-
-    result_prefix = str(out_dir / "stage1_result")
-    cmd = _backtest_cmd(
-        state,
-        strategy=state.strategy,
-        timerange=state.in_sample_range,
-        result_prefix=result_prefix,
-        pairs=pairs_to_test,
-    )
-    _rlog(run_id, 1, logging.DEBUG, f"Stage 1 | Spawning subprocess: {' '.join(cmd)}")
-
-    rc, stdout, stderr = await _run_subprocess(run_id, cmd, stage=1)
-    _rlog(run_id, 1, logging.DEBUG, f"Stage 1 | Subprocess exited with rc={rc}")
-
-    if _cancelled(run_id):
-        raise _Cancelled()
-
-    if rc != 0:
-        msg = _classify_subprocess_error(rc, stdout, "Stage 1 (Pre-Selection)")
-        _rlog(run_id, 1, logging.ERROR, f"Stage 1 | FAIL | {msg}")
-        _fail_stage(run_id, state, 1, msg)
-        return None
-
-    result_data = _find_backtest_result(out_dir, "stage1_result", state.user_data_dir)
-    per_pair = _extract_per_pair_results(result_data, state.strategy)
-
-    # Apply dynamic pair filtering based on timeframe-specific thresholds
-    winning_pairs = _filter_winning_pairs(per_pair, state.timeframe)
-    failing_pairs = [p for p in per_pair if p not in winning_pairs]
-
-    # Sort winning pairs by profitability (profit_total descending)
-    winning_pairs_sorted = sorted(winning_pairs, key=lambda p: p.get("profit_total", 0), reverse=True)
-
-    # Select top N pairs
-    top_pairs = winning_pairs_sorted[:TOP_PAIRS_SELECTION_COUNT]
-    state.selected_pairs = top_pairs
-
-    _rlog(run_id, 1, logging.INFO,
-          f"Stage 1 | Filtered {len(winning_pairs)}/{len(per_pair)} winning pairs, selected top {len(top_pairs)}: {[p['key'] for p in top_pairs]}")
-
-    # Check minimum profitable pairs requirement (at least TOP_PAIRS_SELECTION_COUNT)
-    if len(winning_pairs) < TOP_PAIRS_SELECTION_COUNT:
-        msg = (f"Insufficient profitable pairs ({len(winning_pairs)} < {TOP_PAIRS_SELECTION_COUNT}). "
-               f"Strategy may not be generalizable. Consider adjusting parameters or timeframe.")
-        _rlog(run_id, 1, logging.WARNING, f"Stage 1 | {msg}")
-        summary = _extract_backtest_summary(result_data, state.strategy)
-        summary["per_pair"] = per_pair
-        summary["winning_pairs"] = [p["key"] for p in winning_pairs]
-        summary["failing_pairs"] = [p["key"] for p in failing_pairs]
-        summary["selected_pairs"] = [p["key"] for p in top_pairs]
-        summary["insufficient_pairs"] = True
-        _fail_stage(run_id, state, 1, msg, summary)
-        return None
-
-    summary = _extract_backtest_summary(result_data, state.strategy)
-    summary["per_pair"] = per_pair
-    summary["winning_pairs"] = [p["key"] for p in winning_pairs]
-    summary["failing_pairs"] = [p["key"] for p in failing_pairs]
-    summary["selected_pairs"] = [p["key"] for p in top_pairs]
-
-    _rlog(run_id, 1, logging.INFO,
-          f"Stage 1 | PASS | selected={len(top_pairs)} winning pairs filtered={len(failing_pairs)} total={len(per_pair)}")
-    _pass_stage(run_id, state, 1,
-                f"Pre-selection complete — {len(top_pairs)} top pairs selected for optimization.",
-                summary)
-    return summary
 
 
 async def _stage_pre_flight_filtering(

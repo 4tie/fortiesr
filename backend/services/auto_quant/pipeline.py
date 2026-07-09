@@ -185,6 +185,15 @@ async def run_pipeline(run_id: str) -> None:
     return await _orchestrator.run_pipeline(run_id)
 
 
+def launch_pipeline_task(run_id: str):
+    """Schedule the pipeline to run in the background, guarding against
+    double-launching an orchestrator task for the same run_id (e.g. a user
+    double-clicking resume, or a resume racing with an already-running task).
+    Returns the asyncio.Task, or None if one was already active."""
+    _sync_facade_patches()
+    return _orchestrator.launch_pipeline_task(run_id)
+
+
 async def _stage_hyperopt(run_id: str, state: PipelineState, out_dir: Path) -> dict | None:
     _sync_facade_patches()
     return await _optimization._stage_hyperopt(run_id, state, out_dir)

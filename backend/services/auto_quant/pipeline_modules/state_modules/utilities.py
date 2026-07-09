@@ -282,6 +282,10 @@ def _state_snapshot(state: PipelineState) -> dict:
         "validation_status": state.validation_status,
         "readiness_label": state.readiness_label,
         "workflow_mode": state.workflow_mode,
+        # Pair selection fields — needed by the frontend approval review panel
+        "selected_pairs": state.selected_pairs or [],
+        "user_approved_pairs": state.user_approved_pairs or [],
+        "discovery_results": state.discovery_results or {},
     }
 
 

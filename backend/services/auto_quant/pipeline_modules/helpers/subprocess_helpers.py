@@ -151,22 +151,36 @@ async def _run_subprocess(
                 win_rate_m = _HYPEROPT_WIN_RATE_RE.search(line)
                 win_rate_pct = float(win_rate_m.group(1)) if win_rate_m else None
                 from .validation_helpers import _emit
+                point = {
+                    "epoch": epoch_num,
+                    "total_epochs": total_epochs,
+                    "trades": trade_count,
+                    "profit_usdt": profit_usdt,
+                    "avg_profit_pct": avg_profit_pct,
+                    "objective": objective,
+                    "drawdown_pct": drawdown_pct,
+                    "win_rate_pct": win_rate_pct,
+                }
                 _emit(
                     run_id, stage, "running",
                     f"Epoch {epoch_num}/{total_epochs}: {trade_count} trades, "
                     f"profit {profit_usdt:.4f} USDT, objective {objective:.4f}",
                     -1,
-                    {
-                        "epoch": epoch_num,
-                        "total_epochs": total_epochs,
-                        "trades": trade_count,
-                        "profit_usdt": profit_usdt,
-                        "avg_profit_pct": avg_profit_pct,
-                        "objective": objective,
-                        "drawdown_pct": drawdown_pct,
-                        "win_rate_pct": win_rate_pct,
-                    },
+                    point,
                     msg_type="hyperopt_epoch",
+                )
+                # Frontend live fitness curve / progress badge listen for these
+                # specific message shapes — keep in sync with
+                # useAutoQuantPipeline.js's handleWsMessage.
+                _emit(
+                    run_id, stage, "running", "", -1,
+                    msg_type="fitness_point",
+                    extra={"point": point},
+                )
+                _emit(
+                    run_id, stage, "running", "", -1,
+                    msg_type="hyperopt_progress",
+                    extra={"progress": {"current": epoch_num, "total": total_epochs}},
                 )
 
     # Wait for process to complete, with optional timeout

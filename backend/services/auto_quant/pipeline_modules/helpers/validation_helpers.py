@@ -84,6 +84,7 @@ def _emit(
     msg_type: str | None = None,
     started_at: str | None = None,
     duration_s: float | None = None,
+    extra: dict | None = None,
 ) -> None:
     payload: dict[str, Any] = {
         "stage": stage,
@@ -99,6 +100,8 @@ def _emit(
         payload["started_at"] = started_at
     if duration_s is not None:
         payload["duration_s"] = duration_s
+    if extra:
+        payload.update(extra)
     record_event(run_id, {"run_id": run_id, **payload})
     for q in list(get_queues().get(run_id, [])):
         try:

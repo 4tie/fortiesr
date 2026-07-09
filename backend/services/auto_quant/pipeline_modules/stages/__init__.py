@@ -1,7 +1,6 @@
 """Stage implementations package."""
 
 from .stage1_pre_selection import (
-    _stage_pre_selection,
     _stage_pre_flight_filtering,
     _stage_sanity_backtest,
 )
@@ -11,7 +10,6 @@ from .stage4_robustness import _stage_robustness_feature_injection
 from .stage5_stress_test import _stage_stress_test
 
 __all__ = [
-    "_stage_pre_selection",
     "_stage_pre_flight_filtering",
     "_stage_sanity_backtest",
     "_stage_portfolio_baseline",

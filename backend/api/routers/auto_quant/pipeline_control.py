@@ -45,10 +45,16 @@ def register_pipeline_control_endpoints(router: APIRouter) -> None:
                 detail=f"Pipeline is not awaiting user approval (current status: {state.status})"
             )
 
-        # Update state with approved pairs
-        state.user_approved_pairs = body.approved_pairs
+        # Update state with approved pairs. Strip freqtrade's aggregate "TOTAL"
+        # summary row here too (defense in depth) so it can never be forwarded
+        # to freqtrade as a trading pair, even if the UI still shows a stale
+        # pre-selection list from before the extraction fix.
+        approved_pairs = [
+            p for p in body.approved_pairs if p.strip().upper() != "TOTAL"
+        ]
+        state.user_approved_pairs = approved_pairs
         # Also populate selected_pairs directly to ensure pipeline can proceed
-        state.selected_pairs = [{"key": pair} for pair in body.approved_pairs]
+        state.selected_pairs = [{"key": pair} for pair in approved_pairs]
         # Advance current_stage to avoid getting stuck in resume logic
         if state.current_stage == 1:
             state.current_stage = 2
@@ -61,9 +67,15 @@ def register_pipeline_control_endpoints(router: APIRouter) -> None:
         state.status = "running"
         _pl._save_state_to_disk(state)
 
-        # Resume the pipeline (this will trigger the next stage)
-        import asyncio
-        asyncio.create_task(_pl.run_pipeline(run_id))
+        # Resume the pipeline (this will trigger the next stage). Guarded
+        # against double-launching if a resume request is duplicated or
+        # races with an already-running orchestrator task for this run_id.
+        task = _pl.launch_pipeline_task(run_id)
+        if task is None:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Pipeline run '{run_id}' is already resuming/running.",
+            )
 
         return {
             "run_id": run_id,

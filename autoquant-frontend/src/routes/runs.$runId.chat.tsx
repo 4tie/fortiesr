@@ -9,6 +9,11 @@ export const Route = createFileRoute('/runs/$runId/chat')({
 
 function AIChat() {
   const { runId } = Route.useParams()
+  
+  if (!runId) {
+    return <div className="text-text-muted">Invalid run ID</div>
+  }
+  
   const [messages, setMessages] = useState<AIChatMessage[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)

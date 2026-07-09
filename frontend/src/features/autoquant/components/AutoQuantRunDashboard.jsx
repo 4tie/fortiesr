@@ -80,6 +80,17 @@ function pairKey(pair) {
   return pair?.key || pair?.pair || "";
 }
 
+// Freqtrade's backtest results always include an aggregate "TOTAL" summary
+// row alongside real per-pair rows. It must never be shown or selectable as
+// a trading pair in any approval UI.
+function isSummaryRowKey(key) {
+  return typeof key === "string" && key.trim().toUpperCase() === "TOTAL";
+}
+
+function dropSummaryRows(items, keyFn = pairKey) {
+  return (items || []).filter((item) => !isSummaryRowKey(keyFn(item)));
+}
+
 function formatRatioPct(value) {
   if (value == null || value === "") return "-";
   const num = Number(value);
@@ -162,7 +173,11 @@ function getApprovalReview(pipelineState) {
   const discoveryResults = pipelineState.discovery_results || {};
   const pairMetrics = discoveryResults.pair_metrics || {};
 
-  const stageRows = firstNonEmptyArray(data.all_pairs, data.per_pair, pipelineState.selected_pairs);
+  // selected_pairs / user_approved_pairs are now included in the API snapshot
+  const statePairs = pipelineState.selected_pairs || [];
+  const stateApproved = pipelineState.user_approved_pairs || [];
+
+  const stageRows = firstNonEmptyArray(data.all_pairs, data.per_pair, statePairs);
 
   let rows;
   let recommended;
@@ -172,8 +187,8 @@ function getApprovalReview(pipelineState) {
       data.pre_selected,
       data.passing_pairs,
       data.current_pairs,
-      pipelineState.user_approved_pairs,
-      (pipelineState.selected_pairs || []).map(pairKey).filter(Boolean)
+      stateApproved,
+      statePairs.map(pairKey).filter(Boolean)
     );
   } else if (Object.keys(pairMetrics).length > 0) {
     rows = Object.entries(pairMetrics).map(([key, metrics]) => ({
@@ -187,9 +202,24 @@ function getApprovalReview(pipelineState) {
       data.pre_selected,
       data.passing_pairs,
       data.current_pairs,
-      pipelineState.user_approved_pairs,
-      (pipelineState.selected_pairs || []).map(pairKey).filter(Boolean)
+      stateApproved,
+      statePairs.map(pairKey).filter(Boolean)
     );
+  }
+
+  // Fallback: if we still have no rows but recommended/approved pairs exist,
+  // synthesize minimal rows so the table has something to display and the
+  // user can toggle pairs before approving.
+  if (rows.length === 0) {
+    const fallbackKeys = firstNonEmptyArray(
+      recommended,
+      stateApproved,
+      statePairs.map(pairKey).filter(Boolean)
+    );
+    if (fallbackKeys.length > 0) {
+      rows = fallbackKeys.map(k => ({ key: typeof k === "string" ? k : pairKey(k) }));
+      if (recommended.length === 0) recommended = [...fallbackKeys];
+    }
   }
   
   const isPortfolioReview =
@@ -201,8 +231,8 @@ function getApprovalReview(pipelineState) {
   return {
     stage,
     data,
-    rows: rows.filter((row) => pairKey(row)),
-    recommended: recommended.map(pairKey).filter(Boolean),
+    rows: dropSummaryRows(rows.filter((row) => pairKey(row))),
+    recommended: dropSummaryRows(recommended.map(pairKey).filter(Boolean), (k) => k),
     isPortfolioReview,
   };
 }
@@ -213,7 +243,7 @@ function PortfolioBaselineReview({ data, onResume }) {
   const [selectedPairs, setSelectedPairs] = useState([]);
   const initializedRef = useRef(false);
 
-  const perPair = data.per_pair || [];
+  const perPair = dropSummaryRows(data.per_pair || [], (p) => p?.key || p?.pair || "");
   const portfolioProfit = data.portfolio_profit ?? 0;
   const portfolioMaxDd = data.portfolio_max_dd ?? 0;
   const portfolioTrades = data.portfolio_trades ?? 0;
@@ -222,7 +252,10 @@ function PortfolioBaselineReview({ data, onResume }) {
   // Initialize selected pairs with all pairs from current_pairs or per_pair (only once)
   useEffect(() => {
     if (!initializedRef.current) {
-      const initialPairs = (data.current_pairs || perPair.map(p => p.key)).filter(Boolean);
+      const initialPairs = dropSummaryRows(
+        data.current_pairs || perPair.map(p => p.key),
+        (k) => k
+      ).filter(Boolean);
       setSelectedPairs(initialPairs);
       initializedRef.current = true;
     }

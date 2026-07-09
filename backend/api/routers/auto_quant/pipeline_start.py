@@ -304,7 +304,7 @@ async def _start_pipeline_from_body(
         max_attempts=normalized["max_attempts"],
     )
 
-    asyncio.create_task(_pl.run_pipeline(run_id))
+    _pl.launch_pipeline_task(run_id)
 
     return StartAutoQuantResponse(
         run_id=run_id,

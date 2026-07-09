@@ -12,10 +12,26 @@ export const Route = createFileRoute('/runs/$runId')({
 
 function RunLayout() {
   const { runId } = Route.useParams()
-  const { data: run } = useQuery({
+  
+  console.log('RunLayout runId:', runId)
+  
+  if (!runId || runId === 'undefined') {
+    return <div className="text-text-muted">Invalid run ID</div>
+  }
+  
+  const { data: run, isLoading, error } = useQuery({
     queryKey: ['run', runId],
     queryFn: () => fetchRun(runId),
+    enabled: !!runId && runId !== 'undefined',
   })
+
+  if (isLoading) {
+    return <div className="text-text-muted">Loading run...</div>
+  }
+
+  if (error) {
+    return <div className="text-destructive">Error loading run: {error.message}</div>
+  }
   
   const addLog = useRunStore(state => state.addLog)
   const addFitnessPoint = useRunStore(state => state.addFitnessPoint)

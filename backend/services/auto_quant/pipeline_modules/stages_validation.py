@@ -5,7 +5,6 @@ from the stages subpackage to maintain backward compatibility.
 """
 
 from .stages import (
-    _stage_pre_selection,
     _stage_pre_flight_filtering,
     _stage_sanity_backtest,
     _stage_portfolio_baseline,
@@ -16,7 +15,6 @@ from .stages import (
 )
 
 __all__ = [
-    "_stage_pre_selection",
     "_stage_pre_flight_filtering",
     "_stage_sanity_backtest",
     "_stage_portfolio_baseline",

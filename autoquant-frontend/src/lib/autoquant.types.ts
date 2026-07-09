@@ -33,6 +33,10 @@ export interface Run {
   stages?: Stage[];
   selected_pairs?: string[];
   user_approved_pairs?: string[];
+  discovery_results?: {
+    recommended_pairs?: string[];
+  };
+  all_pairs?: PairMetrics[];
 }
 
 export interface Stage {

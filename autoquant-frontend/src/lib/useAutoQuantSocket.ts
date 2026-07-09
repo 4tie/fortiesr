@@ -34,6 +34,7 @@ export function useAutoQuantSocket({
 
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
+    if (!runId) return;
 
     const wsUrl = `/api/auto-quant/runs/${runId}/ws`;
     const ws = new WebSocket(wsUrl);

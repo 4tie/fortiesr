@@ -1,14 +1,57 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { useQuery } from '@tanstack/react-query'
+import React from 'react'
 import { useRunStore } from '../lib/runStore'
 import { formatPercent } from '../lib/format'
+import { fetchRun } from '../lib/api'
 import PairTable from '../components/autoquant/PairTable'
+import type { PairMetrics } from '../lib/autoquant.types'
 
 export const Route = createFileRoute('/runs/$runId/pairs')({
   component: PairSelection,
 })
 
 function PairSelection() {
-  const { pairs } = useRunStore()
+  const { runId } = Route.useParams()
+  
+  if (!runId) {
+    return <div className="text-text-muted">Invalid run ID</div>
+  }
+  
+  const { pairs: storePairs } = useRunStore()
+  const { data: run } = useQuery({
+    queryKey: ['run', runId],
+    queryFn: () => fetchRun(runId),
+    enabled: !!runId,
+  })
+  
+  // Get pairs from API response or store
+  const rawPairs = run?.all_pairs || run?.selected_pairs || run?.user_approved_pairs || run?.discovery_results?.recommended_pairs || storePairs || []
+  
+  // Convert string pairs to PairMetrics format if needed
+  const pairs: PairMetrics[] = React.useMemo(() => {
+    if (!Array.isArray(rawPairs) || rawPairs.length === 0) {
+      return []
+    }
+    
+    // Check if first element is a string (pair key) or PairMetrics object
+    const firstItem = rawPairs[0]
+    if (typeof firstItem === 'string') {
+      // Convert string array to PairMetrics
+      return (rawPairs as string[]).map((pairKey: string) => ({
+        key: pairKey,
+        profit_total: 0,
+        profit_total_abs: 0,
+        max_drawdown: 0,
+        win_rate: 0,
+        profit_factor: 0,
+        trades: 0,
+      }))
+    }
+    // Already PairMetrics format
+    return rawPairs as PairMetrics[]
+  }, [rawPairs])
+  
   const [selectedPairs, setSelectedPairs] = React.useState<Set<string>>(new Set())
 
   const togglePair = (pairKey: string) => {

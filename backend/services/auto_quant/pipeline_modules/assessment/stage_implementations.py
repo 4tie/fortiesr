@@ -351,13 +351,20 @@ async def _stage_joint_portfolio_backtest(
     expectancy = portfolio_summary.get("profit_mean_pct", 0.0)
     trade_count = portfolio_trades
     
-    # WFA stability score (from Stage 4 stability_scores)
+    # WFA stability score — the real Walk-Forward Analysis pass rate computed
+    # in Stage 3 (stored on state.stages[2].data["wfo_pass_rate"] by
+    # stages_optimization.py), expressed on a 0-100 scale. Falls back to a
+    # neutral midpoint only if Stage 3 genuinely produced no WFO result
+    # (e.g. WFA was skipped for this run).
+    stage3_data = state.stages[2].data if len(state.stages) > 2 and state.stages[2].data else {}
+    wfo_pass_rate = stage3_data.get("wfo_pass_rate")
+    wfa_stability = (wfo_pass_rate * 100.0) if wfo_pass_rate is not None else 50.0
+
+    # Stress survival score — the real fee-stress degradation score computed
+    # in Stage 4 (state.stability_scores, derived from 1x/2x/3x fee-multiplier
+    # backtests), averaged across pairs.
     stability_values = list((state.stability_scores or {}).values())
-    wfa_stability = sum(stability_values) / len(stability_values) if stability_values else 50.0
-    
-    # Stress survival score (from Stage 4 stress test results)
-    # Use average stability score as proxy for stress survival
-    stress_survival = wfa_stability  # Placeholder - should be from actual stress test results
+    stress_survival = sum(stability_values) / len(stability_values) if stability_values else 50.0
     
     # Normalize metrics to 0-100 scale
     # Profit factor: higher is better, normalize around 1.5

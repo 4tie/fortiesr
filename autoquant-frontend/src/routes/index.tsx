@@ -79,8 +79,8 @@ function RunsList() {
               </tr>
             </thead>
             <tbody>
-              {runs.map((run: Run) => (
-                <tr key={run.id} className="border-b border-border hover:bg-surface-hover transition-colors">
+              {runs.map((run: Run, index) => (
+                <tr key={run.id || index} className="border-b border-border hover:bg-surface-hover transition-colors">
                   <td className="px-4 py-3">
                     <div className="font-mono text-sm">{run.strategy}</div>
                   </td>
@@ -95,7 +95,8 @@ function RunsList() {
                   </td>
                   <td className="px-4 py-3 text-right">
                     <Link
-                      to={`/runs/${run.id}`}
+                      to="/runs/$runId"
+                      params={{ runId: run.id }}
                       className="text-sm text-primary hover:text-primary-dim transition-colors"
                     >
                       View

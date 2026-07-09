@@ -4,18 +4,18 @@
 
 /* Dark glassmorphism design system with neon accents */
 :root {
-  --color-background: oklch(10% 0.01 240);
-  --color-surface: oklch(15% 0.02 240 / 0.4);
-  --color-surface-hover: oklch(20% 0.03 240 / 0.5);
-  --color-primary: oklch(75% 0.2 190);
-  --color-primary-dim: oklch(75% 0.15 190 / 0.5);
-  --color-accent: oklch(70% 0.25 330);
-  --color-success: oklch(70% 0.2 140);
-  --color-warning: oklch(80% 0.15 85);
-  --color-destructive: oklch(65% 0.25 25);
-  --color-text: oklch(95% 0.01 240);
-  --color-text-muted: oklch(70% 0.01 240);
-  --color-border: oklch(30% 0.02 240 / 0.3);
+  --color-background: #0a0a0f;
+  --color-surface: rgba(20, 20, 30, 0.4);
+  --color-surface-hover: rgba(30, 30, 45, 0.5);
+  --color-primary: #00d4ff;
+  --color-primary-dim: rgba(0, 212, 255, 0.5);
+  --color-accent: #ff00ff;
+  --color-success: #00ff88;
+  --color-warning: #ffaa00;
+  --color-destructive: #ff4444;
+  --color-text: #f0f0f0;
+  --color-text-muted: #888888;
+  --color-border: rgba(100, 100, 120, 0.3);
   
   --font-display: "Space Grotesk", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", "Fira Code", monospace;
