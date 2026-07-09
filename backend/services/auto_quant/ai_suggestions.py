@@ -59,6 +59,9 @@ def normalize_ai_suggestions(value: Any) -> list[dict[str, Any]]:
 def resolve_stage_index(name: str, *, default: int | None = None) -> int:
     """Resolve a stage index by configured stage name instead of hardcoding."""
     lowered = name.casefold()
+    # Handle legacy "WFA Hyperopt" reference by mapping to "Standard Hyperopt"
+    if lowered == "wfa hyperopt":
+        lowered = "standard hyperopt"
     for index, stage_name in enumerate(STAGE_NAMES, start=1):
         if stage_name.casefold() == lowered:
             return index
@@ -67,11 +70,11 @@ def resolve_stage_index(name: str, *, default: int | None = None) -> int:
             return index
     if default is not None:
         return default
-    raise ValueError(f"Unknown AutoQuant stage: {name}")
+    raise ValueError(f"Unknown AutoQuant stage: {name} (available stages: {STAGE_NAMES})")
 
 
 def optimization_stage_index() -> int:
-    return resolve_stage_index("WFA Hyperopt")
+    return resolve_stage_index("Standard Hyperopt")
 
 
 def _current_config(state: Any) -> dict[str, Any]:

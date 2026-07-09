@@ -35,6 +35,7 @@ from ...services.agent_context import AgentContextService
 from .copilot_session_store import CopilotSessionStore
 from .intent_router import route_intent, WorkflowPlan
 from .ollama_client import OllamaClient
+from .ollama_errors import friendly_ollama_error
 from .strategy_resolver import resolve_strategy
 from .workflow_tool_executor import WorkflowToolExecutor
 from .workflow_tool_models import (
@@ -230,7 +231,8 @@ class WorkflowCopilot:
                 )
             except Exception as exc:
                 logger.error(f"Model call failed: {exc}")
-                yield {"type": "error", "message": f"Model call failed: {exc}"}
+                friendly_error = friendly_ollama_error(exc)
+                yield {"type": "error", "message": f"⚠️ {friendly_error}"}
                 return
 
             # Extract content and tool calls
@@ -622,7 +624,8 @@ class WorkflowCopilot:
                 )
             except Exception as exc:
                 logger.error(f"Model call failed: {exc}")
-                yield {"type": "error", "message": f"Model call failed: {exc}"}
+                friendly_error = friendly_ollama_error(exc)
+                yield {"type": "error", "message": f"⚠️ {friendly_error}"}
                 return
             
             # Extract content and tool calls

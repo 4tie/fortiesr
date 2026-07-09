@@ -11,7 +11,7 @@ from ..ollama_service import ask_ollama_for_wfa_fix
 from ..policy import load_policy, walk_forward_windows_for_depth
 from ..profit_lockin import ensure_profit_lockin_hyperopt_loss
 from ..variants import active_strategy_path, create_variant, read_strategy_source, strategy_path_args
-from .config import _generate_wfo_windows
+from .config import _generate_wfo_windows, AUTOQUANT_WFO_ENABLED
 from .helpers import (
     _aggregate_wfa_parameters,
     _backtest_cmd,
@@ -73,8 +73,17 @@ def _prepare_hyperopt_loss(state: PipelineState) -> None:
 async def _stage_hyperopt(
     run_id: str, state: PipelineState, out_dir: Path, pairs: list | None = None
 ) -> dict | None:
-    """Dispatcher: routes to WFO or standard hyperopt based on state.wfo_enabled."""
-    _start_stage(run_id, state, 3)  # Stage 3: WFA Hyperopt (1-based indexing)
+    """Dispatcher: routes to WFO or standard hyperopt based on feature flag and state.wfo_enabled."""
+    _start_stage(run_id, state, 3)  # Stage 3: Standard Hyperopt (1-based indexing)
+    
+    # Force Standard Hyperopt when WFO is disabled by feature flag
+    if not AUTOQUANT_WFO_ENABLED:
+        from .logging import _rlog
+        import logging
+        _rlog(run_id, 3, logging.INFO, "WFO disabled by feature flag - using Standard Hyperopt")
+        state.wfo_enabled = False  # Ensure state reflects the feature flag
+        return await _stage_hyperopt_standard(run_id, state, out_dir, pairs)
+    
     if state.wfo_enabled:
         return await _stage_hyperopt_wfo(run_id, state, out_dir, pairs)
     return await _stage_hyperopt_standard(run_id, state, out_dir, pairs)

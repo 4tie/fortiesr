@@ -74,8 +74,8 @@ def _generate_wfo_windows(
 STAGE_NAMES = [
     "Pre-Flight Filtering",
     "Portfolio Baseline Backtest",
-    "WFA Hyperopt",
-    "Robustness & Feature Injection",
+    "Standard Hyperopt",
+    "Robustness Testing",
     "Portfolio Competition",
     "Delivery",
 ]
@@ -109,6 +109,25 @@ MIN_PROFIT_FACTOR = 1.0
 MIN_SHARPE = 0.5
 MIN_OOS_PROFIT = 0.0            # total profit must be >= 0
 MONTE_CARLO_THRESHOLD = 0.20    # 20% maximum 95th-percentile drawdown
+
+# ── AutoQuant Feature Flags ───────────────────────────────────────────────────
+# These master switches control which advanced features are enabled in the active workflow.
+# Backend implementations remain intact for future reactivation.
+
+# Self-Healing: Auto-fix, AI recovery, retry loops, automatic feature injection
+AUTOQUANT_SELF_HEALING_ENABLED = False
+
+# Regime Detection: Market regime detection and adaptive hyperopt configuration
+AUTOQUANT_REGIME_DETECTION_ENABLED = False
+
+# Genetic Algorithm Evolution: Stage 2.5 genetic optimization
+AUTOQUANT_GENETIC_ALGORITHM_ENABLED = False
+
+# Reinforcement Learning: Stage 3.5 RL training and Stage 4.5 RL deployment
+AUTOQUANT_REINFORCEMENT_LEARNING_ENABLED = False
+
+# Walk-Forward Optimization: Rolling WFO windows vs Standard Hyperopt
+AUTOQUANT_WFO_ENABLED = False
 
 # ── Ollama Integration Settings ───────────────────────────────────────────────
 

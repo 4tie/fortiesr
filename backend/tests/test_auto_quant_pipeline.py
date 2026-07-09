@@ -241,7 +241,7 @@ class TestAiApprovalRetryLoop:
         approve_suggestion(state, suggestion["id"])
 
         assert state.current_stage == optimization_stage_index()
-        assert state.stages[optimization_stage_index() - 1].name == "WFA Hyperopt"
+        assert state.stages[optimization_stage_index() - 1].name == "Standard Hyperopt"
         assert state.retry_count == 1
         assert state.retry_history[-1]["ai_suggestion_id"] == suggestion["id"]
         assert state.hyperopt_loss == "SharpeHyperOptLoss"

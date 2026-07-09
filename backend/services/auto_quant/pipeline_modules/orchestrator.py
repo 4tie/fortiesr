@@ -11,7 +11,14 @@ from ..ai_suggestions import create_pending_suggestion, optimization_stage_index
 from ..ollama_service import ask_ollama_for_sensitivity_fix
 from ..policy import load_policy
 from ..variants import ensure_working_copy
-from .config import DEFAULT_STRESS_PAIRS
+from .config import (
+    DEFAULT_STRESS_PAIRS,
+    AUTOQUANT_SELF_HEALING_ENABLED,
+    AUTOQUANT_REGIME_DETECTION_ENABLED,
+    AUTOQUANT_GENETIC_ALGORITHM_ENABLED,
+    AUTOQUANT_REINFORCEMENT_LEARNING_ENABLED,
+    AUTOQUANT_WFO_ENABLED,
+)
 from .discovery import apply_discovery_results, run_discovery
 from .helpers import _emit, _run_subprocess
 from .logging import _rlog, logger, get_queues
@@ -215,8 +222,8 @@ async def run_pipeline(run_id: str) -> None:
                         s1_result)
 
         # ── Stage 1.5: Regime Detection ─────────────────────────────────────
-        # Run regime detection if enabled
-        if state.regime_detection_enabled:
+        # Run regime detection if enabled (controlled by feature flag)
+        if AUTOQUANT_REGIME_DETECTION_ENABLED and state.regime_detection_enabled:
             _rlog(run_id, 1, logging.INFO, "── ENTERING Stage 1.5: Regime Detection ──")
             regime_result = await _stage_regime_detection(run_id, state, out_dir)
             if regime_result:
@@ -224,6 +231,8 @@ async def run_pipeline(run_id: str) -> None:
                       f"Regime Detection Complete | Regime={state.current_regime}")
             else:
                 _rlog(run_id, 1, logging.WARNING, "Regime detection failed, using defaults")
+        elif not AUTOQUANT_REGIME_DETECTION_ENABLED:
+            _rlog(run_id, 1, logging.INFO, "── SKIPPING Stage 1.5: Regime Detection (disabled by feature flag)")
 
         # ── Stage 2: Portfolio Baseline Backtest ───────────────────────────
         # Check if Stage 2 needs to run based on both current_stage and individual stage status
@@ -275,8 +284,8 @@ async def run_pipeline(run_id: str) -> None:
             s2_result = state.stages[1].data if len(state.stages) > 1 else {}
 
         # ── Stage 2.5: Genetic Algorithm Evolution ─────────────────────────
-        # Run genetic evolution if enabled
-        if state.genetic_evolution_enabled:
+        # Run genetic evolution if enabled (controlled by feature flag)
+        if AUTOQUANT_GENETIC_ALGORITHM_ENABLED and state.genetic_evolution_enabled:
             _rlog(run_id, 2, logging.INFO, "── ENTERING Stage 2.5: Genetic Algorithm Evolution ──")
             ga_result = await _stage_genetic_evolution(run_id, state, out_dir)
             if ga_result:
@@ -284,10 +293,12 @@ async def run_pipeline(run_id: str) -> None:
                       f"Genetic Evolution Complete | Best fitness: {ga_result.get('best_fitness', 0):.4f}")
             else:
                 _rlog(run_id, 2, logging.WARNING, "Genetic evolution failed, using default parameters")
+        elif not AUTOQUANT_GENETIC_ALGORITHM_ENABLED:
+            _rlog(run_id, 2, logging.INFO, "── SKIPPING Stage 2.5: Genetic Algorithm Evolution (disabled by feature flag)")
 
         # ── Stage 3.5: RL Training ─────────────────────────────────────────
-        # Run RL training if enabled
-        if state.rl_training_enabled:
+        # Run RL training if enabled (controlled by feature flag)
+        if AUTOQUANT_REINFORCEMENT_LEARNING_ENABLED and state.rl_training_enabled:
             _rlog(run_id, 3, logging.INFO, "── ENTERING Stage 3.5: RL Training ──")
             rl_result = await _stage_rl_training(run_id, state, out_dir)
             if rl_result:
@@ -295,6 +306,8 @@ async def run_pipeline(run_id: str) -> None:
                       f"RL Training Complete | Final reward: {rl_result.get('final_reward', 0):.4f}")
             else:
                 _rlog(run_id, 3, logging.WARNING, "RL training failed, using default strategy")
+        elif not AUTOQUANT_REINFORCEMENT_LEARNING_ENABLED:
+            _rlog(run_id, 3, logging.INFO, "── SKIPPING Stage 3.5: RL Training (disabled by feature flag)")
 
         # ── Stages 3-4: Self-healing retry loop (renumbered from 2-3) ───────
         oos_result: dict | None = None
@@ -303,7 +316,7 @@ async def run_pipeline(run_id: str) -> None:
         _relaxed_gate_attempted: bool = False
 
         while True:
-            # ── Stage 3: WFA Hyperopt (renumbered from Stage 2) ───────────────
+            # ── Stage 3: Standard Hyperopt (renumbered from Stage 2) ───────────────
             # Check if Stage 3 needs to run based on both current_stage and individual stage status
             # Stage 3 corresponds to index 2 in the stages array (0-indexed: stages[2] = Stage 3)
             stage3_needs_run = (state.current_stage < 3) or (len(state.stages) > 2 and state.stages[2].status != "passed")
@@ -318,7 +331,7 @@ async def run_pipeline(run_id: str) -> None:
                         _rlog(run_id, 3, logging.INFO, f"Loaded optimized_path from state: {optimized_path}")
                 break  # Exit the retry loop and continue to Stage 4
             
-            _rlog(run_id, 3, logging.INFO, "── ENTERING Stage 3: WFA Hyperopt ──")
+            _rlog(run_id, 3, logging.INFO, "── ENTERING Stage 3: Standard Hyperopt ──")
             # Pass selected_pairs from Stage 1 pre-flight filtering
             selected_pairs_list = [p["key"] for p in state.selected_pairs] if state.selected_pairs else None
             best_params = await _stage_hyperopt(run_id, state, out_dir, selected_pairs_list)
@@ -358,15 +371,42 @@ async def run_pipeline(run_id: str) -> None:
                 
                 if failure_reason == "FAIL_NEGATIVE_BASELINE":
                     _rlog(run_id, 3, logging.WARNING,
-                          "Sensitivity check FAILED (Negative Baseline) — creating pending AI suggestion. "
+                          "Sensitivity check FAILED (Negative Baseline) — "
                           f"p_best={sensitivity_result.get('p_best')}")
                 else:
                     _rlog(run_id, 3, logging.WARNING,
-                          "Sensitivity check FAILED (Sharp Peak) — creating pending AI suggestion. "
+                          "Sensitivity check FAILED (Sharp Peak) — "
                           f"p_best={sensitivity_result.get('p_best')}  "
                           f"p_minus={sensitivity_result.get('p_minus')}  "
                           f"p_plus={sensitivity_result.get('p_plus')}")
 
+                # Self-healing retry loop disabled by feature flag - fail immediately
+                if not AUTOQUANT_SELF_HEALING_ENABLED:
+                    failure_label = "Negative Baseline" if failure_reason == "FAIL_NEGATIVE_BASELINE" else "Sharp Peak"
+                    state.generalization_failure = {
+                        "thresholds": {
+                            "min_oos_profit": state.min_oos_profit,
+                            "max_drawdown_threshold": state.max_drawdown_threshold,
+                        },
+                        "attempts": state.retry_history,
+                        "best_attempt": max(state.retry_history, key=lambda a: a.get("profit") or -999.0)
+                        if state.retry_history else None,
+                        "best_attempt_file": None,
+                        "best_attempt_strategy_name": None,
+                        "suggestions": [
+                            "Strategy failed robustness check. Self-healing is disabled. "
+                            "Start a new run with different pairs, timeframe, strategy, or parameters."
+                        ],
+                    }
+                    msg = (
+                        f"Strategy failed robustness check ({failure_label} detected). "
+                        "Self-healing is disabled - pipeline halted."
+                    )
+                    _rlog(run_id, 3, logging.ERROR, f"Sensitivity | {msg}")
+                    _fail_stage(run_id, state, 3, msg, state.generalization_failure)
+                    return
+
+                # Self-healing enabled - proceed with retry logic
                 if state.retry_count >= state.max_retries:
                     failure_label = "Negative Baseline" if failure_reason == "FAIL_NEGATIVE_BASELINE" else "Sharp Peak"
                     state.generalization_failure = {
@@ -494,6 +534,17 @@ async def run_pipeline(run_id: str) -> None:
                         reason=f"OOS validation did not pass: {failed_metrics.get('reason', 'unknown')}",
                         metrics=failed_metrics,
                     )
+                    
+                    # Self-healing disabled - fail immediately on OOS validation failure
+                    if not AUTOQUANT_SELF_HEALING_ENABLED:
+                        msg = (
+                            "Selected strategy failed OOS validation. "
+                            "Self-healing is disabled - pipeline halted."
+                        )
+                        _rlog(run_id, 4, logging.ERROR, "Validate Existing | %s", msg)
+                        _fail_stage(run_id, state, 4, msg, failure)
+                        return
+                    
                     if state.retry_count >= state.max_retries:
                         msg = (
                             "Selected strategy failed OOS validation after "
@@ -598,8 +649,8 @@ async def run_pipeline(run_id: str) -> None:
             stage4_result = state.stages[3].data if len(state.stages) > 3 else {}
 
         # ── Stage 4.5: RL Deployment ───────────────────────────────────────
-        # Run RL deployment if enabled
-        if state.rl_deployment_enabled:
+        # Run RL deployment if enabled (controlled by feature flag)
+        if AUTOQUANT_REINFORCEMENT_LEARNING_ENABLED and state.rl_deployment_enabled:
             _rlog(run_id, 4, logging.INFO, "── ENTERING Stage 4.5: RL Deployment ──")
             rl_deploy_result = await _stage_rl_deployment(run_id, state, out_dir)
             if rl_deploy_result:
@@ -607,6 +658,8 @@ async def run_pipeline(run_id: str) -> None:
                       f"RL Deployment Complete | Signals: {rl_deploy_result.get('trades_count', 0)}")
             else:
                 _rlog(run_id, 4, logging.WARNING, "RL deployment failed, using default signals")
+        elif not AUTOQUANT_REINFORCEMENT_LEARNING_ENABLED:
+            _rlog(run_id, 4, logging.INFO, "── SKIPPING Stage 4.5: RL Deployment (disabled by feature flag)")
 
         # ── Stage 5: Portfolio Competition (Joint Portfolio Backtest) ──────────────────────
         _rlog(run_id, 5, logging.INFO, "── ENTERING Stage 5: Portfolio Competition ──")

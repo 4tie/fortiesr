@@ -86,7 +86,7 @@ def test_approve_applies_validated_changes_through_state(tmp_path: Path) -> None
     assert state.hyperopt_epochs == 125
     assert state.param_overrides == {"use_atr": True}
     assert state.retry_count == 1
-    assert state.current_stage == STAGE_NAMES.index("WFA Hyperopt") + 1
+    assert state.current_stage == STAGE_NAMES.index("Standard Hyperopt") + 1
 
 
 def test_reject_applies_nothing_and_exposes_manual_actions(tmp_path: Path) -> None:

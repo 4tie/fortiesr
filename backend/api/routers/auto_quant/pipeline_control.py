@@ -64,6 +64,13 @@ def register_pipeline_control_endpoints(router: APIRouter) -> None:
             # Mark Stage 2 as passed since user approved the baseline
             if len(state.stages) > 1:
                 state.stages[1].status = "passed"
+        elif state.current_stage == optimization_stage_index():
+            # Stage 3 (Standard Hyperopt) approval - advance to robustness
+            state.current_stage = 4
+            # Mark Stage 3 as passed since user approved the pairs
+            stage_idx = optimization_stage_index()
+            if 0 < stage_idx <= len(state.stages):
+                state.stages[stage_idx - 1].status = "passed"
         state.status = "running"
         _pl._save_state_to_disk(state)
 
